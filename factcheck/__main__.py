@@ -19,6 +19,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Captura da saída do Windows e transcrição local.")
     parser.add_argument("--list-devices", action="store_true", help="Listar apenas saídas WASAPI loopback.")
     parser.add_argument("--prepare-model", action="store_true", help="Baixar e testar o modelo local.")
+    parser.add_argument("--prepare-triage-model", action="store_true", help="Baixar o modelo local de identificação de afirmações.")
     parser.add_argument("--engine", choices=("streaming", "whisper"), default="streaming",
                         help="Motor local: contínuo (padrão) ou Whisper em janelas.")
     parser.add_argument("--model", choices=("tiny", "base", "small"), default="small",
@@ -40,6 +41,10 @@ def main() -> int:
     logging.basicConfig(filename=project_root / "logs" / "application.log", encoding="utf-8",
                         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
+        if args.prepare_triage_model:
+            from .triage import prepare_model
+            print(prepare_model(project_root))
+            return 0
         if args.prepare_model:
             from .streaming import StreamingTranscriber
             engine = (StreamingTranscriber(project_root) if args.engine == "streaming" else

@@ -14,6 +14,7 @@ from . import __version__
 from .audio import loopback_devices
 from .paragraphs import ParagraphConfig
 from .session import CaptureSession
+from .workbench import Workbench
 
 
 def timestamp(seconds: float) -> str:
@@ -36,9 +37,9 @@ class CaptureApp:
         self.started_at: float | None = None
         self.warning_count = 0
         self.devices = []
-        root.title(f"Fact Checking · Captura e transcrição · v{__version__}")
-        root.geometry("1000x780")
-        root.minsize(880, 700)
+        root.title(f"Fact Checking · Falas e afirmações · v{__version__}")
+        root.geometry("1120x860")
+        root.minsize(1000, 760)
         root.protocol("WM_DELETE_WINDOW", self.close)
         style = ttk.Style(root)
         style.theme_use("vista")
@@ -50,6 +51,13 @@ class CaptureApp:
         ttk.Label(main, text="Captura e transcrição ao vivo", style="Title.TLabel").pack(anchor="w")
         ttk.Label(main, text="Reproduza o vídeo no computador e selecione a saída usada para ouvi-lo.",
                   style="Hint.TLabel").pack(anchor="w", pady=(5, 20))
+        event_bar = ttk.Frame(main)
+        event_bar.pack(fill="x", pady=(0, 8))
+        ttk.Button(event_bar, text="Dados do debate", command=lambda: self.workbench.configure_debate()).pack(side="right")
+        self.notebook = ttk.Notebook(main)
+        self.notebook.pack(fill="both", expand=True)
+        main = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(main, text="Captura e transcrição")
         controls = ttk.Frame(main)
         controls.pack(fill="x")
         ttk.Label(controls, text="Saída de áudio").pack(anchor="w")
@@ -121,6 +129,8 @@ class CaptureApp:
                                        height=10, relief="solid", borderwidth=1, padx=12, pady=10)
         self.transcript.pack(fill="both", expand=True, pady=(6, 0))
         self.transcript.configure(state="disabled")
+        self.workbench = Workbench(self, self.notebook)
+        ttk.Label(event_bar, textvariable=self.workbench.title, wraplength=830).pack(side="left")
         self.refresh()
         self.root.after(100, self.poll)
 
@@ -146,6 +156,14 @@ class CaptureApp:
         selected = self.device_box.current()
         if self.session or self.closing or not 0 <= selected < len(self.devices):
             return
+        if self.workbench.busy():
+            messagebox.showinfo("Iniciar captura", "Aguarde ou cancele a triagem antes de iniciar outra sessão.", parent=self.root)
+            return
+        try:
+            import winsound
+            winsound.PlaySound(None, 0)
+        except ImportError:
+            pass
         try:
             paragraph_config = ParagraphConfig(pause_seconds=float(self.paragraph_pause.get().replace(",", ".")))
         except ValueError:
@@ -175,7 +193,7 @@ class CaptureApp:
                                        emit=lambda kind, data: self.events.put((kind, data)),
                                        transcribe=self.transcribe_enabled.get(),
                                        engine_name="streaming" if self.engine_box.current() == 0 else "whisper",
-                                       paragraph_config=paragraph_config)
+                                       paragraph_config=paragraph_config, debate=self.workbench.debate)
         threading.Thread(target=self.session.run, name="capture-session", daemon=True).start()
 
     def stop(self) -> None:
@@ -323,6 +341,7 @@ class CaptureApp:
                 self.status.configure(text=data["text"])
             elif kind == "started":
                 self.folder = Path(data["folder"])
+                self.workbench.load(self.folder, live=True)
                 self.started_at = time.monotonic()
                 self.folder_button.configure(state="normal")
                 self.status.configure(text=("Capturando. Áudio enviado a cada 0,2 s; a prévia aparece conforme a fala."
@@ -346,6 +365,13 @@ class CaptureApp:
                 if self.session and self.session.cancel_event.is_set():
                     continue
                 self.update_paragraph(data)
+                self.workbench.on_paragraph(data)
+            elif kind == "triage_update":
+                self.workbench.triage_update(data)
+            elif kind == "triage_notice":
+                self.workbench.last_notice = data["message"]
+                self.workbench.progress.configure(text=data["message"])
+                self.detail.configure(text=f"Triagem: {data['message']}")
             elif kind == "activity_done":
                 self.activities.pop(data["id"], None)
             elif kind == "warning":
@@ -357,6 +383,7 @@ class CaptureApp:
                 messagebox.showerror("Captura e transcrição", data["message"], parent=self.root)
             elif kind == "done":
                 self.session = None
+                self.workbench.refresh()
                 self.set_partial("")
                 self.started_at = None
                 self.meter["value"] = 0

@@ -14,6 +14,7 @@ import wave
 from . import __version__
 from .audio import AudioChunk, AudioDevice, PCMChunker, RollingChunker, pcm_levels
 from .paragraphs import ParagraphAssembler, ParagraphConfig
+from .review import Debate, ReviewStore
 from .streaming import MODEL_NAME, MODEL_REVISION, PACKET_SECONDS, StreamingTranscriber
 from .transcription import LocalTranscriber
 
@@ -26,7 +27,8 @@ class CaptureSession:
     def __init__(self, device: AudioDevice, project_root: Path,
                  emit: Callable[[str, dict], None] | None = None,
                  transcribe: bool = True, model_name: str = "small",
-                 engine_name: str = "streaming", paragraph_config: ParagraphConfig | None = None):
+                 engine_name: str = "streaming", paragraph_config: ParagraphConfig | None = None,
+                 debate: Debate | None = None):
         if engine_name not in {"streaming", "whisper"}:
             raise ValueError("Motor de transcrição desconhecido.")
         self.device = device
@@ -36,6 +38,7 @@ class CaptureSession:
         self.model_name = model_name
         self.engine_name = engine_name
         self.paragraph_config = paragraph_config or ParagraphConfig()
+        self.debate = (debate or Debate()).validate()
         self.result_lock = threading.RLock()
         self.stop_event = threading.Event()
         self.cancel_event = threading.Event()
@@ -85,9 +88,10 @@ class CaptureSession:
         self.folder.mkdir(parents=True, exist_ok=False)
         streaming = self.engine_name == "streaming"
         self.metadata = {
-            "schema_version": 3, "app_version": __version__,
+            "schema_version": 4, "app_version": __version__,
             "session_id": self.folder.name, "started_at": utc_now(),
             "status": "recording", "device": asdict(self.device),
+            "debate": asdict(self.debate),
             "audio_format": "PCM16", "language": "pt-BR" if streaming else "pt",
             "transcription_engine": ("sherpa-onnx" if streaming else "faster-whisper") if engine else None,
             "model": (MODEL_NAME if streaming else self.model_name) if engine else None,
@@ -109,6 +113,7 @@ class CaptureSession:
         metadata_path = self.folder / "session.json"
         metadata_path.write_text(json.dumps(self.metadata, ensure_ascii=False, indent=2),
                                  encoding="utf-8")
+        review_store = ReviewStore(self.folder)
         packets: queue.Queue = queue.Queue(maxsize=512)
         jobs: queue.Queue[AudioChunk | None] = queue.Queue(maxsize=50 if streaming else 12)
         overflow = threading.Event()
@@ -160,6 +165,7 @@ class CaptureSession:
                     paragraph_text.truncate()
                     paragraph_text.flush()
                     self.metadata["paragraph_count"] = paragraphs.count
+                    review_store.ingest(data)
                     self.emit("paragraph", data)
 
             def publish(lines) -> None:

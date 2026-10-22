@@ -4,23 +4,27 @@ Checagem assistida por IA em debates políticos ao vivo.
 
 Projeto de um assistente de pesquisa para equipes humanas de checagem. Durante um debate, o sistema deverá transcrever falas, identificar afirmações verificáveis, pesquisar evidências e preparar análises preliminares para revisão editorial.
 
-**Status:** protótipo local de captura, transcrição contínua e organização em parágrafos, versão 0.4, de 22 de outubro de 2026. A identificação dos participantes, a pesquisa de evidências e o painel editorial fazem parte dos próximos incrementos.
+**Status:** protótipo local com captura, transcrição contínua, revisão das falas e triagem de afirmações, versão 0.5, de 22 de outubro de 2026. A identificação dos participantes é manual; a pesquisa de evidências e a revisão editorial dos dossiês fazem parte dos próximos incrementos.
 
 ## Usar o protótipo
 
 No Windows, abra **iniciar.cmd** com dois cliques. Na janela:
 
-1. Reproduza um vídeo com fala em português no navegador.
+1. Em **Dados do debate**, cadastre título, data, origem do vídeo e os participantes. O cadastro é opcional para um teste rápido.
 2. Selecione a saída usada para ouvir o vídeo, como alto-falantes ou monitor.
 3. Mantenha **Transcrever durante a gravação** marcado, escolha **Contínua · prévia durante a fala** e clique em **Iniciar captura**.
 4. Acompanhe o nível do áudio, a fala em andamento e os parágrafos com horários. A pausa entre parágrafos começa em **1,5 segundo** e pode ser ajustada antes da captura.
 5. Clique em **Encerrar e salvar**. A janela aguarda os trechos pendentes e permite abrir a pasta da sessão.
 
+Na aba **Revisar falas**, selecione um trecho e use **Revisar fala selecionada** para corrigir o texto e atribuir o participante. **Ouvir trecho** reproduz o áudio do parágrafo depois de encerrar a captura, evitando gravar novamente o som da própria revisão. **Abrir sessão gravada** permite trabalhar com gravações anteriores, inclusive da versão 0.4.
+
+Por padrão, parágrafos concluídos entram na triagem local automaticamente. Você também pode usar **Analisar seleção** ou **Analisar todos os trechos concluídos**. Acompanhe a aba **Afirmações para checagem**: cada item mostra citação literal, resumo, participante informado, horário aproximado do parágrafo, contexto e campos extraídos. **Revisar origem** abre a fala correspondente; **Descartar com justificativa** preserva o histórico.
+
 Para interromper a sessão sem aguardar todas as transcrições pendentes, use **Cancelar sessão** e confirme. A captura termina, os resultados pendentes são cancelados e os arquivos já gravados são preservados com estado **cancelled**. Um trecho que já esteja em processamento termina antes de liberar a sessão. Se recusar a confirmação, a captura continua normalmente.
 
 Ao fechar a janela durante a preparação, gravação ou transcrição, o aplicativo exige confirmação, com **Não** como escolha padrão. Confirmar interrompe a gravação, cancela as pendências e descarta o texto provisório. O áudio, os trechos e os parágrafos já gravados são preservados; a janela aguarda a finalização dos arquivos antes de fechar. Para concluir as transcrições pendentes, use **Encerrar e salvar** e aguarde o fim da sessão antes de fechar. Sem trabalho ativo, a janela fecha diretamente.
 
-A proteção de fechamento também considera outras tarefas registradas em segundo plano e aguarda seu encerramento. Essa integração foi testada com uma checagem simulada; a pesquisa e a checagem de fatos ainda serão implementadas.
+A proteção de fechamento também considera a triagem local e editores abertos. Confirmar o fechamento cancela as análises pendentes e aguarda sua finalização; as já persistidas são mantidas. **Cancelar triagem** permite interromper somente a identificação de afirmações, com confirmação. A pesquisa e a checagem de fatos ainda serão implementadas.
 
 A captura acompanha a saída de áudio selecionada e inclui outros sons reproduzidos nela. O modo contínuo mantém o estado do reconhecimento e recebe pacotes sem sobreposição a cada **0,2 segundo**, usando Nemotron 3.5 ASR Streaming pelo sherpa-onnx, em CPU/int8 e português brasileiro. O arquivo WAV preserva o formato nativo; o motor converte o sinal para mono e reamostra internamente para 16 kHz. [Documentação do modelo contínuo](https://k2-fsa.github.io/sherpa/onnx/nemo/nemotron-streaming.html#sherpa-onnx-nemotron-3-5-asr-streaming-0-6b-560ms-int8-2026-06-11-multilingual)
 
@@ -32,7 +36,7 @@ O modo **Whisper · trechos a cada três segundos** continua disponível para co
 
 ### Organização em parágrafos
 
-A versão 0.4 usa regras locais de português para sugerir a organização do texto, sem uma chamada adicional a serviços de IA. O parágrafo aparece assim que chega um trecho estabilizado e pode crescer com os trechos seguintes. A decisão de abrir outro parágrafo acontece quando chega a fala seguinte, considerando:
+O organizador usa regras locais de português para sugerir a organização do texto. O parágrafo aparece assim que chega um trecho estabilizado e pode crescer com os trechos seguintes. A decisão de abrir outro parágrafo acontece quando chega a fala seguinte, considerando:
 
 | Sinal | Critério inicial |
 | --- | --- |
@@ -43,9 +47,28 @@ A versão 0.4 usa regras locais de português para sugerir a organização do te
 | Fala longa | Após 30 s ou 90 palavras, procurar uma separação adequada entre os trechos seguintes; os limites são suaves. |
 | Identificação de falante disponível | Separar quando a identificação muda. A atribuição automática dos participantes ainda está pendente. |
 
-A pausa pode ser configurada de **0,8 a 5 segundos**. Os horários são os estimados pelo reconhecimento. A conclusão de uma ideia é uma heurística que considera conectivos, verbos, auxiliares e finais incompletos; a compreensão semântica geral, as mudanças implícitas de tema e a extração de afirmações continuam pendentes de desenvolvimento e avaliação.
+A pausa pode ser configurada de **0,8 a 5 segundos**. Os horários são os estimados pelo reconhecimento. A conclusão de uma ideia é uma heurística que considera conectivos, verbos, auxiliares e finais incompletos; mudanças implícitas de tema e a qualidade da segmentação continuam sujeitas a avaliação. A triagem das afirmações usa um modelo separado, descrito abaixo.
 
 A pontuação e a capitalização são sugestões de apresentação. **Ver texto original** permite acompanhar as mesmas falas sem essas sugestões. Os registros originais permanecem em **transcript.jsonl** e **transcript.txt**. Cada revisão de parágrafo mantém os identificadores e textos dos trechos de origem, e continua marcada como não revisada por uma pessoa. O encerramento normal inclui o último trecho; cancelar preserva os parágrafos já persistidos e descarta os resultados pendentes.
+
+### Triagem de afirmações e revisão
+
+A identificação usa [Qwen3-4B-GGUF](https://huggingface.co/Qwen/Qwen3-4B-GGUF), quantização Q4_K_M, pelo [llama-cpp-python](https://github.com/abetlen/llama-cpp-python). O modelo ocupa aproximadamente **2,5 GB**, tem revisão fixada no código e executa em um processo local separado. Após preparar os modelos, a transcrição e a triagem funcionam sem enviar áudio ou falas a APIs de IA.
+
+| Categoria da triagem | Encaminhamento |
+| --- | --- |
+| Declaração factual | **Aguardando pesquisa**, se não houver referência de contexto marcada. Isso não significa que seja verdadeira. |
+| Fala com contexto relativo ou ambíguo | **Precisa de contexto**; expressões como “aqui”, “no estado” e “ano passado” permanecem literais. |
+| Opinião ou promessa | Exibida como **Opinião / promessa**, fora da fila de pesquisa factual. Premissas factuais explícitas podem gerar itens separados. |
+| Análise ligada a uma versão alterada | **Análise desatualizada**; requer nova triagem. |
+
+As citações precisam corresponder a intervalos literais da versão analisada. Diferenças apenas de caixa, espaços ou pontuação terminal sugerida são restauradas ao texto da fonte e registradas. Não são aceitos prefixos de palavras ou números como citações completas. Campos de local, período, indicador ou comparação sem correspondência literal na citação são removidos e sinalizados. Resumos com número não fundamentado no texto ou que omitem uma negação explícita são substituídos pela citação. Essas validações limitam erros específicos e não garantem fidelidade semântica; a avaliação humana continua necessária.
+
+Correções no texto, na atribuição do participante ou no cadastro do debate geram revisões e invalidam resultados dependentes. Resultados de uma análise que termina depois de uma correção são descartados como desatualizados. Se a transcrição original crescer após uma edição humana, a correção é preservada e o trecho é marcado para reconciliação, sem sobrescrever o trabalho do revisor. A conferência de uma transcrição é independente da validação factual.
+
+A fila comporta até 30 análises pendentes, processadas uma de cada vez. A captura mantém suas próprias filas. Erros, cancelamento, respostas fora do formato, trechos além do limite do modelo e análises interrompidas aparecem para permitir nova tentativa; as falas continuam salvas. A velocidade depende do processador, da GPU, do tamanho da fala e da resposta. O primeiro uso da GPU pode levar mais tempo para preparar kernels e caches.
+
+O banco **review.sqlite3** guarda o cadastro atual, originais, revisões humanas, análises e afirmações com histórico. Os arquivos de transcrição e parágrafos preservam o reconhecimento original; o texto corrigido aparece na aba de revisão e no banco. A identificação automática de quem fala, a pesquisa de fontes e as conclusões factuais continuam pendentes.
 
 ### Volume e nível do sinal
 
@@ -62,8 +85,9 @@ Cada sessão cria uma pasta exclusiva em **recordings**, contendo:
 | paragraphs.jsonl | Histórico das revisões de cada parágrafo, motivos das quebras e trechos de origem. |
 | session.json | Dispositivo, motor, modelo, revisão do modelo, cadência, duração e problemas registrados. |
 | events.jsonl | Tempos de processamento, falhas e intervalos preenchidos com silêncio. |
+| review.sqlite3 | Cadastro atual, revisões, triagem de afirmações, estados e histórico auditável. |
 
-O modelo contínuo ocupa aproximadamente 682 MB e é baixado para **models** na primeira preparação, com revisão fixada no código. Após o download, a transcrição usa os arquivos locais. No modo contínuo, se a fila exceder dez segundos de áudio ou ocorrer uma falha do motor, a transcrição é interrompida e a prévia é limpa; a captura continua preservando o áudio, com aviso e registro de incompletude. Isso evita continuar um reconhecimento com amostras ausentes. No modo Whisper, as faixas não processadas são registradas para reprocessamento. A escolha de um falante ainda permanece indefinida nos registros.
+O modelo contínuo ocupa aproximadamente 682 MB e é baixado para **models** na primeira preparação, com revisão fixada no código. Após o download, a transcrição usa os arquivos locais. No modo contínuo, se a fila exceder dez segundos de áudio ou ocorrer uma falha do motor, a transcrição é interrompida e a prévia é limpa; a captura continua preservando o áudio, com aviso e registro de incompletude. Isso evita continuar um reconhecimento com amostras ausentes. No modo Whisper, as faixas não processadas são registradas para reprocessamento. O reconhecimento original mantém o falante indefinido; atribuições humanas pertencem às revisões.
 
 Alguns players podem impedir a captura de áudio protegido. O projeto usa apenas a captura normal disponibilizada pelo Windows. [WASAPI loopback](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording)
 
@@ -82,10 +106,13 @@ Na pasta do projeto, prepare o ambiente:
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock
 .\.venv\Scripts\python.exe -m factcheck --prepare-model
+.\.venv\Scripts\python.exe -m factcheck --prepare-triage-model
 .\iniciar.cmd
 ```
 
-As versões verificadas estão em **requirements.lock**. O leitor PyAV está limitado a uma versão compatível com o faster-whisper utilizado. Implementações de referência: [PyAudioWPatch](https://github.com/s0d3s/PyAudioWPatch), [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) e [faster-whisper](https://github.com/SYSTRAN/faster-whisper).
+**requirements.lock** fornece o backend CPU para Windows x64. Para um ambiente novo com GPU NVIDIA e driver compatível, use **requirements-gpu.lock** no comando de instalação. Essa configuração inclui o wheel CUDA e as bibliotecas NVIDIA dentro da `.venv`; não instala drivers nem altera o toolkit global. Foi verificada neste computador com RTX 5060 Laptop, driver 617.42 e runtime CUDA 13.4. A transcrição continua em CPU, e o motor de triagem tenta usar a GPU disponível. Os registros das análises indicam o processador efetivamente usado. Ao trocar um backend já instalado, recrie o ambiente ou reinstale explicitamente o wheel correspondente.
+
+O leitor PyAV está limitado a uma versão compatível com o faster-whisper utilizado. Implementações de referência: [PyAudioWPatch](https://github.com/s0d3s/PyAudioWPatch), [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) e [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Referência das bibliotecas NVIDIA: [instalação de runtimes por pip no Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/).
 
 ## Diagnóstico e testes
 
@@ -104,7 +131,10 @@ Para escolher uma saída pela linha de comando, acrescente **--device** com o í
 
 ### Validação realizada neste computador
 
-- Os 57 testes automatizados passaram, incluindo confirmação recusada e aceita ao cancelar ou fechar, espera pela finalização dos arquivos, checagem simulada sem gravação ativa, cancelamento durante processamento nos dois motores, preservação do áudio e dos parágrafos, revisão da prévia, continuidade de comparações e negações, fila cheia e falha do reconhecimento. A verificação de dependências também passou.
+- Os 85 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente. A verificação de dependências também passou.
+- O ensaio completo da versão 0.5 usou uma fala sintética fictícia com uma declaração factual, uma promessa e uma opinião: gerou os três tipos, associou o participante informado e invalidou os itens após uma correção de atribuição. O cancelamento não acrescentou resultados tardios e manteve o áudio íntegro.
+- Na comparação simultânea com transcrição de um WAV salvo, a triagem em CPU levou cerca de 46 s e a fila de transcrição chegou a 20 pacotes. Com GPU, a triagem levou cerca de 23 s e a fila chegou a dois pacotes, sem falhas registradas nem perda das amostras originais. O cancelamento da triagem nesse ensaio levou aproximadamente 0,02 s. São medidas de um trecho e desta máquina, sem garantia para outros conteúdos.
+- Dois exemplos iniciais em CPU levaram cerca de 20–36 s. No primeiro ensaio com GPU, uma primeira geração levou cerca de 55 s; a seguinte levou cerca de 8 s. Uma fala sem pontuação foi processada em cerca de 15 s. Os ensaios não substituem um conjunto anotado por pessoas para medir precisão, cobertura, fidelidade e vieses.
 - A captura real do vídeo reproduzido pelo usuário salvou 20,011 segundos, estéreo, a 48 kHz, sem falhas sinalizadas pelo dispositivo. Os registros estão na sessão **20261022T215757Z_197ef367**.
 - Na versão inicial, o modelo base processou as cinco janelas dessa sessão em até 0,854 segundo por janela. O modelo small processou o mesmo áudio salvo em 10,798 segundos no total, com até 2,402 segundos por janela. Essas medidas descrevem apenas esse trecho e a configuração CPU/int8 usada no experimento.
 - Na versão 0.2 com Whisper, o primeiro texto teve entrega estimada em aproximadamente 4,1 segundos sobre o vídeo salvo, por simulação da fila. Na versão 0.3 foi feito um novo ensaio alimentando o motor contínuo no ritmo original, com pacotes de 0,2 segundo, sem reproduzir som nem capturar novo áudio:
@@ -150,4 +180,4 @@ O projeto avaliará a redução de trabalho humano junto com a qualidade das evi
 
 ## Próximo marco
 
-Conferir o protótipo com áudio real e avaliar a transcrição em português. Depois, acrescentar cadastro da sessão e dos participantes, correção de transcrição e identificação das afirmações. A definição editorial do piloto e seu conjunto de referência humana continuam no checklist.
+Validar a transcrição e a triagem com gravações representativas e anotações humanas, corrigindo falhas antes de ampliar a automação. Em seguida, ligar afirmações bem definidas à busca de fontes e ao dossiê de evidências, mantendo revisão humana antes de qualquer divulgação. A definição editorial do piloto e seu conjunto de referência continuam no checklist.

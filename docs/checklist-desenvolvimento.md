@@ -4,7 +4,7 @@
 
 Este checklist organiza o trabalho necessário para desenvolver, testar e avaliar o primeiro piloto de checagem assistida por IA em um debate político ao vivo. A equipe humana validará os dossiês e decidirá sobre qualquer divulgação; o piloto será de uso interno.
 
-O plano contém **15 fases de execução, 125 tarefas pendentes e 5 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
+O plano contém **15 fases de execução, 124 tarefas pendentes e 6 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
 
 ### Andamento do primeiro incremento
 
@@ -19,6 +19,8 @@ Na versão 0.2, o primeiro envio de áudio passou para dois segundos, com atuali
 Na versão 0.3, o modo padrão passou a usar reconhecimento contínuo local, recebendo pacotes de 0,2 segundo. A interface separa hipóteses provisórias de trechos estabilizados; somente os estabilizados são persistidos, sempre com revisão humana pendente. O modo Whisper permanece disponível para comparação. O ensaio com o vídeo já salvo, alimentado no ritmo original, entregou a primeira prévia em 1,54 segundo, excluindo preparação, captura e atualização visual. Os 35 testes passaram, incluindo cancelamento nos dois motores e interrupção segura do reconhecimento quando há falha ou fila cheia. A avaliação de precisão com referência humana e as metas de aceitação da fase 06 permanecem pendentes; pacotes de 0,2 segundo não garantem texto pronto nesse intervalo.
 
 Na versão 0.4, a interface passou a agrupar trechos em parágrafos por pausas e regras locais de continuidade da frase, com pausa ajustável, pontuação sugerida e opção de consultar o texto original. Os arquivos **paragraphs.txt** e **paragraphs.jsonl** preservam a versão de leitura e o histórico com ligação aos trechos originais. A janela exige confirmação ao fechar com uma sessão ativa e aguarda o cancelamento e a finalização dos arquivos; tarefas adicionais registradas, incluindo uma checagem simulada, também entram nessa proteção. A checagem real e a identificação automática de falantes continuam pendentes. Os testes cobrem preservação de comparações, negações e complementos, fechamento recusado e confirmado e preservação dos parágrafos ao cancelar.
+
+Na versão 0.5 foram implementados o cadastro de debate e participantes, abertura de sessões gravadas, reprodução do áudio de um parágrafo, correção de texto e atribuição manual de falante. Um banco SQLite por sessão preserva revisões e invalida análises dependentes. A triagem local com Qwen3-4B separa declarações factuais, opiniões, promessas e falas indefinidas, com citações ligadas à versão analisada e campos de contexto. A fila mostra progresso, falhas e cancelamentos; ainda não realiza pesquisa nem conclui sobre veracidade. A configuração com GPU foi testada junto com a transcrição, e 85 testes automatizados cobrem os controles. A avaliação editorial com referência humana das fases 02 e 07 segue pendente; esses ensaios não concluem a fase de triagem.
 
 ## Como acompanhar a execução
 
@@ -134,7 +136,7 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 **Responsável sugerido:** Equipe técnica e operador. **Dependências:** 05.
 
-- [ ] **06.01** Implementar o cadastro da sessão do debate e de seus participantes.
+- [x] **06.01** Implementar o cadastro da sessão do debate e de seus participantes. Entregue na versão 0.5, com persistência por sessão e validação automatizada do cadastro.
 - [ ] **06.02** Implementar reprodução de gravação como entrada de ensaio, preservando o ritmo e os horários.
 - [ ] **06.03** Conectar a entrada de áudio ao vivo e permitir iniciar, pausar e encerrar a captura.
 - [ ] **06.04** Segmentar o áudio e associar trechos à linha do tempo do evento, medindo atraso de entrada.
