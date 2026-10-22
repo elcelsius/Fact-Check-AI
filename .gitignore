@@ -1,0 +1,15 @@
+.venv/
+.cache/
+.codex/
+.aws/
+models/
+recordings/
+logs/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+*.egg-info/
+.pytest_cache/
+.ruff_cache/

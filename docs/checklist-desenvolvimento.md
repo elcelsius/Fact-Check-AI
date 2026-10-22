@@ -1,0 +1,310 @@
+# Checklist de desenvolvimento do sistema de checagem em debates políticos ao vivo
+
+**Versão 0.1 · 22 de outubro de 2026 · Plano do MVP**
+
+Este checklist organiza o trabalho necessário para desenvolver, testar e avaliar o primeiro piloto de checagem assistida por IA em um debate político ao vivo. A equipe humana validará os dossiês e decidirá sobre qualquer divulgação; o piloto será de uso interno.
+
+O plano contém **15 fases de execução, 125 tarefas pendentes e 5 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
+
+### Andamento do primeiro incremento
+
+A equipe de desenvolvimento é formada pelo proponente e pelo Codex. A distribuição das responsabilidades humanas de operação, revisão e decisão editorial continua a ser definida para o piloto.
+
+Por orientação do proponente, o desenvolvimento começou com um experimento de captura da saída de áudio do Windows e transcrição local. O protótipo permite selecionar a saída, acompanhar o nível, iniciar e encerrar a gravação e ler trechos com horários. A primeira captura real de vídeo salvou 20,011 segundos de áudio estéreo a 48 kHz, sem falhas sinalizadas pelo dispositivo; o texto gerado ainda exige revisão. As demais entregas da fase 06 continuam pendentes.
+
+A página privada preserva a versão inicial de planejamento. Este arquivo e o README registram o andamento técnico atual até sua próxima reconciliação com a página.
+
+Na versão 0.2, o primeiro envio de áudio passou para dois segundos, com atualizações a cada três segundos e contexto de até seis segundos. O botão **Cancelar sessão** exige confirmação, cancela pendências e preserva os arquivos já gravados. A validação inclui os caminhos de confirmação aceita e recusada e a diferenciação entre cancelar e encerrar normalmente.
+
+Na versão 0.3, o modo padrão passou a usar reconhecimento contínuo local, recebendo pacotes de 0,2 segundo. A interface separa hipóteses provisórias de trechos estabilizados; somente os estabilizados são persistidos, sempre com revisão humana pendente. O modo Whisper permanece disponível para comparação. O ensaio com o vídeo já salvo, alimentado no ritmo original, entregou a primeira prévia em 1,54 segundo, excluindo preparação, captura e atualização visual. Os 35 testes passaram, incluindo cancelamento nos dois motores e interrupção segura do reconhecimento quando há falha ou fila cheia. A avaliação de precisão com referência humana e as metas de aceitação da fase 06 permanecem pendentes; pacotes de 0,2 segundo não garantem texto pronto nesse intervalo.
+
+Na versão 0.4, a interface passou a agrupar trechos em parágrafos por pausas e regras locais de continuidade da frase, com pausa ajustável, pontuação sugerida e opção de consultar o texto original. Os arquivos **paragraphs.txt** e **paragraphs.jsonl** preservam a versão de leitura e o histórico com ligação aos trechos originais. A janela exige confirmação ao fechar com uma sessão ativa e aguarda o cancelamento e a finalização dos arquivos; tarefas adicionais registradas, incluindo uma checagem simulada, também entram nessa proteção. A checagem real e a identificação automática de falantes continuam pendentes. Os testes cobrem preservação de comparações, negações e complementos, fechamento recusado e confirmado e preservação dos parágrafos ao cancelar.
+
+## Como acompanhar a execução
+
+Uma caixa vazia indica uma tarefa pendente; uma caixa marcada indica uma entrega concluída. Para marcar um item, registrar a entrega correspondente e a verificação realizada. Bloqueios, responsável individual e previsão de conclusão deverão acompanhar a tarefa quando sua execução começar.
+
+Os números das tarefas permitem referenciá-las no acompanhamento do projeto. O responsável de cada fase indica um papel sugerido; a distribuição entre pessoas será definida na fase 01.
+
+As dependências indicam os pré-requisitos para concluir uma fase. Desenho de telas e desenvolvimento com dados simulados podem começar antes de todas as integrações; a aceitação exige o fluxo real. Após a base técnica, transcrição, triagem e pesquisa podem avançar em paralelo, respeitando seus contratos de dados.
+
+A proposta inicial estabelece o escopo; este checklist detalha sua execução. O ensaio com gravação prepara o piloto ao vivo.
+
+## 00 Preparação já concluída
+
+- [x] **00.01** Registrar a proposta inicial do projeto.
+- [x] **00.02** Definir o primeiro caso de uso como debate político ao vivo, com decisão final humana.
+- [x] **00.03** Organizar a documentação na pasta do projeto e disponibilizar a proposta em página privada.
+
+## Visão das fases
+
+| Fase | Entrega principal | Depende das fases |
+| --- | --- | --- |
+| 01 | Definir o piloto e organizar a equipe | 00 |
+| 02 | Definir a metodologia e preparar a avaliação | 01 |
+| 03 | Desenhar a experiência e os contratos de dados | 01, 02 |
+| 04 | Comparar serviços e escolher as tecnologias | 02, 03 |
+| 05 | Preparar a base do projeto | 03, 04 |
+| 06 | Implementar captura de áudio e transcrição | 05 |
+| 07 | Implementar a triagem de afirmações | 02, 05 |
+| 08 | Implementar pesquisa e gestão de evidências | 02, 05 |
+| 09 | Implementar análise e geração dos dossiês | 07, 08 |
+| 10 | Coordenar os agentes e o processamento | 06, 07, 08, 09 |
+| 11 | Construir o painel de revisão humana | 03, 05, 10 |
+| 12 | Preparar monitoramento e operação | 05, 10, 11 |
+| 13 | Validar o sistema em ensaio completo | 02, 06, 07, 08, 09, 10, 11, 12 |
+| 14 | Preparar e executar o piloto ao vivo | 01, 13 |
+| 15 | Avaliar o piloto e planejar a próxima versão | 14 |
+
+## 01 Definir o piloto e organizar a equipe
+
+**Responsável sugerido:** Proponente e editor. **Dependências:** 00.
+
+- [ ] **01.01** Selecionar o debate político ao vivo, a data e a origem da transmissão.
+- [ ] **01.02** Confirmar idioma, participantes, duração prevista e condições de acesso ao áudio.
+- [ ] **01.03** Definir quem opera a transmissão, quem revisa os dossiês e quem responde pela decisão editorial.
+- [ ] **01.04** Descrever o fluxo de trabalho atual da equipe e as principais dificuldades durante debates.
+- [ ] **01.05** Registrar os casos de uso do MVP e os limites de cobertura esperados para uma única transmissão.
+- [ ] **01.06** Definir orçamento máximo, disponibilidade da equipe e capacidade simultânea de revisão.
+- [ ] **01.07** Registrar decisões, responsáveis, dependências e estimativas das entregas antes de iniciar a implementação.
+- [ ] **01.08** Definir o procedimento de interrupção do piloto e de continuidade da checagem manual.
+
+**Fase concluída quando:** Evento, equipe, escopo, limites operacionais e orçamento registrados; cada papel possui um responsável.
+
+## 02 Definir a metodologia e preparar a avaliação
+
+**Responsável sugerido:** Editor e revisores. **Dependências:** 01.
+
+- [ ] **02.01** Escrever as regras para distinguir fatos verificáveis, opiniões, promessas e frases ambíguas.
+- [ ] **02.02** Definir as classificações confirmada, contradita, precisa de contexto e inconclusiva, com exemplos e critérios para resolver sobreposições.
+- [ ] **02.03** Definir critérios de prioridade e descarte aplicáveis igualmente a todos os participantes.
+- [ ] **02.04** Selecionar gravações e transcrições representativas para ensaios, incluindo falas sobrepostas, números e temas diversos.
+- [ ] **02.05** Anotar afirmações, participantes, contexto, fontes e conclusões esperadas; registrar divergências entre os revisores.
+- [ ] **02.06** Separar material de desenvolvimento e de avaliação, evitando que a mesma afirmação ou repetição equivalente apareça nos dois conjuntos.
+- [ ] **02.07** Registrar o corte temporal de cada gravação e distinguir evidências disponíveis na época de informações posteriores.
+- [ ] **02.08** Definir métricas e como medir o trabalho manual, o assistido e a espera na fila, incluindo casos sem resposta.
+- [ ] **02.09** Definir critérios de aceitação, gravidade das falhas e processo para fixar os limites numéricos após o ensaio e antes do piloto.
+
+**Fase concluída quando:** Metodologia, conjunto de referência humana e plano de medição preparados para avaliar o protótipo.
+
+## 03 Desenhar a experiência e os contratos de dados
+
+**Responsável sugerido:** Produto, revisores e equipe técnica. **Dependências:** 01, 02.
+
+- [ ] **03.01** Desenhar as telas de evento, transcrição, fila de afirmações, dossiê e revisão com os futuros usuários.
+- [ ] **03.02** Validar o percurso de conferir a fala, abrir evidências, pedir pesquisa adicional e concluir a revisão.
+- [ ] **03.03** Definir os registros de evento, participante, trecho, afirmação, documento, evidência, análise e decisão humana.
+- [ ] **03.04** Especificar os campos obrigatórios, identificadores, datas, marcações de tempo e vínculos entre os registros.
+- [ ] **03.05** Separar estados de processamento, estados de revisão e classificações da IA e do revisor.
+- [ ] **03.06** Definir como uma correção da fala ou das evidências gera nova versão e exige revalidação.
+- [ ] **03.07** Especificar interfaces entre componentes, permissões por papel e pontos de medição de tempos e custos.
+
+**Fase concluída quando:** Telas essenciais e formatos de entrada e saída definidos, com exemplos de dossiê completo e incompleto.
+
+## 04 Comparar serviços e escolher as tecnologias
+
+**Responsável sugerido:** Equipe técnica com revisão editorial. **Dependências:** 02, 03.
+
+- [ ] **04.01** Preparar uma comparação de transcrição usando as mesmas amostras em português e as mesmas condições de áudio.
+- [ ] **04.02** Comparar modelos de identificação e análise com foco em fidelidade à fala, vínculo com evidências, abstenção e tempo de resposta.
+- [ ] **04.03** Comparar mecanismos de busca e recuperação, verificando acesso real ao documento e localização dos trechos.
+- [ ] **04.04** Estimar custo por hora de evento e por dossiê, incluindo repetições, falhas e novas tentativas.
+- [ ] **04.05** Verificar limites dos serviços e condições de uso, retenção e tratamento do material enviado.
+- [ ] **04.06** Escolher as tecnologias do painel, serviço de coordenação, fila, banco de registros e armazenamento.
+- [ ] **04.07** Registrar as escolhas, alternativas e motivos, mantendo os conectores de transcrição, busca e modelos substituíveis.
+
+**Fase concluída quando:** Tecnologias selecionadas com evidências dos experimentos, limites conhecidos e estimativa inicial de custo.
+
+## 05 Preparar a base do projeto
+
+**Responsável sugerido:** Equipe técnica. **Dependências:** 03, 04.
+
+- [x] **05.01** Criar a estrutura do código e o controle de versão, preservando a documentação existente.
+- [x] **05.02** Configurar ambiente local, ambiente de testes e instruções reproduzíveis para iniciar o projeto.
+- [ ] **05.03** Configurar credenciais por ambiente e impedir que segredos apareçam no código, nos dossiês ou nos registros exportados.
+- [ ] **05.04** Criar os registros e as migrações do banco conforme os contratos de dados.
+- [ ] **05.05** Preparar o armazenamento de mídia e documentos, com identificação de versões e regras de retenção.
+- [ ] **05.06** Implementar autenticação e autorização no serviço para operador, revisor, editor e processos automatizados.
+- [ ] **05.07** Configurar verificação automática do código e testes dos controles centrais em cada alteração.
+- [ ] **05.08** Adicionar identificadores de rastreamento, registros de execução e contabilização básica de uso desde o início.
+
+**Fase concluída quando:** Projeto inicializável e componentes básicos disponíveis, com persistência, permissões e rastreabilidade funcionando.
+
+## 06 Implementar captura de áudio e transcrição
+
+**Responsável sugerido:** Equipe técnica e operador. **Dependências:** 05.
+
+- [ ] **06.01** Implementar o cadastro da sessão do debate e de seus participantes.
+- [ ] **06.02** Implementar reprodução de gravação como entrada de ensaio, preservando o ritmo e os horários.
+- [ ] **06.03** Conectar a entrada de áudio ao vivo e permitir iniciar, pausar e encerrar a captura.
+- [ ] **06.04** Segmentar o áudio e associar trechos à linha do tempo do evento, medindo atraso de entrada.
+- [ ] **06.05** Integrar a transcrição contínua e distinguir resultados provisórios de trechos estabilizados.
+- [ ] **06.06** Associar falas aos participantes, permitir correção manual e manter identificação indefinida quando houver dúvida.
+- [ ] **06.07** Sinalizar dúvidas em números, nomes, negações, sobreposições e trechos inaudíveis, disponibilizando o áudio correspondente.
+- [ ] **06.08** Versionar correções de transcrição e emitir o aviso para reprocessar as análises dependentes.
+- [ ] **06.09** Tratar desconexões e retomadas, registrando lacunas e evitando duplicação silenciosa de trechos.
+
+**Fase concluída quando:** Uma gravação e uma entrada ao vivo produzem transcrição rastreável, corrigível e com falhas visíveis.
+
+## 07 Implementar a triagem de afirmações
+
+**Responsável sugerido:** Equipe técnica e revisores. **Dependências:** 02, 05.
+
+- [ ] **07.01** Detectar afirmações factuais e distinguir opiniões, promessas e enunciados sem definição suficiente.
+- [ ] **07.02** Separar frases com várias afirmações, mantendo a ligação com a fala literal.
+- [ ] **07.03** Extrair participante, tema, local, período, indicador e comparação sem preencher ambiguidades como fatos.
+- [ ] **07.04** Preservar contexto suficiente para referências como nosso governo, aqui e no ano passado.
+- [ ] **07.05** Priorizar as afirmações segundo os critérios editoriais e permitir intervenção humana.
+- [ ] **07.06** Agrupar repetições equivalentes sem misturar períodos, territórios ou indicadores diferentes.
+- [ ] **07.07** Permitir inclusão manual, edição, divisão e descarte com justificativa e histórico.
+- [ ] **07.08** Medir precisão e cobertura contra a referência humana e registrar o que foi selecionado e descartado.
+
+**Fase concluída quando:** Fila de afirmações utilizável com fidelidade à fala, prioridade explicável e resultados de avaliação registrados.
+
+## 08 Implementar pesquisa e gestão de evidências
+
+**Responsável sugerido:** Equipe técnica e revisores. **Dependências:** 02, 05.
+
+- [ ] **08.01** Organizar uma coleção de fontes por tema, com instituição, metodologia, periodicidade e limites de uso.
+- [ ] **08.02** Implementar busca na coleção preparada e na web, registrando as consultas realizadas.
+- [ ] **08.03** Recuperar o conteúdo dos documentos e registrar bloqueio, indisponibilidade ou leitura incompleta.
+- [ ] **08.04** Extrair trechos de páginas, PDFs e tabelas, guardando página, seção ou outro localizador verificável.
+- [ ] **08.05** Registrar URL, autoria, data de publicação quando disponível, período dos dados, horário de acesso e versão do material.
+- [ ] **08.06** Pesquisar evidências favoráveis, contrárias e contextualizadoras sem assumir uma classificação antecipadamente.
+- [ ] **08.07** Relacionar documentos que reproduzem a mesma origem e explicitar a independência das evidências.
+- [ ] **08.08** Localizar checagens anteriores e conferir equivalência da afirmação, validade temporal e diferenças de contexto antes de reutilizar.
+- [ ] **08.09** Conferir se a informação já existia no momento da fala e registrar revisões posteriores separadamente.
+- [ ] **08.10** Restringir a leitura de URLs a destinos permitidos e tratar instruções contidas nas páginas como conteúdo externo.
+
+**Fase concluída quando:** Cada evidência aponta para conteúdo efetivamente recuperado e localizado, com origem, contexto e lacunas registrados.
+
+## 09 Implementar análise e geração dos dossiês
+
+**Responsável sugerido:** Equipe técnica e revisores. **Dependências:** 07, 08.
+
+- [ ] **09.01** Relacionar cada afirmação às evidências recuperadas, distinguindo sustentação, contradição, contexto e insuficiência.
+- [ ] **09.02** Conferir compatibilidade de período, território, população, indicador e metodologia.
+- [ ] **09.03** Registrar cálculos reproduzíveis, unidades, bases de comparação e diferenças entre percentuais e pontos percentuais.
+- [ ] **09.04** Gerar resumo fiel, síntese das evidências, classificação preliminar e justificativa.
+- [ ] **09.05** Explicitar lacunas, conflitos entre fontes e perguntas que ainda precisam de pesquisa.
+- [ ] **09.06** Conferir se as citações existem nos documentos e sustentam as conclusões associadas.
+- [ ] **09.07** Gerar o dossiê no formato definido, com versões separadas para a análise automática e a decisão humana.
+- [ ] **09.08** Encaminhar falhas de evidência e de consistência para correção, mantendo a análise pendente ou inconclusiva conforme o caso.
+
+**Fase concluída quando:** Dossiê completo ou lacunas explícitas disponíveis, sem afirmações materiais sustentadas apenas pela resposta do modelo.
+
+## 10 Coordenar os agentes e o processamento
+
+**Responsável sugerido:** Equipe técnica. **Dependências:** 06, 07, 08, 09.
+
+- [ ] **10.01** Implementar o coordenador que encaminha transcrição, triagem, pesquisa, análise e revisão de consistência.
+- [ ] **10.02** Aplicar contratos de entrada e saída e registrar versões dos modelos, instruções e parâmetros.
+- [ ] **10.03** Implementar fila por prioridade e limites de tarefas simultâneas por evento.
+- [ ] **10.04** Definir limites de duração, custo e tentativas por tarefa e por evento.
+- [ ] **10.05** Permitir cancelar, repetir ou solicitar pesquisa adicional sem criar dossiês duplicados.
+- [ ] **10.06** Impedir que resultados de uma versão antiga da fala sobrescrevam uma versão mais recente.
+- [ ] **10.07** Invalidar análises dependentes quando a fala ou a evidência muda, preservando decisões anteriores no histórico.
+- [ ] **10.08** Aplicar permissões que impeçam agentes de aprovar dossiês, alterar decisões humanas ou divulgar conteúdo.
+- [ ] **10.09** Expor progresso, interrupções e atrasos ao painel, registrando os tempos de cada etapa.
+
+**Fase concluída quando:** Fluxo integrado recuperável após falhas, com controle de versões, limites e decisão editorial restrita a pessoas autorizadas.
+
+## 11 Construir o painel de revisão humana
+
+**Responsável sugerido:** Produto, equipe técnica e revisores. **Dependências:** 03, 05, 10.
+
+- [ ] **11.01** Exibir evento, participantes e transcrição com acesso ao trecho de áudio.
+- [ ] **11.02** Exibir fila de afirmações com filtros por tema, participante, prioridade, estado e responsável.
+- [ ] **11.03** Permitir que um revisor assuma um caso e evitar sobrescrita entre revisões simultâneas.
+- [ ] **11.04** Apresentar fala literal, contexto, pergunta de checagem e recortes definidos.
+- [ ] **11.05** Exibir documentos, localizadores, evidências favoráveis e contrárias e lacunas de pesquisa.
+- [ ] **11.06** Identificar a classificação da IA como preliminar e permitir examinar as evidências antes de consultá-la.
+- [ ] **11.07** Permitir corrigir a afirmação, adicionar evidências, solicitar pesquisa, descartar ou concluir a revisão com justificativa.
+- [ ] **11.08** Mostrar histórico e exigir nova validação quando o dossiê revisado mudar.
+- [ ] **11.09** Implementar exportação interna com versão, responsável, fontes e estado de revisão, preservando a decisão de divulgação com o editor.
+- [ ] **11.10** Verificar legibilidade, navegação por teclado e identificação de estados sem depender apenas de cores.
+
+**Fase concluída quando:** Revisores conseguem executar o fluxo completo e consultar as fontes, com ações humanas registradas e permissões aplicadas.
+
+## 12 Preparar monitoramento e operação
+
+**Responsável sugerido:** Equipe técnica e operador. **Dependências:** 05, 10, 11.
+
+- [ ] **12.01** Criar indicadores de latência por etapa, tamanho da fila, falhas, lacunas de áudio e uso dos serviços.
+- [ ] **12.02** Apresentar custo acumulado e estimativa restante em relação ao orçamento do evento.
+- [ ] **12.03** Configurar alertas para perda de áudio, atraso excessivo, falhas repetidas e aproximação dos limites.
+- [ ] **12.04** Implementar os modos de operação previstos para falha de busca, transcrição ou modelo, mantendo pendências visíveis.
+- [ ] **12.05** Definir acesso, retenção e exclusão de mídia, documentos, registros técnicos e dados dos usuários.
+- [ ] **12.06** Testar cópia de segurança e recuperação dos registros do evento e das revisões.
+- [ ] **12.07** Preparar ambiente de operação e procedimento de atualização e retorno à versão anterior.
+- [ ] **12.08** Escrever instruções para iniciar, acompanhar, interromper e encerrar uma sessão e registrar incidentes.
+
+**Fase concluída quando:** Operador consegue acompanhar qualidade, atrasos e custos e recuperar a operação conforme procedimentos documentados.
+
+## 13 Validar o sistema em ensaio completo
+
+**Responsável sugerido:** Equipe técnica, operador, revisores e editor. **Dependências:** 02, 06, 07, 08, 09, 10, 11, 12.
+
+- [ ] **13.01** Testar o percurso de uma fala até a conclusão humana, incluindo pesquisa adicional e descarte.
+- [ ] **13.02** Testar negações, números, nomes, falas sobrepostas, participante indefinido e correções de transcrição.
+- [ ] **13.03** Testar comparação fora de contexto, fonte única, fontes conflitantes, conteúdo indisponível e checagem desatualizada.
+- [ ] **13.04** Testar instruções maliciosas em documentos e bloqueio de URLs para destinos não permitidos.
+- [ ] **13.05** Testar autorização, revisão simultânea e revalidação de dossiês alterados após aprovação.
+- [ ] **13.06** Simular perda de áudio, falha de serviço, repetição de tarefas, excesso de afirmações e alcance dos limites de custo.
+- [ ] **13.07** Executar o ensaio com gravação no ritmo original e participação da equipe humana.
+- [ ] **13.08** Avaliar com o material reservado e comparar trabalho manual e assistido; incluir amostra revisada sem acesso prévio à sugestão da IA.
+- [ ] **13.09** Corrigir falhas críticas, repetir os cenários afetados e registrar resultados e limitações da amostra.
+- [ ] **13.10** Fixar limites de qualidade, latência e custo e conferir o desempenho antes de liberar o piloto ao vivo.
+
+**Fase concluída quando:** Ensaio registrado, falhas críticas resolvidas e critérios operacionais atendidos para a versão que será usada no evento.
+
+## 14 Preparar e executar o piloto ao vivo
+
+**Responsável sugerido:** Editor, operador, revisores e equipe técnica. **Dependências:** 01, 13.
+
+- [ ] **14.01** Confirmar evento, transmissão, participantes, horários e disponibilidade da equipe.
+- [ ] **14.02** Preparar fontes por tema e revisar a validade das checagens que poderão ser reutilizadas.
+- [ ] **14.03** Treinar a equipe no painel, nos estados do trabalho e nos procedimentos para falhas.
+- [ ] **14.04** Conferir acesso ao áudio, autenticação, limites dos serviços, armazenamento e orçamento antes do evento.
+- [ ] **14.05** Registrar a versão do sistema e a decisão de iniciar, adiar ou interromper conforme os critérios definidos.
+- [ ] **14.06** Iniciar a sessão e acompanhar captura, transcrição, fila, pesquisas e distribuição dos casos.
+- [ ] **14.07** Revisar os dossiês internamente, registrando correções, decisões, esperas e incidentes.
+- [ ] **14.08** Controlar volume, atrasos e custos e acionar o procedimento de interrupção quando necessário.
+- [ ] **14.09** Encerrar a sessão, identificar pendências e preservar os registros necessários à avaliação.
+
+**Fase concluída quando:** Um debate político ao vivo acompanhado pela equipe, com registros completos das análises, decisões e condições de operação.
+
+## 15 Avaliar o piloto e planejar a próxima versão
+
+**Responsável sugerido:** Proponente, editor, revisores e equipe técnica. **Dependências:** 14.
+
+- [ ] **15.01** Consolidar precisão, cobertura, correções, tempos, trabalho humano e custos, com os denominadores e pendências explícitos.
+- [ ] **15.02** Avaliar fontes inventadas, atribuições incorretas, conclusões sem respaldo e falhas de autorização como incidentes específicos.
+- [ ] **15.03** Examinar diferenças por participante, tema e complexidade à luz das afirmações elegíveis.
+- [ ] **15.04** Coletar dificuldades dos revisores e comparar o esforço com a referência de trabalho manual.
+- [ ] **15.05** Registrar o que funcionou, as limitações e as correções necessárias antes de repetir o piloto.
+- [ ] **15.06** Decidir se o próximo ciclo será de correção, novo ensaio, novo debate ou ampliação de escopo.
+- [ ] **15.07** Atualizar documentação e backlog e executar as regras de retenção ou exclusão do material do evento.
+
+**Fase concluída quando:** Relatório de avaliação concluído e próximo ciclo definido com base em evidências do piloto.
+
+## Marcos de acompanhamento
+
+| Marco | Resultado esperado | Fases |
+| --- | --- | --- |
+| Especificação preparada | Piloto, metodologia, avaliação, telas, dados e tecnologias definidos. | 01 a 04 |
+| Base técnica disponível | Ambiente, persistência, permissões e rastreabilidade funcionando. | 05 |
+| Protótipo integrado | Áudio, afirmações, evidências, dossiês e revisão funcionando com monitoramento. | 06 a 12 |
+| Pronto para o debate | Ensaio concluído e critérios de qualidade, latência e custo atendidos. | 13 |
+| Piloto executado | Debate ao vivo acompanhado internamente e registros preservados. | 14 |
+| Próximo ciclo definido | Resultado comparado com a referência humana e backlog atualizado. | 15 |
+
+O primeiro bloco de trabalho é **01.01 a 01.04**: escolher o debate, confirmar o acesso à transmissão, designar a equipe e entender seu fluxo atual. Esses dados orientarão as decisões editoriais e técnicas seguintes.
+
+## Documentação relacionada
+
+- [Proposta inicial](proposta-inicial.md).
+- [Índice do projeto](../README.md).
+- [Checklist em página privada](https://chatgpt.com/space/page_ea170c8f1ddc8191885e9cf08919db22).
+
+Os arquivos locais são a referência para evolução do projeto. A página de leitura e os arquivos deverão ser reconciliados quando houver alterações de conteúdo ou de andamento.
