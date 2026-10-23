@@ -8,7 +8,8 @@ import threading
 import time
 
 from .gemini import GeminiError, GeminiModel
-from .sources import download, extract_document, source_url
+from .net_errors import network_message
+from .sources import download, extract_document, read_local_document, source_url
 
 
 COMPATIBILITY = ("period", "location", "indicator", "methodology")
@@ -99,7 +100,8 @@ def validate_preliminary(result, blocks):
 
 def analyze(snapshot, config, cancelled):
     blocks = select_blocks(snapshot)
-    documents = [{key: doc[key] for key in ("id", "url", "title", "author", "published_at", "accessed_at", "truncated", "warnings")}
+    documents = [{**{key: doc[key] for key in ("id", "url", "title", "author", "published_at", "accessed_at", "truncated", "warnings")},
+                  "acquisition": doc.get("acquisition", "remote_fetch")}
                  for doc in snapshot["documents"]]
     claim = {key: snapshot["claim"].get(key) for key in ("quote", "context", "speaker", "location", "period", "indicator", "comparison")}
     material = {"claim": claim, "event_date": snapshot["debate"]["event_date"], "documents": documents, "blocks": blocks,
@@ -110,6 +112,12 @@ def analyze(snapshot, config, cancelled):
     result["gaps"].append("Análise limitada aos trechos selecionados; conferir também o restante dos documentos e suas tabelas.")
     if any(doc["published_at"] and doc["published_at"][:10] > snapshot["debate"]["event_date"] for doc in documents):
         result["gaps"].append("Há fonte com publicação posterior ao debate; conferir a anterioridade dos dados antes de usar na conclusão.")
+    imported_ids = {doc["id"] for doc in documents if doc["acquisition"] == "local_import"}
+    if imported_ids:
+        result["gaps"].append("Há cópia importada pelo operador: a URL informada não foi consultada. Confirmar origem e correspondência do arquivo.")
+        if result["verdict"] != "inconclusiva" and any(c["document_id"] in imported_ids for c in result["citations"]):
+            result["verdict"] = "inconclusiva"
+            result["gaps"].append("Classificação rebaixada porque depende de uma cópia cuja origem online ainda não foi conferida.")
     result["selected_blocks"] = [{"document_id": b["document_id"], "block_id": b["id"]} for b in blocks]
     return result, {**model.engine, "task": "evidence-analysis", "prompt_version": 1}
 
@@ -118,7 +126,9 @@ def _network_worker(kind, argument, snapshot, config, cancelled, outputs):
     try:
         if kind == "collect":
             raw, content_type, final_url = download(argument, cancelled)
-            result, engine = {"raw": raw, "content_type": content_type, "url": final_url, "requested_url": source_url(argument)}, {}
+            result, engine = {"raw": raw, "content_type": content_type, "url": final_url, "requested_url": source_url(argument), "acquisition": "remote_fetch"}, {}
+        elif kind == "import":
+            result, engine = read_local_document(argument["path"], argument["url"], cancelled), {}
         else:
             result, engine = analyze(snapshot, config, cancelled)
         outputs.put((result, engine, None))
@@ -126,8 +136,9 @@ def _network_worker(kind, argument, snapshot, config, cancelled, outputs):
         outputs.put((None, {}, "Pesquisa cancelada."))
     except (ValueError, GeminiError) as exc:
         outputs.put((None, {}, str(exc)))
-    except PermissionError:
-        outputs.put((None, {}, "O Windows ou o ambiente de execução bloqueou o acesso à rede. Abra o aplicativo pelo iniciar.cmd e confira as permissões de rede."))
+    except OSError as exc:
+        message = "Não foi possível ler o arquivo escolhido. Confira se ele está disponível e acessível." if kind == "import" else network_message(exc, "a fonte")
+        outputs.put((None, {}, message))
     except Exception:
         # Falhas brutas de transporte/extração podem incluir dados da requisição.
         outputs.put((None, {}, "Não foi possível ler ou analisar a fonte. Confira o endereço, o formato e a conexão."))
@@ -137,6 +148,11 @@ def _worker(argument, cancelled, outputs):
     try:
         result = extract_document(argument["raw"], argument["content_type"], argument["url"], cancelled)
         result["requested_url"] = argument["requested_url"]
+        result["acquisition"] = argument.get("acquisition", "remote_fetch")
+        if result["acquisition"] == "local_import":
+            from .review import now
+            result.update({"accessed_at": "", "imported_at": now(), "file_name": argument["file_name"]})
+            result["warnings"].append("Cópia fornecida pelo operador. A URL foi informada, mas não consultada; confirmar a origem e a correspondência do arquivo.")
         outputs.put((result, {}, None))
     except (ValueError, InterruptedError) as exc:
         outputs.put((None, {}, str(exc)))
@@ -166,7 +182,7 @@ class ResearchTask:
             self.cancelled.set()
 
     def _run(self):
-        message = "Pesquisa concluída. Confira o dossiê."
+        message = "Cópia importada. Confira a origem e a correspondência com a URL informada." if self.kind == "import" else "Pesquisa concluída. Confira o dossiê."
         try:
             if self.cancelled.is_set():
                 raise InterruptedError("Pesquisa cancelada.")
@@ -195,7 +211,7 @@ class ResearchTask:
                     continue
                 if error:
                     raise ValueError(error)
-                if self.kind == "collect" and not extracting:
+                if self.kind in {"collect", "import"} and not extracting:
                     ctx = mp.get_context("spawn")
                     outputs, signal = ctx.Queue(), ctx.Event()
                     self.process = ctx.Process(target=_worker, args=(result, signal, outputs), daemon=True)

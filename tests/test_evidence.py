@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 from factcheck.dossiers import DossierStore, render
 from factcheck.research import ResearchTask, select_blocks, validate_preliminary
 from factcheck.review import Debate, ReviewStore
-from factcheck.sources import PinnedHTTPS, download, extract_document, public_address, source_url
+from factcheck.sources import PinnedHTTPS, download, extract_document, public_address, read_local_document, source_url
 from factcheck.triage import TriageConfig, validate_items
 
 
@@ -38,7 +38,36 @@ def preliminary(**overrides):
             "citations": [{"document_id": "doc1", "block_id": "b1", "quote": TEXT, "relation": "sustenta", "explanation": "Mesmo recorte."}], **overrides}
 
 
+def pdf_fixture():
+    from pypdf import PdfWriter
+    from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=500, height=500)
+    font = DictionaryObject({NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"), NameObject("/BaseFont"): NameObject("/Helvetica")})
+    page[NameObject("/Resources")] = DictionaryObject({NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})})
+    stream = DecodedStreamObject()
+    stream.set_data(b"BT /F1 12 Tf 40 400 Td (Documento ficticio: o indicador foi de 3,5 por cento em 2025.) Tj ET")
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
 class SourceTests(unittest.TestCase):
+    def test_import_rejects_unsupported_files_oversized_content_and_fake_pdf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            invalid = root / "invalid.pdf"
+            invalid.write_bytes(HTML)
+            with self.assertRaisesRegex(ValueError, "PDF reconhecível"):
+                read_local_document(invalid, "https://ibge.gov.br/teste", threading.Event())
+            with self.assertRaisesRegex(ValueError, "PDF ou HTML"):
+                read_local_document(root / "file.txt", "https://ibge.gov.br/teste", threading.Event())
+            large = root / "large.html"
+            large.write_bytes(b"x" * 8_000_001)
+            with self.assertRaisesRegex(ValueError, "8 MB"):
+                read_local_document(large, "https://ibge.gov.br/teste", threading.Event())
+
     def test_urls_reject_unlisted_hosts_credentials_private_networks_and_lookalikes(self):
         for url in ("http://www.ibge.gov.br/x", "https://ibge.gov.br.evil.example/x", "https://evilgov.br/x", "https://localhost/",
                     "https://127.0.0.1/", "file:///c:/windows/test", "https://user:pass@ibge.gov.br/", "https://ibge.gov.br:8443/"):
@@ -92,18 +121,7 @@ class SourceTests(unittest.TestCase):
         self.assertTrue(all(b["id"] and b["locator"] for b in doc["blocks"]))
 
     def test_pdf_page_locator_uses_real_text_extraction(self):
-        from pypdf import PdfWriter
-        from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
-        writer = PdfWriter()
-        page = writer.add_blank_page(width=500, height=500)
-        font = DictionaryObject({NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"), NameObject("/BaseFont"): NameObject("/Helvetica")})
-        page[NameObject("/Resources")] = DictionaryObject({NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})})
-        stream = DecodedStreamObject()
-        stream.set_data(b"BT /F1 12 Tf 40 400 Td (Documento ficticio: o indicador foi de 3,5 por cento em 2025.) Tj ET")
-        page[NameObject("/Contents")] = writer._add_object(stream)
-        output = BytesIO()
-        writer.write(output)
-        doc = extract_document(output.getvalue(), "application/pdf", "https://ibge.gov.br/teste.pdf", threading.Event())
+        doc = extract_document(pdf_fixture(), "application/pdf", "https://ibge.gov.br/teste.pdf", threading.Event())
         self.assertIn("página 1", doc["blocks"][0]["locator"])
         self.assertIn("3,5 por cento", doc["blocks"][0]["text"])
 
@@ -147,6 +165,65 @@ class DossierTests(unittest.TestCase):
         self.store.decide(self.cid, 1, "inconclusiva", "Revisor", "Falta contexto.")
         self.add()
         self.assertEqual(self.store.snapshot(self.cid)["decision"]["reviewer"], "Revisor")
+
+    def test_native_local_import_requires_no_network_and_records_unconfirmed_origin(self):
+        file = self.root / "documento-ficticio.html"
+        file.write_bytes(HTML)
+        done = threading.Event()
+        task = ResearchTask(self.store, self.cid, "import", {"path": str(file), "url": "https://ibge.gov.br/teste"},
+                            TriageConfig(), lambda *args: done.set())
+        with patch("factcheck.research.download") as download_mock:
+            task.start()
+            self.assertTrue(done.wait(15))
+        download_mock.assert_not_called()
+        snapshot = self.store.snapshot(self.cid)
+        self.assertEqual(len(snapshot["documents"]), 1)
+        doc = snapshot["documents"][0]
+        self.assertEqual(doc["acquisition"], "local_import")
+        self.assertEqual(doc["accessed_at"], "")
+        self.assertEqual(doc["file_name"], file.name)
+        self.assertIn("não consultada", " ".join(doc["warnings"]))
+        self.assertNotIn(str(file).encode(), self.review.path.read_bytes())
+        exported = render(snapshot)
+        self.assertIn("cópia importada pelo operador", exported)
+        self.assertIn("acesso à URL: Não confirmado", exported)
+        self.assertEqual(file.read_bytes(), HTML)
+
+    def test_native_pdf_import_preserves_original_and_page_locator(self):
+        file = self.root / "documento-ficticio.pdf"
+        original = pdf_fixture()
+        file.write_bytes(original)
+        done = threading.Event()
+        task = ResearchTask(self.store, self.cid, "import", {"path": str(file), "url": "https://ibge.gov.br/teste.pdf"},
+                            TriageConfig(), lambda *args: done.set())
+        with patch("factcheck.research.download") as download_mock:
+            task.start()
+            self.assertTrue(done.wait(15))
+        download_mock.assert_not_called()
+        doc = self.store.snapshot(self.cid)["documents"][0]
+        self.assertEqual(doc["acquisition"], "local_import")
+        self.assertIn("página 1", doc["blocks"][0]["locator"])
+        self.assertIn("3,5 por cento", doc["blocks"][0]["text"])
+        self.assertEqual(file.read_bytes(), original)
+
+    def test_local_copy_cannot_downgrade_same_content_already_retrieved_online(self):
+        self.add()
+        self.store.decide(self.cid, 1, "inconclusiva", "Revisor", "Falta contexto.")
+        local = {**document("local"), "sha256": "doc1", "acquisition": "local_import"}
+        self.store.finish(self.store.begin(self.cid, "import"), local)
+        snapshot = self.store.snapshot(self.cid)
+        self.assertEqual(snapshot["documents"][0]["id"], "doc1")
+        self.assertIsNotNone(snapshot["decision"])
+
+    def test_online_recollection_upgrades_imported_copy_and_requires_new_review(self):
+        local = {**document("local"), "sha256": "same-bytes", "acquisition": "local_import"}
+        self.store.finish(self.store.begin(self.cid, "import"), local)
+        self.store.decide(self.cid, 1, "inconclusiva", "Revisor", "Origem não conferida.")
+        remote = {**document("remote"), "sha256": "same-bytes", "acquisition": "remote_fetch"}
+        self.add(remote)
+        snapshot = self.store.snapshot(self.cid)
+        self.assertEqual(snapshot["documents"][0]["acquisition"], "remote_fetch")
+        self.assertIsNone(snapshot["decision"])
 
     def test_new_evidence_clears_decision_but_preserves_history(self):
         self.add()
@@ -288,6 +365,17 @@ class PreliminaryTests(unittest.TestCase):
 
     def test_literal_quote_with_matching_recuts_can_produce_preliminary_result(self):
         self.assertEqual(validate_preliminary(preliminary(), self.blocks)["verdict"], "confirmada")
+
+    def test_conclusive_analysis_based_on_imported_copy_remains_inconclusive(self):
+        from factcheck.research import analyze
+        doc = {**document(), "acquisition": "local_import", "accessed_at": ""}
+        snapshot = {"claim": {"quote": TEXT}, "debate": {"event_date": "2026-10-22"}, "documents": [doc]}
+        with patch("factcheck.research.GeminiModel") as model:
+            model.return_value.generate.return_value = preliminary()
+            model.return_value.engine = {"model": "simulated"}
+            result, engine = analyze(snapshot, TriageConfig("gemini", "ficticia"), threading.Event())
+        self.assertEqual(result["verdict"], "inconclusiva")
+        self.assertTrue(any("origem online" in gap for gap in result["gaps"]))
 
     def test_unknown_source_or_invented_quote_is_rejected(self):
         for field, value in (("document_id", "invented"), ("block_id", "unknown"), ("quote", "Dado que não existe na fonte.")):

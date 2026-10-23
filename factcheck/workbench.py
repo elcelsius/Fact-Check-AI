@@ -14,6 +14,7 @@ from .review import Debate, ReviewStore
 from .triage import TriageConfig, TriageRunner
 from .gemini import MODEL as GEMINI_MODEL
 from .evidence_ui import EvidencePane
+from .connection_test import ConnectionTest
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -26,6 +27,8 @@ class Workbench:
         self.app, self.root = app, app.root
         self.store = None
         self.runner = None
+        self.connection_test = None
+        self.connection_handlers = {}
         self.ai_config = TriageConfig()
         self.ai_label = tk.StringVar(value="IA: Local · Qwen3-4B · falas processadas neste computador")
         self.debate = Debate()
@@ -91,7 +94,15 @@ class Workbench:
         return tree
 
     def busy(self):
-        return bool(self.runner and self.runner.pending) or self.evidence.busy()
+        return bool(self.runner and self.runner.pending) or self.evidence.busy() or bool(self.connection_test and self.connection_test.pending)
+
+    def connection_test_done(self, data):
+        self.app.activities.pop(data["token"], None)
+        handler = self.connection_handlers.pop(data["token"], None)
+        if self.connection_test and self.connection_test.token == data["token"]:
+            self.connection_test = None
+        if handler:
+            handler(data)
 
     def dialog(self, title):
         window = tk.Toplevel(self.root)
@@ -152,6 +163,7 @@ class Workbench:
             messagebox.showinfo("Configurar IA", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa antes de mudar o motor.", parent=self.root)
             return
         window, close = self.dialog("Configurar IA · sua chave Google Gemini")
+        window.geometry("850x740")
         frame = ttk.Frame(window, padding=20)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Motor para identificar afirmações").pack(anchor="w")
@@ -176,6 +188,57 @@ class Workbench:
         ttk.Button(key_row, text="Limpar", command=lambda: key.set("")).pack(side="left", padx=(6, 0))
         ttk.Label(key_frame, text="Cole sua própria chave neste campo. Ela fica somente na memória enquanto o aplicativo estiver aberto.",
                   wraplength=750).pack(anchor="w", pady=(8, 0))
+        probe = None
+        test_status = tk.StringVar(value="Chave ainda não testada.")
+        test_row = ttk.Frame(key_frame)
+        test_row.pack(fill="x", pady=(8, 0))
+        test_button = ttk.Button(test_row, text="Testar conexão", command=lambda: test_connection())
+        test_button.pack(side="left")
+        ttk.Label(test_row, text="Faz uma chamada com texto fictício e consome cota; não envia falas.", wraplength=560).pack(side="left", padx=10)
+        ttk.Label(key_frame, textvariable=test_status, wraplength=750).pack(anchor="w", pady=(6, 0))
+
+        def changed(*_):
+            if probe and probe.pending:
+                probe.cancel()
+            test_status.set("Chave alterada. Teste novamente se desejar validar a conexão.")
+
+        key.trace_add("write", changed)
+
+        def test_connection():
+            nonlocal probe
+            if self.app.closing:
+                return
+            if probe and probe.pending:
+                probe.cancel()
+                test_status.set("Cancelando teste…")
+                return
+            try:
+                config = TriageConfig("gemini", key.get().strip(), int(rpm.get())).validate()
+            except ValueError:
+                test_status.set("Informe sua chave e um limite válido de requisições antes de testar.")
+                return
+            tested_key = key.get()
+            probe = ConnectionTest(config, lambda kind, data: self.app.events.put((kind, data)))
+            self.connection_test = probe
+
+            def result(data):
+                if not window.winfo_exists():
+                    return
+                test_button.configure(text="Testar conexão")
+                test_status.set(data["message"] if key.get() == tested_key else "Chave alterada. Teste novamente para validar a chave atual.")
+
+            self.connection_handlers[probe.token] = result
+            self.app.register_activity(probe.token, "Teste de conexão Gemini", probe.cancel)
+            test_button.configure(text="Cancelar teste")
+            test_status.set("Testando o modelo com texto fictício…")
+            probe.start()
+
+        def close_settings():
+            if probe and probe.pending:
+                probe.cancel()
+            if probe:
+                self.connection_handlers.pop(probe.token, None)
+            close()
         ttk.Label(frame, text="Captura e transcrição continuam locais. Quando Gemini é escolhido, a triagem envia o parágrafo ao Google. "
                   "A análise de evidências envia a fala, o participante informado, a data do debate e trechos das fontes coletadas. "
                   "O áudio permanece local. Na camada gratuita, o Google "
@@ -204,15 +267,15 @@ class Workbench:
                 self.ai_label.set("IA: Local · Qwen3-4B · falas processadas neste computador" if config.provider == "local" else
                                   f"IA: Gemini · {GEMINI_MODEL} · texto enviado ao Google · até {config.requests_per_minute} chamadas/min")
                 self.progress.configure(text="Configuração aplicada. A próxima análise usará o motor escolhido.")
-                close()
+                close_settings()
             except ValueError:
                 messagebox.showerror("Configurar IA", "Confira a chave e o limite de 1 a 60 requisições por minuto.", parent=window)
 
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x", side="bottom", pady=8)
         ttk.Button(buttons, text="Aplicar configuração", command=save).pack(side="left")
-        ttk.Button(buttons, text="Cancelar", command=close).pack(side="right")
-        window.protocol("WM_DELETE_WINDOW", close)
+        ttk.Button(buttons, text="Cancelar", command=close_settings).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", close_settings)
 
     def update_title(self):
         self.title.set(f"{self.debate.title} · {self.debate.event_date} · {len(self.debate.participants)} participante(s)")

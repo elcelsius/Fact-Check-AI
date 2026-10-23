@@ -59,7 +59,7 @@ class DossierStore:
                     "debate": debate, "jobs": jobs, "queries": queries, **case}
 
     def begin(self, cid, kind):
-        if kind not in {"collect", "analyze"}:
+        if kind not in {"collect", "import", "analyze"}:
             raise ValueError("Tarefa de pesquisa inválida.")
         with self.review.connection() as db:
             self._claim(db, cid, active=True)
@@ -90,9 +90,11 @@ class DossierStore:
                 return False
             cid, revision, case = accepted
             payload = json.loads(db.execute("SELECT payload FROM research_jobs WHERE id=?", (jid,)).fetchone()[0])
-            if payload["kind"] == "collect":
+            if payload["kind"] in {"collect", "import"}:
                 existing = db.execute("SELECT payload FROM evidence WHERE claim_id=?", (cid,)).fetchall()
                 duplicate = any(doc["url"] == result["url"] and doc["sha256"] == result["sha256"]
+                                and (doc.get("acquisition", "remote_fetch") == result.get("acquisition", "remote_fetch")
+                                     or doc.get("acquisition", "remote_fetch") == "remote_fetch")
                                 for (raw,) in existing for doc in [json.loads(raw)])
                 if not duplicate:
                     if len(existing) >= 6 and not any(json.loads(raw)["url"] == result["url"] for (raw,) in existing):
@@ -183,8 +185,13 @@ def render(snapshot):
     for doc in snapshot["documents"]:
         lines.extend([f"### {doc['title']}", "", f"ID: {doc['id']}", f"URL: {doc['url']}",
                       f"Instituição: {doc['institution']} · autoria: {doc['author'] or 'Não identificada'}",
-                      f"Publicação: {doc['published_at'] or 'Não identificada'} · acesso: {doc['accessed_at']}",
+                      f"Publicação: {doc['published_at'] or 'Não identificada'} · acesso à URL: {doc['accessed_at'] or 'Não confirmado'}",
                       f"SHA-256: {doc['sha256']}", *doc["warnings"], ""])
+        if doc.get("acquisition") == "local_import":
+            lines.extend([f"Origem: cópia importada pelo operador · arquivo: {doc.get('file_name', 'Não informado')}",
+                          f"Importação: {doc.get('imported_at', 'Não identificada')} · conteúdo da URL não recuperado nesta coleta.", ""])
+        else:
+            lines.extend(["Origem: conteúdo recuperado da URL.", ""])
         for block in doc["blocks"]:
             lines.extend([f"[{block['id']}] {block['locator']}", block["text"], ""])
     lines.extend(["## Análise preliminar da IA · não aprovada", ""])

@@ -34,6 +34,7 @@ class EvidencePane:
         self.url = ttk.Entry(row)
         self.url.pack(side="left", fill="x", expand=True)
         ttk.Button(row, text="Coletar fonte", command=self.collect).pack(side="left", padx=(8, 0))
+        ttk.Button(row, text="Importar PDF/HTML", command=self.import_document).pack(side="left", padx=(8, 0))
         ttk.Label(self.tab, text="Cole a URL HTTPS de uma página ou PDF institucional. Coleção inicial: gov.br, jus.br, leg.br, OMS, Banco Mundial, FMI, OCDE e ONU.", wraplength=950).pack(anchor="w", pady=4)
         self.documents = ttk.Treeview(self.tab, columns=("title", "source", "date"), show="headings", height=4, selectmode="browse")
         for key, label, width in (("title", "Fonte coletada", 520), ("source", "Instituição", 220), ("date", "Publicação", 140)):
@@ -92,7 +93,7 @@ class EvidencePane:
         claim = snapshot["claim"]
         self.claim_label.configure(text=f"{claim['speaker'] or 'Não identificado'} · {claim['quote'][:200]}" +
                                    (" · DESATUALIZADO" if not snapshot["valid"] else ""))
-        self.work._rows(self.documents, {doc["id"]: (doc["title"], doc["institution"], doc["published_at"] or "Não identificada") for doc in snapshot["documents"]})
+        self.work._rows(self.documents, {doc["id"]: (doc["title"], doc["institution"] + (" · cópia importada" if doc.get("acquisition") == "local_import" else ""), doc["published_at"] or "Não identificada") for doc in snapshot["documents"]})
         # A prévia preserva análise e decisão visíveis; a cópia e a exportação têm todo o texto coletado.
         preview = json.loads(json.dumps(snapshot))
         for doc in preview["documents"]:
@@ -122,6 +123,22 @@ class EvidencePane:
             return
         self.start("analyze", "")
 
+    def import_document(self):
+        if not self.store or not self.cid or self.app.closing:
+            return
+        if self.busy():
+            messagebox.showinfo("Importar documento", "Aguarde ou cancele a pesquisa em andamento.", parent=self.root)
+            return
+        try:
+            url = source_url(self.url.get().strip())
+        except ValueError:
+            messagebox.showinfo("Importar documento", "Primeiro informe a URL institucional de origem no campo da fonte. A cópia será identificada como fornecida pelo operador, sem consulta à URL.", parent=self.root)
+            return
+        filename = filedialog.askopenfilename(parent=self.root, title="Importar cópia já baixada",
+                                             filetypes=[("Documentos PDF e HTML", "*.pdf *.html *.htm"), ("PDF", "*.pdf"), ("HTML", "*.html *.htm")])
+        if filename:
+            self.start("import", {"path": filename, "url": url})
+
     def start(self, kind, argument):
         if not self.store or not self.cid or self.app.closing:
             return
@@ -137,7 +154,7 @@ class EvidencePane:
                                 lambda event, data: self.app.events.put((event, data)))
             self.app.register_activity(task.token, "Pesquisa de evidências", task.cancel)
             self.task = task
-            self.progress.configure(text="Coletando o documento…" if kind == "collect" else "Preparando análise preliminar. Fala e trechos coletados serão enviados ao Gemini.")
+            self.progress.configure(text="Coletando o documento…" if kind == "collect" else "Importando cópia local. A origem online precisará ser conferida." if kind == "import" else "Preparando análise preliminar. Fala e trechos coletados serão enviados ao Gemini.")
             task.start()
         except (ValueError, RuntimeError) as exc:
             self.progress.configure(text=str(exc))

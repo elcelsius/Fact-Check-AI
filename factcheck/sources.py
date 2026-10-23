@@ -5,6 +5,7 @@ from http.client import HTTPSConnection
 from io import BytesIO
 from importlib.metadata import version
 import ipaddress
+from pathlib import Path
 import re
 import socket
 import ssl
@@ -180,7 +181,26 @@ def collect(url, cancelled):
     raw, content_type, final_url = download(requested, cancelled)
     document = extract_document(raw, content_type, final_url, cancelled)
     document["requested_url"] = requested
+    document["acquisition"] = "remote_fetch"
     return document
+
+
+def read_local_document(path, url, cancelled):
+    url = source_url(url)
+    file = Path(path)
+    suffix = file.suffix.lower()
+    if suffix not in {".pdf", ".html", ".htm"}:
+        raise ValueError("Escolha um arquivo PDF ou HTML já baixado.")
+    if cancelled.is_set():
+        raise InterruptedError("Importação cancelada.")
+    with file.open("rb") as stream:
+        raw = stream.read(MAX_BYTES + 1)
+    if len(raw) > MAX_BYTES:
+        raise ValueError("Documento acima do limite de 8 MB.")
+    if suffix == ".pdf" and not raw.startswith(b"%PDF-"):
+        raise ValueError("O arquivo escolhido não contém um PDF reconhecível.")
+    return {"raw": raw, "content_type": "application/pdf" if suffix == ".pdf" else "text/html",
+            "url": url, "requested_url": url, "acquisition": "local_import", "file_name": file.name[:255]}
 
 
 def search_plan(claim):

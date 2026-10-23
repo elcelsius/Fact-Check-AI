@@ -26,6 +26,18 @@ def widgets(parent, kind):
     return found
 
 
+class FakeConnectionTest:
+    token = "connection-test-ui"
+    pending = 1
+    def __init__(self, config, emit):
+        self.config, self.emit = config, emit
+        self.cancelled = threading.Event()
+    def start(self):
+        pass
+    def cancel(self):
+        self.cancelled.set()
+
+
 @unittest.skipUnless(sys.platform == "win32", "Interface Windows")
 class WorkbenchTests(unittest.TestCase):
     def setUp(self):
@@ -115,6 +127,55 @@ class WorkbenchTests(unittest.TestCase):
         info.assert_called_once()
         self.assertEqual(widgets(self.root, tk.Toplevel), [])
 
+    def start_connection_test(self):
+        window, provider, key, apply = self.ai_dialog()
+        key.delete(0, "end")
+        key.insert(0, "chave-propria-ficticia")
+        button = next(b for b in widgets(window, ttk.Button) if b["text"] == "Testar conexão")
+        with patch("factcheck.workbench.ConnectionTest", FakeConnectionTest):
+            button.invoke()
+        return window, key, self.work.connection_test
+
+    def test_testing_user_key_does_not_apply_config_or_send_debate(self):
+        window, key, probe = self.start_connection_test()
+        self.assertEqual(probe.config.api_key, "chave-propria-ficticia")
+        self.assertEqual(self.work.ai_config.provider, "local")
+        self.assertIn(probe.token, self.app.activities)
+        probe.pending = 0
+        self.work.connection_test_done({"token": probe.token, "success": True, "message": "Conexão validada com modelo simulado."})
+        self.assertNotIn(probe.token, self.app.activities)
+        self.assertIsNone(self.work.connection_test)
+        self.assertEqual(self.work.ai_config.provider, "local")
+        for file in self.project.rglob("*"):
+            if file.is_file():
+                self.assertNotIn(b"chave-propria-ficticia", file.read_bytes())
+
+    def test_response_for_old_key_cannot_validate_new_key(self):
+        window, key, probe = self.start_connection_test()
+        key.delete(0, "end")
+        key.insert(0, "outra-chave-ficticia")
+        self.assertTrue(probe.cancelled.is_set())
+        probe.pending = 0
+        self.work.connection_test_done({"token": probe.token, "success": True, "message": "Conexão validada com a chave anterior."})
+        texts = [self.root.getvar(str(label["textvariable"])) for label in widgets(window, ttk.Label) if str(label["textvariable"])]
+        self.assertTrue(any("Chave alterada" in text for text in texts))
+        self.assertFalse(any("Conexão validada" in text for text in texts))
+
+    def test_closing_during_connection_test_requires_confirmation_and_completion(self):
+        window, key, probe = self.start_connection_test()
+        with patch("factcheck.ui.messagebox.askyesno", return_value=False), patch.object(self.root, "destroy") as destroy:
+            self.app.close()
+            self.assertFalse(probe.cancelled.is_set())
+            destroy.assert_not_called()
+        with patch("factcheck.ui.messagebox.askyesno", return_value=True), patch.object(self.root, "destroy") as destroy:
+            self.app.close()
+            self.assertTrue(probe.cancelled.is_set())
+            destroy.assert_not_called()
+            probe.pending = 0
+            self.app.events.put(("connection_test_done", {"token": probe.token, "success": False, "message": "Teste cancelado."}))
+            self.app.poll()
+            destroy.assert_called_once()
+
     def open_dossier(self):
         jid, source = self.work.store.begin_analysis(1)
         item = {"quote": self.text, "category": "fato", "summary": self.text, "reason": "Dado numérico a conferir.",
@@ -137,6 +198,16 @@ class WorkbenchTests(unittest.TestCase):
         self.assertIn("PENDENTE DE REVISÃO HUMANA", export.read_text(encoding="utf8"))
         self.assertIn(self.text, export.read_text(encoding="utf8"))
         self.assertIsNone(pane.store.snapshot(cid)["decision"])
+
+    def test_import_requires_origin_url_before_file_selection(self):
+        pane, cid = self.open_dossier()
+        with patch("factcheck.evidence_ui.filedialog.askopenfilename") as choose, patch("factcheck.evidence_ui.messagebox.showinfo"):
+            pane.import_document()
+        choose.assert_not_called()
+        pane.url.insert(0, "https://ibge.gov.br/fonte")
+        with patch("factcheck.evidence_ui.filedialog.askopenfilename", return_value="C:/fixture/fonte.pdf"), patch.object(pane, "start") as start:
+            pane.import_document()
+        start.assert_called_once_with("import", {"path": "C:/fixture/fonte.pdf", "url": "https://ibge.gov.br/fonte"})
 
     def test_human_dossier_decision_requires_name_and_reason_and_is_saved_separately(self):
         pane, cid = self.open_dossier()

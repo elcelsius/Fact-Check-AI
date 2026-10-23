@@ -371,6 +371,8 @@ class CaptureApp:
                 self.workbench.triage_update(data)
             elif kind == "research_done":
                 self.workbench.evidence.done(data)
+            elif kind == "connection_test_done":
+                self.workbench.connection_test_done(data)
             elif kind == "triage_notice":
                 self.workbench.last_notice = data["message"]
                 self.workbench.progress.configure(text=data["message"])

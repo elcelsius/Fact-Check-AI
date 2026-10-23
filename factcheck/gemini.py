@@ -5,6 +5,8 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from .net_errors import network_message
+
 
 MODEL = "gemini-3.1-flash-lite"
 ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
@@ -42,14 +44,23 @@ class GeminiModel:
         except (KeyError, TypeError, ValueError, AttributeError):
             raise GeminiError("A resposta Gemini não corresponde ao formato ou à fala literal. Revise o trecho e tente novamente.") from None
 
-    def generate(self, system, text, schema, cancel_event):
+    def test_connection(self, cancel_event):
+        schema = {"type": "object", "properties": {"ok": {"type": "boolean"}},
+                  "required": ["ok"], "additionalProperties": False}
+        response = self.generate("Teste técnico de conexão. Retorne somente o objeto JSON solicitado, com ok igual a true.",
+                                 "Este é um teste fictício, sem falas ou documentos reais.", schema, cancel_event, max_output_tokens=128)
+        if response != {"ok": True} or type(response.get("ok")) is not bool:
+            raise GeminiError("O Gemini respondeu, mas o teste não retornou o formato esperado.")
+        return self.engine
+
+    def generate(self, system, text, schema, cancel_event, max_output_tokens=4096):
         if len(text) > 60000:
             raise GeminiError("O material excedeu o limite de envio ao Gemini.")
         if cancel_event.wait(max(0, self.next_request - time.monotonic())):
             raise InterruptedError("Triagem cancelada.")
         payload = {"systemInstruction": {"parts": [{"text": system}]},
                    "contents": [{"role": "user", "parts": [{"text": text}]}],
-                   "generationConfig": {"temperature": 0, "maxOutputTokens": 4096,
+                   "generationConfig": {"temperature": 0, "maxOutputTokens": max_output_tokens,
                        "thinkingConfig": {"thinkingLevel": "MINIMAL"},
                        "responseMimeType": "application/json", "responseJsonSchema": schema}}
         request = Request(ENDPOINT, data=json.dumps(payload).encode("utf8"), method="POST",
@@ -65,13 +76,13 @@ class GeminiModel:
             status = exc.code
             exc.close()
             messages = {429: "Cota ou limite do projeto Gemini atingido (429). Confira os limites no AI Studio.",
-                        400: "O Gemini recusou a requisição (400). Confira o modelo e a configuração.",
+                        400: "O Gemini recusou a requisição (400). Confira a chave, o modelo e a configuração.",
                         401: "Chave Gemini recusada (401). Confira a chave no AI Studio.",
                         403: "Acesso ao Gemini negado (403). Confira a chave, as permissões e a disponibilidade na sua região.",
                         404: "Modelo Gemini indisponível (404). Confira a disponibilidade no AI Studio."}
             raise GeminiError(messages.get(status, f"Gemini indisponível (HTTP {status}). Tente novamente mais tarde.")) from None
-        except (URLError, TimeoutError, OSError):
-            raise GeminiError("Não foi possível concluir a conexão com o Gemini. Confira a internet e tente novamente.") from None
+        except (URLError, TimeoutError, OSError) as exc:
+            raise GeminiError(network_message(exc, "o Gemini")) from None
         except (ValueError, UnicodeError):
             raise GeminiError("O Gemini retornou uma resposta que não é JSON válido.") from None
         if cancel_event.is_set():
