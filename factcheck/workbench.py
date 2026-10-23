@@ -13,6 +13,7 @@ import webbrowser
 from .review import Debate, ReviewStore
 from .triage import TriageConfig, TriageRunner
 from .gemini import MODEL as GEMINI_MODEL
+from .evidence_ui import EvidencePane
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -64,10 +65,12 @@ class Workbench:
         ttk.Button(row, text="Ouvir fala", command=self.play_claim).pack(side="left")
         ttk.Button(row, text="Revisar origem", command=self.edit_claim_source).pack(side="left", padx=8)
         ttk.Button(row, text="Descartar com justificativa", command=self.discard).pack(side="left")
+        ttk.Button(row, text="Abrir dossiê", command=lambda: self.evidence.open_selected()).pack(side="left", padx=8)
         self.claim_detail = ScrolledText(self.claim_tab, wrap="word", height=12, font=("Segoe UI", 11))
         self.claim_detail.pack(fill="both", expand=True)
         self.claim_detail.configure(state="disabled")
         ttk.Label(self.claim_tab, text="Aguardando pesquisa significa que ainda não há evidências nem conclusão sobre veracidade.").pack(anchor="w", pady=8)
+        self.evidence = EvidencePane(self, notebook)
 
     @staticmethod
     def tree(parent, columns, height=14):
@@ -88,7 +91,7 @@ class Workbench:
         return tree
 
     def busy(self):
-        return bool(self.runner and self.runner.pending)
+        return bool(self.runner and self.runner.pending) or self.evidence.busy()
 
     def dialog(self, title):
         window = tk.Toplevel(self.root)
@@ -112,7 +115,7 @@ class Workbench:
 
     def configure_debate(self):
         if self.app.session or self.busy():
-            messagebox.showinfo("Dados do debate", "Encerre a captura e aguarde a triagem antes de alterar o cadastro.", parent=self.root)
+            messagebox.showinfo("Dados do debate", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa antes de alterar o cadastro.", parent=self.root)
             return
         window, close = self.dialog("Dados do debate")
         frame = ttk.Frame(window, padding=20)
@@ -146,7 +149,7 @@ class Workbench:
 
     def configure_ai(self):
         if self.app.session or self.busy():
-            messagebox.showinfo("Configurar IA", "Encerre a captura e aguarde ou cancele a triagem antes de mudar o motor.", parent=self.root)
+            messagebox.showinfo("Configurar IA", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa antes de mudar o motor.", parent=self.root)
             return
         window, close = self.dialog("Configurar IA · identificação de afirmações")
         frame = ttk.Frame(window, padding=20)
@@ -155,8 +158,9 @@ class Workbench:
         provider = ttk.Combobox(frame, state="readonly", values=["Local · Qwen3-4B", f"Gemini API · {GEMINI_MODEL}"])
         provider.current(0 if self.ai_config.provider == "local" else 1)
         provider.pack(fill="x", pady=(6, 12))
-        ttk.Label(frame, text="Captura e transcrição continuam locais. Ao selecionar Gemini, cada parágrafo enviado para "
-                  "triagem será transmitido ao Google, sem áudio ou cadastro do debate. Na camada gratuita, o Google "
+        ttk.Label(frame, text="Captura e transcrição continuam locais. Quando Gemini é escolhido, a triagem envia o parágrafo ao Google. "
+                  "A análise de evidências envia a fala, o participante informado, a data do debate e trechos das fontes coletadas. "
+                  "O áudio permanece local. Na camada gratuita, o Google "
                   "pode usar entradas e respostas para melhorar produtos e permitir revisão humana desses dados.",
                   wraplength=780).pack(anchor="w", pady=8)
         ttk.Label(frame, text="Chave da API Gemini · guardada apenas na memória desta execução").pack(anchor="w", pady=(12, 4))
@@ -201,7 +205,7 @@ class Workbench:
 
     def load(self, folder: Path, live=False):
         if self.busy():
-            raise ValueError("Aguarde ou cancele a triagem antes de abrir outra sessão.")
+            raise ValueError("Aguarde ou cancele a triagem e a pesquisa antes de abrir outra sessão.")
         if self.runner:
             self.runner.cancel()
         store = ReviewStore(folder)
@@ -210,13 +214,14 @@ class Workbench:
             store.recover_interrupted()
         self.store = store
         self.runner = None
+        self.evidence.load(store)
         self.debate = Debate(**store.debate())
         self.update_title()
         self.refresh()
 
     def open_session(self):
         if self.app.session or self.busy():
-            messagebox.showinfo("Abrir sessão", "Encerre a captura e aguarde ou cancele a triagem atual.", parent=self.root)
+            messagebox.showinfo("Abrir sessão", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa atuais.", parent=self.root)
             return
         folder = filedialog.askdirectory(parent=self.root, title="Pasta da sessão gravada", initialdir=self.app.project_root / "recordings")
         if folder:
@@ -251,9 +256,11 @@ class Workbench:
             ("Original atualizado" if source["needs_rebase"] else "Conferida" if source["human_reviewed"] else "Pendente")
             + " · " + state_names.get(states.get((pid, source["revision"]), {}).get("status"), "Sem triagem"),
             source["text"][:220]) for pid, source in self.sources.items()})
-        self._rows(self.claim_tree, {cid: (LABELS[claim["status"]], CATEGORIES[claim["category"]], claim["speaker"] or "Não identificado",
+        case_states = self.evidence.store.states() if self.evidence.store else {}
+        self._rows(self.claim_tree, {cid: (LABELS[claim["status"]] if claim.get("source_outdated") or claim["status"] == "descartada" else case_states.get(cid, LABELS[claim["status"]]), CATEGORIES[claim["category"]], claim["speaker"] or "Não identificado",
             claim["summary"]) for cid, claim in self.claims.items()})
         self.show_claim()
+        self.evidence.refresh()
 
     @staticmethod
     def _rows(tree, rows):
@@ -324,7 +331,7 @@ class Workbench:
             return
         try:
             if self.runner is None or self.runner.cancelled.is_set():
-                if self.busy():
+                if self.runner and self.runner.pending:
                     raise ValueError("Aguarde o cancelamento da triagem anterior.")
                 self.runner = TriageRunner(self.app.project_root, self.store, lambda kind, data: self.app.events.put((kind, data)), config=self.ai_config)
             if self.runner.enqueue(pid, force):
@@ -347,7 +354,7 @@ class Workbench:
                 self.analyze(pid)
 
     def cancel_triage(self):
-        if self.busy() and messagebox.askyesno("Cancelar triagem", "Cancelar as análises pendentes? As falas e os resultados já salvos serão preservados.",
+        if self.runner and self.runner.pending and messagebox.askyesno("Cancelar triagem", "Cancelar as análises pendentes? As falas e os resultados já salvos serão preservados.",
                                             default=messagebox.NO, parent=self.root):
             self.runner.cancel()
 
@@ -356,7 +363,7 @@ class Workbench:
             self.app.activities.pop(data["token"], None)
             return
         self.refresh()
-        if self.busy():
+        if self.runner.pending:
             self.progress.configure(text=self.queue_status())
         else:
             self.app.activities.pop(self.runner.token, None)

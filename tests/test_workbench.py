@@ -13,6 +13,7 @@ import wave
 
 from factcheck.audio import AudioDevice
 from factcheck.review import Debate
+from factcheck.triage import validate_items
 from factcheck.ui import CaptureApp
 
 
@@ -109,6 +110,76 @@ class WorkbenchTests(unittest.TestCase):
             self.work.configure_ai()
         info.assert_called_once()
         self.assertEqual(widgets(self.root, tk.Toplevel), [])
+
+    def open_dossier(self):
+        jid, source = self.work.store.begin_analysis(1)
+        item = {"quote": self.text, "category": "fato", "summary": self.text, "reason": "Dado numérico a conferir.",
+                "topic": "Economia", "location": None, "period": "2025", "indicator": "3,5%", "comparison": None}
+        self.work.store.finish_analysis(jid, validate_items([item], self.text), {})
+        self.work.refresh()
+        cid = self.work.store.claims()[0]["id"]
+        self.work.claim_tree.selection_set(cid)
+        self.work.evidence.open_selected()
+        return self.work.evidence, cid
+
+    def test_dossier_opening_and_export_do_not_start_network_or_approve_result(self):
+        with patch("factcheck.evidence_ui.ResearchTask") as task, patch("factcheck.evidence_ui.webbrowser.open") as browser:
+            pane, cid = self.open_dossier()
+        task.assert_not_called()
+        browser.assert_not_called()
+        export = self.project / "dossie.md"
+        with patch("factcheck.evidence_ui.filedialog.asksaveasfilename", return_value=str(export)):
+            pane.export()
+        self.assertIn("PENDENTE DE REVISÃO HUMANA", export.read_text(encoding="utf8"))
+        self.assertIn(self.text, export.read_text(encoding="utf8"))
+        self.assertIsNone(pane.store.snapshot(cid)["decision"])
+
+    def test_human_dossier_decision_requires_name_and_reason_and_is_saved_separately(self):
+        pane, cid = self.open_dossier()
+        pane.decide()
+        window = widgets(self.root, tk.Toplevel)[0]
+        save = next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar decisão")
+        with patch("factcheck.evidence_ui.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        name = next(widget for widget in widgets(window, ttk.Entry) if type(widget) is ttk.Entry)
+        name.insert(0, "Revisor de teste")
+        widgets(window, tk.Text)[0].insert("1.0", "Ainda não há fontes suficientes.")
+        save.invoke()
+        self.assertFalse(window.winfo_exists())
+        snapshot = pane.store.snapshot(cid)
+        self.assertIsNone(snapshot["preliminary"])
+        self.assertEqual(snapshot["decision"]["verdict"], "inconclusiva")
+        self.assertEqual(snapshot["decision"]["reviewer"], "Revisor de teste")
+
+    def test_close_waits_for_research_process_and_retains_saved_dossier(self):
+        pane, cid = self.open_dossier()
+        class FakeTask:
+            token = "research-test"
+            pending = 1
+            def __init__(task, *args):
+                task.cancelled = threading.Event()
+            def start(task):
+                pass
+            def cancel(task):
+                task.cancelled.set()
+        with patch("factcheck.evidence_ui.ResearchTask", FakeTask):
+            pane.start("collect", "https://www.ibge.gov.br/")
+        self.assertIn("research-test", self.app.activities)
+        self.assertTrue(self.work.busy())
+        self.work.runner = SimpleNamespace(token="triage-finished", pending=0)
+        self.app.register_activity("triage-finished", "Triagem", Mock())
+        self.work.triage_update({"token": "triage-finished"})
+        self.assertNotIn("triage-finished", self.app.activities)
+        self.assertIn("research-test", self.app.activities)
+        with patch("factcheck.ui.messagebox.askyesno", return_value=True), patch.object(self.root, "destroy") as destroy:
+            self.app.close()
+            self.assertTrue(pane.task.cancelled.is_set())
+            destroy.assert_not_called()
+            pane.task.pending = 0
+            self.app.events.put(("research_done", {"token": "research-test", "claim_id": cid, "message": "Cancelado."}))
+            self.app.poll()
+            destroy.assert_called_once()
 
     def test_saving_editor_changes_participant_and_text_without_modifying_original(self):
         window, editor = self.editor()

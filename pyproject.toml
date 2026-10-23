@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "debate-factcheck"
-version = "0.6.0"
+version = "0.7.0"
 description = "Captura de áudio do Windows e transcrição local para checagem assistida"
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -12,6 +12,8 @@ dependencies = [
     "faster-whisper==1.2.1",
     "sherpa-onnx==1.13.8",
     "llama-cpp-python==0.3.36",
+    "trafilatura==2.3.1",
+    "pypdf==6.21.2",
     "av>=15,<17",
     "numpy>=2,<3",
 ]

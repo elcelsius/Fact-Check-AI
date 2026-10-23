@@ -1,4 +1,4 @@
-"""Cliente REST Gemini, só texto, sem pesquisa e sem persistir credenciais."""
+"""Cliente REST Gemini, só texto, sem ferramentas de busca ou credenciais persistidas."""
 
 import json
 import time
@@ -34,13 +34,24 @@ class GeminiModel:
 
         if not text.strip() or len(text) > 16000:
             raise GeminiError("Use um trecho de 1 a 16.000 caracteres para o Gemini.")
+        decoded = self.generate(SYSTEM, "Texto para triagem (dado citado):\n" + json.dumps(text, ensure_ascii=False), SCHEMA, cancel_event)
+        try:
+            if not isinstance(decoded, dict) or set(decoded) != {"items"}:
+                raise ValueError("Formato inválido")
+            return validate_items(decoded["items"], text)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            raise GeminiError("A resposta Gemini não corresponde ao formato ou à fala literal. Revise o trecho e tente novamente.") from None
+
+    def generate(self, system, text, schema, cancel_event):
+        if len(text) > 60000:
+            raise GeminiError("O material excedeu o limite de envio ao Gemini.")
         if cancel_event.wait(max(0, self.next_request - time.monotonic())):
             raise InterruptedError("Triagem cancelada.")
-        payload = {"systemInstruction": {"parts": [{"text": SYSTEM}]},
-                   "contents": [{"role": "user", "parts": [{"text": "Texto para triagem (dado citado):\n" + json.dumps(text, ensure_ascii=False)}]}],
+        payload = {"systemInstruction": {"parts": [{"text": system}]},
+                   "contents": [{"role": "user", "parts": [{"text": text}]}],
                    "generationConfig": {"temperature": 0, "maxOutputTokens": 4096,
                        "thinkingConfig": {"thinkingLevel": "MINIMAL"},
-                       "responseMimeType": "application/json", "responseJsonSchema": SCHEMA}}
+                       "responseMimeType": "application/json", "responseJsonSchema": schema}}
         request = Request(ENDPOINT, data=json.dumps(payload).encode("utf8"), method="POST",
                           headers={"Content-Type": "application/json", "x-goog-api-key": self.config.api_key})
         self.next_request = time.monotonic() + 60 / self.config.requests_per_minute
@@ -72,9 +83,6 @@ class GeminiModel:
             parts = candidates[0]["content"]["parts"]
             content = "".join(part["text"] for part in parts if not part.get("thought") and "text" in part)
             decoded = json.loads(content)
-            if not isinstance(decoded, dict) or set(decoded) != {"items"}:
-                raise ValueError("Formato inválido")
-            items = validate_items(decoded["items"], text)
             usage = data.get("usageMetadata", {})
             self.engine = {**ENGINE, "usage": {key: usage[key] for key in
                 ("promptTokenCount", "candidatesTokenCount", "thoughtsTokenCount", "totalTokenCount")
@@ -82,7 +90,7 @@ class GeminiModel:
             version = data.get("modelVersion")
             if isinstance(version, str) and len(version) <= 100 and all(c.isalnum() or c in ".-_" for c in version):
                 self.engine["model_version"] = version
-            return items
+            return decoded
         except GeminiError:
             raise
         except (KeyError, TypeError, ValueError, AttributeError):

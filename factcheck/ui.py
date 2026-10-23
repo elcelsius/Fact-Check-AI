@@ -158,7 +158,7 @@ class CaptureApp:
         if self.session or self.closing or not 0 <= selected < len(self.devices):
             return
         if self.workbench.busy():
-            messagebox.showinfo("Iniciar captura", "Aguarde ou cancele a triagem antes de iniciar outra sessão.", parent=self.root)
+            messagebox.showinfo("Iniciar captura", "Aguarde ou cancele a triagem e a pesquisa antes de iniciar outra sessão.", parent=self.root)
             return
         try:
             import winsound
@@ -369,6 +369,8 @@ class CaptureApp:
                 self.workbench.on_paragraph(data)
             elif kind == "triage_update":
                 self.workbench.triage_update(data)
+            elif kind == "research_done":
+                self.workbench.evidence.done(data)
             elif kind == "triage_notice":
                 self.workbench.last_notice = data["message"]
                 self.workbench.progress.configure(text=data["message"])
