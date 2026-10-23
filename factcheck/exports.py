@@ -16,7 +16,10 @@ from .timeline import timestamp
 
 
 SCHEMA_VERSION = 1
-FORMATS = {"json": "JSON completo", "paragraphs": "CSV · falas", "claims": "CSV · afirmações", "sources": "CSV · fontes"}
+FORMATS = {"json": "JSON completo", "paragraphs": "CSV · falas", "claims": "CSV · afirmações", "sources": "CSV · fontes",
+           "report_json": "Relatório do ensaio · JSON", "report_txt": "Relatório do ensaio · TXT"}
+SUFFIXES = {"json": ".json", "paragraphs": ".csv", "claims": ".csv", "sources": ".csv",
+            "report_json": ".json", "report_txt": ".txt"}
 ENGINE_KEYS = ("name", "provider", "model", "revision", "quantization", "compute", "prompt_version", "seconds")
 CLAIM_KEYS = ("analysis_id", "paragraph_id", "revision", "speaker", "start", "end", "quote", "summary", "reason",
               "category", "topic", "location", "period", "indicator", "comparison", "context", "status",
@@ -51,7 +54,7 @@ def _check(cancelled):
         raise InterruptedError("Exportação cancelada.")
 
 
-def snapshot(review, include_inactive=False, cancelled=None):
+def read_session(review, cancelled=None):
     _check(cancelled)
     # Copiar as linhas na mesma transação; converter textos fora dela libera os escritores cedo.
     with review.connection() as db:
@@ -65,8 +68,21 @@ def snapshot(review, include_inactive=False, cancelled=None):
             "analyses": "SELECT id,paragraph_id,revision,status,payload FROM analyses ORDER BY rowid",
             "cases": "SELECT claim_id,revision,payload FROM cases ORDER BY claim_id",
             "evidence": "SELECT id,claim_id,payload FROM evidence ORDER BY id",
+            "research_jobs": "SELECT status,payload FROM research_jobs ORDER BY rowid",
         }.items()}
         captured_at = now()
+    return {"event_raw": event_raw, "session_id": session_id, "reference_revision": reference_revision,
+            "offset": offset, "rows": raw, "captured_at": captured_at}
+
+
+def snapshot(review, include_inactive=False, cancelled=None):
+    return build_snapshot(read_session(review, cancelled), include_inactive, cancelled)
+
+
+def build_snapshot(records, include_inactive=False, cancelled=None):
+    event_raw, session_id = records["event_raw"], records["session_id"]
+    reference_revision, offset = records["reference_revision"], records["offset"]
+    raw, captured_at = records["rows"], records["captured_at"]
     _check(cancelled)
     paragraphs = {data["paragraph_id"]: data for (payload,) in raw["paragraphs"] for data in [json.loads(payload)]}
     cases = {cid: (revision, json.loads(payload)) for cid, revision, payload in raw["cases"]}
@@ -241,7 +257,7 @@ def write_export(data, target, kind, review_folder, cancelled=None, commit_lock=
     if kind not in FORMATS:
         raise ValueError("Formato de exportação inválido.")
     target = Path(target).resolve()
-    suffix = ".json" if kind == "json" else ".csv"
+    suffix = SUFFIXES[kind]
     if target.suffix.lower() != suffix:
         raise ValueError(f"Escolha um arquivo com extensão {suffix}.")
     folder = Path(review_folder).resolve()
@@ -250,14 +266,17 @@ def write_export(data, target, kind, review_folder, cancelled=None, commit_lock=
     _check(cancelled)
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf8" if kind == "json" else "utf-8-sig", newline="",
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf8" if kind in {"json", "report_json", "report_txt"} else "utf-8-sig", newline="",
                                          dir=target.parent, prefix=".factcheck-export-", suffix=".tmp", delete=False) as stream:
             temporary = Path(stream.name)
-            if kind == "json":
+            if kind in {"json", "report_json"}:
                 for chunk in json.JSONEncoder(ensure_ascii=False, indent=2, allow_nan=False).iterencode(data):
                     _check(cancelled)
                     stream.write(chunk)
                 stream.write("\n")
+            elif kind == "report_txt":
+                from .reporting import render_report
+                stream.write(render_report(data))
             else:
                 writer = csv.DictWriter(stream, fieldnames=COLUMNS[kind], delimiter=";", quoting=csv.QUOTE_ALL, lineterminator="\r\n")
                 writer.writeheader()
@@ -291,7 +310,11 @@ class ExportTask:
     def _run(self):
         result = {"token": self.token, "success": False}
         try:
-            data = snapshot(self.review, self.include_inactive, self.cancelled)
+            if self.kind in {"report_json", "report_txt"}:
+                from .reporting import session_report
+                data = session_report(self.review, self.cancelled)
+            else:
+                data = snapshot(self.review, self.include_inactive, self.cancelled)
             output = write_export(data, self.target, self.kind, self.review.folder, self.cancelled, self.lock)
             result.update(success=True, message=f"Arquivo exportado: {output}", path=str(output))
         except InterruptedError:

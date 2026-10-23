@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 import wave
 
 from factcheck.audio import AudioDevice
+from factcheck.exports import FORMATS
 from factcheck.review import Debate
 from factcheck.triage import validate_items
 from factcheck.ui import CaptureApp
@@ -146,6 +147,35 @@ class WorkbenchTests(unittest.TestCase):
         self.app.poll()
         self.assertNotIn(task.token, self.app.activities)
         self.assertIn("Arquivo fictício exportado", self.work.export_label.get())
+
+    def test_rehearsal_report_selects_text_suffix_and_disables_historical_scope_without_running_ai(self):
+        window, formats, save = self.export_dialog()
+        formats.current(list(FORMATS).index("report_txt"))
+        formats.event_generate("<<ComboboxSelected>>")
+        history = next(widget for widget in widgets(window, ttk.Checkbutton) if str(widget["text"]).startswith("Incluir itens"))
+        self.assertEqual(str(history["state"]), "disabled")
+        with patch("factcheck.workbench.filedialog.asksaveasfilename", return_value=str(self.project / "relatorio.txt")) as picker, \
+                patch("factcheck.workbench.ExportTask", FakeExportTask), \
+                patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            save.invoke()
+        self.assertEqual(picker.call_args.kwargs["defaultextension"], ".txt")
+        self.assertEqual(self.work.export_task.kind, "report_txt")
+        triage.assert_not_called()
+        research.assert_not_called()
+        self.assertTrue(self.work.busy())
+
+    def test_rehearsal_report_is_blocked_during_capture_before_file_selection(self):
+        self.app.session = Mock()
+        self.app.folder = self.folder
+        window, formats, save = self.export_dialog()
+        formats.current(list(FORMATS).index("report_json"))
+        with patch("factcheck.workbench.filedialog.asksaveasfilename") as picker, \
+                patch("factcheck.workbench.messagebox.showerror") as error, patch("factcheck.workbench.ExportTask") as task:
+            save.invoke()
+        picker.assert_not_called()
+        task.assert_not_called()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
 
     def test_cancelling_file_picker_keeps_export_configuration_open(self):
         window, formats, save = self.export_dialog()

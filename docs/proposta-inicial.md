@@ -6,7 +6,7 @@ O projeto pretende apoiar uma equipe de checagem durante debates políticos ao v
 
 O primeiro piloto será um debate político ao vivo, conforme a escolha do proponente. A hipótese a testar é que a assistência de IA reduz o tempo de pesquisa e organização das evidências, preservando a qualidade da revisão editorial.
 
-O andamento técnico está no [checklist de desenvolvimento](checklist-desenvolvimento.md). A versão 0.12 acrescenta diagnóstico e recuperação local após interrupções, com ensaio técnico de queda documentado no [guia de operação e recuperação](operacao-e-recuperacao.md). A avaliação editorial e o piloto ao vivo continuam pendentes.
+O andamento técnico está no [checklist de desenvolvimento](checklist-desenvolvimento.md). A versão 0.12 acrescenta diagnóstico e recuperação local após interrupções, e a 0.13 inclui relatório operacional e registro de tempos. O [guia de operação e recuperação](operacao-e-recuperacao.md) documenta os ensaios técnicos e o roteiro para conferência humana. A avaliação editorial e o piloto ao vivo continuam pendentes.
 
 ## Problema e proposta de valor
 

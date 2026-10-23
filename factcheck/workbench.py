@@ -17,7 +17,7 @@ from .evidence_ui import EvidencePane
 from .connection_test import ConnectionTest
 from .timeline import describe_time, parse_video_position, timestamp, video_range
 from .grouping import active, reconciliation_needed
-from .exports import ExportTask, FORMATS
+from .exports import ExportTask, FORMATS, SUFFIXES
 from .recovery import (AudioRecoveryTask, SAFE_STATES, STATE_NAMES, capture_state,
                        describe, inspect_session, playback_path)
 
@@ -220,8 +220,8 @@ class Workbench:
             messagebox.showinfo("Exportar sessão", "Aguarde o início da nova captura para exportar seus dados.", parent=self.root)
             return
         store = self.store
-        window, close = self.dialog("Exportar sessão · JSON e CSV")
-        window.geometry("850x420")
+        window, close = self.dialog("Exportar sessão e relatório do ensaio")
+        window.geometry("850x480")
         frame = ttk.Frame(window, padding=20)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Exportar falas, afirmações e fontes", font=("Segoe UI", 12, "bold")).pack(anchor="w")
@@ -230,11 +230,17 @@ class Workbench:
         format_box.current(0)
         format_box.pack(fill="x")
         include_inactive = tk.BooleanVar(value=False)
-        ttk.Checkbutton(frame, text="Incluir itens substituídos, descartados e desatualizados", variable=include_inactive).pack(anchor="w", pady=16)
+        history_box = ttk.Checkbutton(frame, text="Incluir itens substituídos, descartados e desatualizados", variable=include_inactive)
+        history_box.pack(anchor="w", pady=16)
+        def choose_format(_=None):
+            history_box.configure(state="disabled" if list(FORMATS)[format_box.current()].startswith("report_") else "normal")
+        format_box.bind("<<ComboboxSelected>>", choose_format)
         ttk.Label(frame, text="JSON reúne os dados e o texto extraído das fontes. Cada CSV contém uma tabela: falas, afirmações ou fontes. "
                   "Os identificadores acompanham os registros para comparação entre exportações.", wraplength=790).pack(anchor="w", pady=(0, 12))
         ttk.Label(frame, text="A exportação usa os dados salvos no momento da cópia. Falas provisórias e alterações ainda abertas nos editores "
                   "não entram no arquivo. A classificação da IA e a decisão humana permanecem separadas.", wraplength=790).pack(anchor="w")
+        ttk.Label(frame, text="Relatório do ensaio (JSON/TXT): resume tempos, filas e pendências. Inclui contagens históricas separadas "
+                  "e não mede precisão sem referência humana. Encerre a captura para gerar o relatório.", wraplength=790).pack(anchor="w", pady=(12, 0))
 
         def save():
             task = None
@@ -242,17 +248,20 @@ class Workbench:
                 if self.store is not store:
                     raise ValueError("A sessão mudou. Reabra a exportação.")
                 kind = list(FORMATS)[format_box.current()]
-                suffix = ".json" if kind == "json" else ".csv"
+                if kind.startswith("report_") and self.app.session:
+                    raise ValueError("Encerre a captura antes de gerar o relatório do ensaio.")
+                include_history = include_inactive.get() and not kind.startswith("report_")
+                suffix = SUFFIXES[kind]
                 directory = store.folder / "exports"
                 directory.mkdir(exist_ok=True)
                 filename = filedialog.asksaveasfilename(parent=window, title="Salvar exportação da sessão", initialdir=directory,
-                    initialfile=f"sessao-{store.session_id()}-{kind}{'-historico' if include_inactive.get() else ''}{suffix}",
-                    defaultextension=suffix, filetypes=[("JSON" if kind == "json" else "CSV", "*" + suffix)], confirmoverwrite=True)
+                    initialfile=f"sessao-{store.session_id()}-{kind}{'-historico' if include_history else ''}{suffix}",
+                    defaultextension=suffix, filetypes=[(suffix[1:].upper(), "*" + suffix)], confirmoverwrite=True)
                 if not filename:
                     return
                 if self.store is not store:
                     raise ValueError("A sessão mudou. Reabra a exportação.")
-                task = ExportTask(store, filename, kind, include_inactive.get(), lambda event, data: self.app.events.put((event, data)))
+                task = ExportTask(store, filename, kind, include_history, lambda event, data: self.app.events.put((event, data)))
                 self.app.register_activity(task.token, "Exportação da sessão", task.cancel)
                 self.export_task = task
                 self.export_label.set("Exportando os registros salvos. A captura e a revisão podem continuar.")

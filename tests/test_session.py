@@ -144,6 +144,11 @@ class SessionCancellationTests(unittest.TestCase):
             self.assertTrue(session.metadata["transcription_complete"])
             self.assertGreaterEqual(engine.calls, 3)
             self.assertGreater(session.metadata["transcript_lines"], 0)
+            records = [json.loads(line) for line in (session.folder / "events.jsonl").read_text(encoding="utf8").splitlines()]
+            deliveries = [record for record in records if record["kind"] == "transcript_delivered"]
+            self.assertEqual(len(deliveries), session.metadata["transcript_lines"])
+            self.assertAlmostEqual(deliveries[0]["delivery_lag_seconds"], deliveries[0]["elapsed_seconds"] - deliveries[0]["end"], places=5)
+            self.assertNotIn("text", deliveries[0])
 
 
 class StreamingSessionTests(SessionCancellationTests):
@@ -198,6 +203,11 @@ class StreamingSessionTests(SessionCancellationTests):
                 self.assertTrue(session.run())
             self.assertEqual(engine.finish_calls, 1)
             self.assertTrue(session.metadata["transcription_complete"])
+            events = [json.loads(line) for line in (session.folder / "events.jsonl").read_text(encoding="utf8").splitlines()]
+            self.assertEqual(sum(record["kind"] == "first_partial" for record in events), 1)
+            self.assertEqual(sum(record["kind"] == "transcript_delivered" for record in events), session.metadata["transcript_lines"])
+            started = next(record for record in events if record["kind"] == "started")
+            self.assertEqual(started["capture_started_at"], session.metadata["capture_started_at"])
             records = [json.loads(line) for line in (session.folder / "transcript.jsonl").read_text(encoding="utf8").splitlines()]
             self.assertEqual([line["text"] for line in records], ["Última frase estabilizada"])
             self.assertTrue(any(kind == "partial" and data["text"] for kind, data in emitted))

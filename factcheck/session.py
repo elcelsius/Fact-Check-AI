@@ -132,6 +132,7 @@ class CaptureSession:
         paragraphs = ParagraphAssembler(self.paragraph_config)
         paragraph_tail = 0
         last_paragraph_id = None
+        first_partial_logged = False
 
         with (self.folder / "events.jsonl").open("w", encoding="utf-8") as event_log, \
                 (self.folder / "transcript.jsonl").open("w", encoding="utf-8") as transcript, \
@@ -181,10 +182,16 @@ class CaptureSession:
                         plain_text.write(f"[{line.start:08.2f} → {line.end:08.2f}] {line.text}\n")
                         plain_text.flush()
                         self.metadata["transcript_lines"] += 1
+                        if capture_started is not None:
+                            delivered = round(time.perf_counter() - capture_started, 6)
+                            event("transcript_delivered", {"sequence": record["sequence"], "start": line.start,
+                                  "end": line.end, "elapsed_seconds": delivered,
+                                  "delivery_lag_seconds": round(delivered - line.end, 6)})
                         self.emit("transcript", record)
                         save_paragraphs(paragraphs.add(line, record["sequence"]))
 
             def transcribe_jobs() -> None:
+                nonlocal first_partial_logged
                 previous_partial = ""
                 while True:
                     chunk = jobs.get()
@@ -210,6 +217,9 @@ class CaptureSession:
                                 if not self.cancel_event.is_set() and not transcription_failed.is_set():
                                     partial = engine.partial
                                     if partial["text"] != previous_partial:
+                                        if partial["text"] and not first_partial_logged:
+                                            event("first_partial", {"elapsed_seconds": round(time.perf_counter() - capture_started, 6)})
+                                            first_partial_logged = True
                                         self.emit("partial", {**partial, "recognition_status": "provisorio",
                                                               "review_status": "automatico_nao_revisado"})
                                         previous_partial = partial["text"]
@@ -324,8 +334,10 @@ class CaptureSession:
                                         input_device_index=self.device.index, frames_per_buffer=1024,
                                         stream_callback=callback, start=False) as stream:
                             capture_started = time.perf_counter()
+                            self.metadata["capture_started_at"] = utc_now()
                             stream.start_stream()
-                            event("started", {"folder": str(self.folder), "device": self.device.name})
+                            event("started", {"folder": str(self.folder), "device": self.device.name,
+                                              "capture_started_at": self.metadata["capture_started_at"]})
                             while not self.stop_event.is_set():
                                 if seconds is not None and time.perf_counter() - capture_started >= seconds:
                                     self.stop()

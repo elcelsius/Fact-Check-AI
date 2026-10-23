@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.12.0**, de 23/10/2026. As funções são locais; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão.
+Procedimento do protótipo Windows, versão **0.13.0**, de 23/10/2026. As funções são locais; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão.
 
 ## Antes de um ensaio com vídeo
 
@@ -67,6 +67,43 @@ Na execução da versão 0.12.0, foram conferidos:
 Testes adicionais verificam a cópia de um WAV com cabeçalho incompleto, a exclusão de um byte final sem amostra completa, cancelamento, mudança do arquivo durante a cópia, rejeição de corrupção intermediária e bloqueios da interface. A janela de estado foi inspecionada com dados fictícios.
 
 Esse ensaio cobre encerramento de processo e persistência local. Continuam pendentes o ensaio editorial completo com vídeo representativo, qualidade da transcrição/checagem, falha elétrica, disco defeituoso ou cheio, recuperação entre máquinas e restauração de backup em outro computador. A chamada real ao Gemini e a coleta online ainda precisam ser validadas na execução normal do Windows.
+
+## Ensaio editorial com gravação
+
+1. Escolha um intervalo de três a cinco minutos com afirmações verificáveis, opiniões e frases que dependam de contexto. Registre vídeo, posição inicial, versão, operador e motor utilizado. Preserve o vídeo para rever a mesma fala.
+2. Para preparar uma referência sem ver as sugestões, desmarque **Identificar afirmações automaticamente ao concluir cada parágrafo** antes da captura. Ouça e anote as afirmações elegíveis, com tempos e recortes. Separe essa referência das sugestões da IA; se usar revisão já assistida, registre essa condição.
+3. Encerre a captura. Confira a transcrição, números, negações e participantes com o áudio. Registre correções necessárias, trechos ausentes e tempo gasto. As contagens automáticas do relatório não substituem essa conferência.
+4. Execute a triagem nos parágrafos escolhidos. Compare as afirmações com a referência, incluindo as que a IA não identificou. Registre erros de extração, duplicações e tentativas rejeitadas. Uma resposta inválida permanece como falha; confira a fala antes de repetir a tentativa.
+5. Para cada caso factual selecionado, colete uma fonte institucional ou importe uma cópia já baixada, conferindo a URL declarada. Verifique período, território, indicador, método e possíveis fontes divergentes. Uma cópia importada não comprova acesso à URL.
+6. Se optar por Gemini, configure e teste sua chave antes da análise preliminar. Sem API, a equipe pode ler as fontes e revisar manualmente. Registre a decisão humana e a justificativa somente após a conferência; casos sem evidência suficiente podem permanecer inconclusivos. Não há publicação automática.
+7. Exporte o JSON completo, os CSVs necessários e **Relatório do ensaio · TXT/JSON**, usando **Exportar sessão**. Abra os arquivos no destino e confira campos, texto, fontes e estados. O relatório usa as afirmações atuais; tentativas antigas ficam separadas, inclusive depois de uma nova tentativa bem-sucedida.
+8. Preencha a ficha abaixo com a referência humana e as observações. Compare esforço, cobertura e falhas, mantendo o denominador das afirmações reais separado da quantidade detectada pela IA. Defina as correções e os limites aceitáveis antes de repetir ou avançar para um evento ao vivo.
+
+### Como ler os tempos e denominadores
+
+| Medida | Interpretação e limite |
+| --- | --- |
+| Decisões humanas / factuais identificadas | Usa apenas as declarações factuais detectadas pela IA, atuais e não descartadas. Não mede precisão nem recuperação das afirmações reais. Sem factuais atuais, a proporção fica indisponível. |
+| Primeira prévia | Tempo desde o início efetivo da captura até a primeira hipótese não vazia registrada. Inclui eventual silêncio inicial; não é atraso por palavra e não mede a chegada visual na janela. |
+| Primeira entrega estabilizada | Tempo desde o início da captura até a persistência do primeiro segmento estabilizado. Não garante fidelidade ao áudio. |
+| Atraso dos segmentos | Tempo de entrega menos o fim estimado do segmento no áudio. Diferente do atraso de um pacote. Valores negativos ou inválidos são excluídos e contados. |
+| Processamento e atraso de pacotes/trechos | Medições técnicas já registradas pelo capturador. O modo streaming usa pacotes; Whisper usa janelas com contexto. Não são métricas equivalentes ao reconhecimento de uma palavra. |
+| Duração da triagem | Tempo registrado nas tentativas concluídas, incluindo preparação e esperas que ocorrerem na tentativa. As falhas aparecem nas contagens históricas; não são tratadas como duração zero. |
+| Tempo até a decisão humana atual | Intervalo entre registro da afirmação e a decisão que continua válida. Inclui espera e pesquisa; não é tempo de trabalho humano. Usa relógio civil e exclui intervalos negativos ou horários sem fuso. |
+| Primeira decisão atual desde a captura | Usa o horário explícito do início, quando disponível. Sessões antigas podem usar o evento inicial como aproximação, indicada no relatório. Não é histórico de decisões depois invalidadas. |
+| Mediana e P95 | Cada distribuição informa observações válidas e excluídas. P95 usa interpolação linear apenas a partir de 20 observações; amostras menores não recebem um P95. |
+
+O log registra `capture_started_at` no evento inicial e, nas novas capturas, os eventos `first_partial` e `transcript_delivered`, com tempos relativos monotônicos. Esses eventos não repetem o texto da fala. Gravações antigas não são reprocessadas nem recebem horários estimados de prévia ou estabilização. Um log parcial gera aviso e informa linhas inválidas; o relatório não altera os arquivos originais.
+
+O relatório JSON usa `format: factcheck-session-report`, `schema_version: 1`. `session_snapshot_sha256` identifica os registros agregados, enquanto `content_sha256` identifica as métricas e limitações exportadas; `generated_at` fica fora desse hash. O banco é lido em uma transação e os arquivos de captura separadamente, após encerrar a captura. A revisão e a pesquisa podem continuar mudando o banco depois da cópia. Guarde a versão e os hashes ao comparar relatórios.
+
+### Ensaio técnico com gravação existente na versão 0.13
+
+Foi usada uma **cópia** de uma gravação já salva, com **336,341 s de PCM e 22 parágrafos**, preservando os hashes dos arquivos originais. O relatório inicial mostrou todos os parágrafos sem conferência, participante e triagem. As medições existentes de processamento por pacote tinham 1.682 observações, mediana de 0,068 s e P95 de 0,143 s; esses números não medem atraso por palavra. A primeira prévia e a entrega estabilizada não estavam registradas nessa captura antiga e ficaram indisponíveis.
+
+Em seguida, a triagem local com Qwen foi executada nos **três primeiros parágrafos** da cópia: duas tentativas concluíram e uma foi rejeitada por citação inválida. Foram registrados oito itens: três factuais, quatro opiniões e um indefinido. As três factuais ficaram aguardando fontes, sem decisão humana; a tentativa rejeitada permaneceu como falha. Os relatórios posteriores conservaram essas pendências, sem chamada a API e sem alteração dos originais.
+
+Trata-se de uma amostra pequena escolhida pela ordem da gravação, sem referência humana. Não estima precisão, taxa de falha geral ou redução de esforço. A tentativa inválida exige conferência e possível nova análise; a pesquisa de fontes, a revisão factual e o ensaio editorial completo continuam pendentes. Os relatórios e a cópia usados no teste ficam em diretórios locais ignorados pelo Git.
 
 ## Registro do ensaio operacional
 
