@@ -69,6 +69,47 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(self.work.debate.participants, ["Ana"])
         self.assertEqual(self.work.store.claims(), [])
 
+    def ai_dialog(self):
+        self.work.configure_ai()
+        window = widgets(self.root, tk.Toplevel)[0]
+        provider = widgets(window, ttk.Combobox)[0]
+        key = next(widget for widget in widgets(window, ttk.Entry) if type(widget) is ttk.Entry)
+        apply = next(button for button in widgets(window, ttk.Button) if button["text"] == "Aplicar configuração")
+        return window, provider, key, apply
+
+    def test_gemini_requires_explicit_selection_and_keeps_key_out_of_files(self):
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "chave-de-teste"}):
+            window, provider, key, apply = self.ai_dialog()
+        self.assertEqual(provider.current(), 0)
+        self.assertEqual(str(key["show"]), "*")
+        self.assertEqual(self.work.ai_config.provider, "local")
+        provider.current(1)
+        apply.invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.ai_config.provider, "gemini")
+        self.assertIn("texto enviado ao Google", self.work.ai_label.get())
+        self.assertIsNone(self.work.runner)
+        for file in self.project.rglob("*"):
+            if file.is_file():
+                self.assertNotIn(b"chave-de-teste", file.read_bytes())
+
+    def test_gemini_missing_key_does_not_apply_configuration(self):
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""}):
+            window, provider, key, apply = self.ai_dialog()
+        provider.current(1)
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            apply.invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(self.work.ai_config.provider, "local")
+
+    def test_ai_configuration_cannot_change_during_capture(self):
+        self.app.session = Mock()
+        with patch("factcheck.workbench.messagebox.showinfo") as info:
+            self.work.configure_ai()
+        info.assert_called_once()
+        self.assertEqual(widgets(self.root, tk.Toplevel), [])
+
     def test_saving_editor_changes_participant_and_text_without_modifying_original(self):
         window, editor = self.editor()
         editor.delete("1.0", "end")
@@ -126,7 +167,7 @@ class WorkbenchTests(unittest.TestCase):
         class FakeRunner:
             token = "triage-test"
             pending = 0
-            def __init__(runner, root, store, emit):
+            def __init__(runner, root, store, emit, config=None):
                 runner.cancelled = threading.Event()
             def enqueue(runner, pid, force):
                 runner.pending = 1

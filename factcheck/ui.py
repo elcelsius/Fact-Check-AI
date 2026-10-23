@@ -54,6 +54,7 @@ class CaptureApp:
         event_bar = ttk.Frame(main)
         event_bar.pack(fill="x", pady=(0, 8))
         ttk.Button(event_bar, text="Dados do debate", command=lambda: self.workbench.configure_debate()).pack(side="right")
+        ttk.Button(event_bar, text="Configurar IA", command=lambda: self.workbench.configure_ai()).pack(side="right", padx=8)
         self.notebook = ttk.Notebook(main)
         self.notebook.pack(fill="both", expand=True)
         main = ttk.Frame(self.notebook, padding=10)

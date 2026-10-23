@@ -2,14 +2,17 @@
 
 from dataclasses import asdict
 from pathlib import Path
+import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from tkinter.scrolledtext import ScrolledText
 import uuid
 import wave
+import webbrowser
 
 from .review import Debate, ReviewStore
-from .triage import TriageRunner
+from .triage import TriageConfig, TriageRunner
+from .gemini import MODEL as GEMINI_MODEL
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -22,6 +25,8 @@ class Workbench:
         self.app, self.root = app, app.root
         self.store = None
         self.runner = None
+        self.ai_config = TriageConfig()
+        self.ai_label = tk.StringVar(value="IA: Local · Qwen3-4B · falas processadas neste computador")
         self.debate = Debate()
         self.sources = {}
         self.claims = {}
@@ -37,6 +42,7 @@ class Workbench:
         ttk.Button(actions, text="Abrir sessão gravada", command=self.open_session).pack(side="left")
         ttk.Button(actions, text="Revisar fala selecionada", command=self.edit_selected).pack(side="left", padx=8)
         ttk.Button(actions, text="Ouvir trecho", command=self.play_selected).pack(side="left")
+        ttk.Label(self.review_tab, textvariable=self.ai_label, wraplength=950).pack(anchor="w", pady=(0, 8))
         ttk.Checkbutton(self.review_tab, text="Identificar afirmações automaticamente ao concluir cada parágrafo",
                         variable=self.auto).pack(anchor="w", pady=(0, 8))
         self.source_tree = self.tree(self.review_tab,
@@ -49,7 +55,7 @@ class Workbench:
         self.progress = ttk.Label(self.review_tab, text="Abra uma sessão gravada ou inicie uma captura.", wraplength=950)
         self.progress.pack(anchor="w")
         ttk.Label(self.review_tab, text="A revisão da transcrição e a identificação do participante são manuais. "
-                  "A IA local sugere afirmações; todas continuam sem verificação factual.", wraplength=950).pack(anchor="w", pady=10)
+                  "A IA sugere afirmações; todas continuam sem verificação factual.", wraplength=950).pack(anchor="w", pady=10)
         self.claim_tree = self.tree(self.claim_tab,
             [("state", "Estado", 150), ("category", "Tipo", 90), ("speaker", "Participante", 140), ("text", "Afirmação", 600)], height=9)
         self.claim_tree.bind("<<TreeviewSelect>>", lambda _: self.show_claim())
@@ -138,6 +144,58 @@ class Workbench:
         ttk.Button(frame, text="Cancelar", command=close).pack(side="right", pady=12)
         window.protocol("WM_DELETE_WINDOW", close)
 
+    def configure_ai(self):
+        if self.app.session or self.busy():
+            messagebox.showinfo("Configurar IA", "Encerre a captura e aguarde ou cancele a triagem antes de mudar o motor.", parent=self.root)
+            return
+        window, close = self.dialog("Configurar IA · identificação de afirmações")
+        frame = ttk.Frame(window, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Motor para identificar afirmações").pack(anchor="w")
+        provider = ttk.Combobox(frame, state="readonly", values=["Local · Qwen3-4B", f"Gemini API · {GEMINI_MODEL}"])
+        provider.current(0 if self.ai_config.provider == "local" else 1)
+        provider.pack(fill="x", pady=(6, 12))
+        ttk.Label(frame, text="Captura e transcrição continuam locais. Ao selecionar Gemini, cada parágrafo enviado para "
+                  "triagem será transmitido ao Google, sem áudio ou cadastro do debate. Na camada gratuita, o Google "
+                  "pode usar entradas e respostas para melhorar produtos e permitir revisão humana desses dados.",
+                  wraplength=780).pack(anchor="w", pady=8)
+        ttk.Label(frame, text="Chave da API Gemini · guardada apenas na memória desta execução").pack(anchor="w", pady=(12, 4))
+        key = tk.StringVar(value=self.ai_config.api_key or os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", ""))
+        ttk.Entry(frame, textvariable=key, show="*").pack(fill="x")
+        ttk.Label(frame, text="Também aceita GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente. Não coloque a chave no Git nem no chat.", wraplength=780).pack(anchor="w", pady=6)
+        ttk.Label(frame, text="Máximo de requisições por minuto nesta fila").pack(anchor="w", pady=(12, 4))
+        rpm = tk.StringVar(value=str(self.ai_config.requests_per_minute))
+        ttk.Spinbox(frame, from_=1, to=60, textvariable=rpm, width=8).pack(anchor="w")
+        ttk.Label(frame, text="Começamos com 5/minuto. Ajuste conforme as cotas do seu projeto no AI Studio. "
+                  "O aplicativo não verifica faturamento: para usar somente a camada gratuita, utilize um projeto sem faturamento "
+                  "ativado. Não há troca automática de modelo ou de provedor. Um erro da API interrompe a fila; "
+                  "reaplique a configuração para tentar novamente. Limites também podem ser diários ou por tokens.", wraplength=780).pack(anchor="w", pady=12)
+        links = ttk.Frame(frame)
+        links.pack(fill="x", pady=6)
+        ttk.Button(links, text="Abrir AI Studio · chaves", command=lambda: webbrowser.open("https://aistudio.google.com/api-keys")).pack(side="left")
+        ttk.Button(links, text="Cotas e limites", command=lambda: webbrowser.open("https://ai.google.dev/gemini-api/docs/rate-limits")).pack(side="left", padx=8)
+        ttk.Button(links, text="Tratamento dos dados", command=lambda: webbrowser.open("https://ai.google.dev/gemini-api/terms")).pack(side="left")
+
+        def save():
+            try:
+                config = TriageConfig("local" if provider.current() == 0 else "gemini", key.get().strip(), int(rpm.get())).validate()
+                if self.runner:
+                    self.runner.cancel()
+                self.runner = None
+                self.ai_config = config
+                self.ai_label.set("IA: Local · Qwen3-4B · falas processadas neste computador" if config.provider == "local" else
+                                  f"IA: Gemini · {GEMINI_MODEL} · texto enviado ao Google · até {config.requests_per_minute} chamadas/min")
+                self.progress.configure(text="Configuração aplicada. A próxima análise usará o motor escolhido.")
+                close()
+            except ValueError:
+                messagebox.showerror("Configurar IA", "Confira a chave e o limite de 1 a 60 requisições por minuto.", parent=window)
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", side="bottom", pady=8)
+        ttk.Button(buttons, text="Aplicar configuração", command=save).pack(side="left")
+        ttk.Button(buttons, text="Cancelar", command=close).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", close)
+
     def update_title(self):
         self.title.set(f"{self.debate.title} · {self.debate.event_date} · {len(self.debate.participants)} participante(s)")
 
@@ -170,7 +228,7 @@ class Workbench:
                 self.app.render_paragraphs()
                 for source in self.sources.values():
                     self.app.update_paragraph(source["original"])
-                self.progress.configure(text="Sessão carregada. Você pode revisar as falas e iniciar a triagem local.")
+                self.progress.configure(text="Sessão carregada. Você pode revisar as falas e iniciar a triagem.")
             except Exception as exc:
                 messagebox.showerror("Abrir sessão", str(exc), parent=self.root)
 
@@ -268,12 +326,12 @@ class Workbench:
             if self.runner is None or self.runner.cancelled.is_set():
                 if self.busy():
                     raise ValueError("Aguarde o cancelamento da triagem anterior.")
-                self.runner = TriageRunner(self.app.project_root, self.store, lambda kind, data: self.app.events.put((kind, data)))
+                self.runner = TriageRunner(self.app.project_root, self.store, lambda kind, data: self.app.events.put((kind, data)), config=self.ai_config)
             if self.runner.enqueue(pid, force):
                 self.last_notice = ""
                 if self.runner.token not in self.app.activities:
-                    self.app.register_activity(self.runner.token, "Triagem local de afirmações", self.runner.cancel)
-                self.progress.configure(text=f"Identificando afirmações localmente. {self.runner.pending} trecho(s) na fila.")
+                    self.app.register_activity(self.runner.token, "Triagem de afirmações", self.runner.cancel)
+                self.progress.configure(text=self.queue_status())
                 self.refresh()
         except (ValueError, RuntimeError) as exc:
             self.progress.configure(text=str(exc))
@@ -299,10 +357,14 @@ class Workbench:
             return
         self.refresh()
         if self.busy():
-            self.progress.configure(text=f"Identificando afirmações localmente. {self.runner.pending} trecho(s) na fila.")
+            self.progress.configure(text=self.queue_status())
         else:
             self.app.activities.pop(self.runner.token, None)
             self.progress.configure(text="Triagem encerrada. " + (self.last_notice or "Confira os itens na aba Afirmações para checagem."))
+
+    def queue_status(self):
+        provider = "Gemini" if self.ai_config.provider == "gemini" else "Local"
+        return f"Identificando afirmações · {provider}. {self.runner.pending} trecho(s) na fila."
 
     def selected_claim(self):
         selected = self.claim_tree.selection()
@@ -312,12 +374,18 @@ class Workbench:
         claim = self.selected_claim()
         text = "Selecione uma afirmação para conferir a fala e o contexto."
         if claim:
+            engine = claim.get("engine", {})
+            provenance = f"{engine.get('name', 'Não informado')} · {engine.get('model', 'Modelo não informado')}"
+            usage = engine.get("usage", {}).get("totalTokenCount")
+            if usage is not None:
+                provenance += f" · {usage} tokens informados pela API"
             fields = "\n".join(f"{label}: {claim.get(key) or 'Não definido'}" for key, label in
                 [("topic", "Tema"), ("location", "Local"), ("period", "Período"), ("indicator", "Indicador"), ("comparison", "Comparação")])
             text = (f"{LABELS[claim['status']]} · {CATEGORIES[claim['category']]} · {claim['speaker'] or 'Não identificado'}\n"
                     f"Horário aproximado do parágrafo: {self.time(claim)} · parágrafo {claim['paragraph_id']} · revisão {claim['revision']}\n\n"
                     f"FALA LITERAL\n{claim['quote']}\n\nRESUMO\n{claim['summary']}\n\n{fields}\n\n"
                     f"CRITÉRIO DA TRIAGEM\n{claim['reason']}\n\n"
+                    f"MOTOR UTILIZADO\n{provenance}\n\n"
                     f"VALIDAÇÃO AUTOMÁTICA\n{' '.join(claim.get('validation_notes', [])) or 'Citação localizada no texto.'}\n\n"
                     f"REFERÊNCIAS A ESCLARECER\n{', '.join(claim.get('context_notes', [])) or 'Nenhuma referência marcada por estas regras.'}\n\n"
                     f"CONTEXTO DA VERSÃO ANALISADA\n{claim['context']}")

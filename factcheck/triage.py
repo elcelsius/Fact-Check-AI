@@ -1,5 +1,6 @@
-"""Triagem local em processo separado: saída limitada, rastreável e cancelável."""
+"""Triagem em processo separado: saída limitada, rastreável e cancelável."""
 
+from dataclasses import dataclass, field
 import json
 import multiprocessing as mp
 import os
@@ -42,6 +43,23 @@ presentes no texto, ou null. Não resolva 'aqui', 'nosso governo' e 'ano passado
 Não deduza quem falou pelo uso de 'eu' ou 'nós'. Se faltar definição, explique em reason.
 Retorne apenas JSON com items. No máximo 12 itens. Saudação e falas sem conteúdo podem ter items vazio.
 """
+
+
+@dataclass(frozen=True)
+class TriageConfig:
+    provider: str = "local"
+    api_key: str = field(default="", repr=False)
+    requests_per_minute: int = 5
+
+    def validate(self):
+        if self.provider not in {"local", "gemini"}:
+            raise ValueError("Escolha Local ou Gemini para a triagem.")
+        if self.provider == "gemini":
+            if not self.api_key.strip() or any(c.isspace() for c in self.api_key):
+                raise ValueError("Informe uma chave Gemini válida em Configurar IA.")
+            if type(self.requests_per_minute) is not int or not 1 <= self.requests_per_minute <= 60:
+                raise ValueError("Use de 1 a 60 requisições por minuto.")
+        return self
 
 
 def model_path(root: Path) -> Path:
@@ -174,7 +192,8 @@ class LocalModel:
         return validate_items(json.loads(response["choices"][0]["text"])["items"], text)
 
 
-def _model_worker(root: str, inputs, outputs, cancelled):
+def _model_worker(root: str, inputs, outputs, cancelled, config=None):
+    config = config or TriageConfig()
     model = None
     while True:
         job = inputs.get()
@@ -184,20 +203,33 @@ def _model_worker(root: str, inputs, outputs, cancelled):
         try:
             if cancelled.is_set():
                 raise InterruptedError("Triagem cancelada.")
-            model = model or LocalModel(Path(root))
+            if model is None:
+                if config.provider == "gemini":
+                    from .gemini import GeminiModel
+                    model = GeminiModel(config)
+                else:
+                    model = LocalModel(Path(root))
             outputs.put((job_id, model.analyze(text, cancelled), None, model.engine))
         except Exception as exc:
-            outputs.put((job_id, None, str(exc), ENGINE))
+            if config.provider == "gemini":
+                # Não propagar mensagens brutas de rede ou credenciais ao banco/UI.
+                from .gemini import GeminiError
+                message = str(exc) if isinstance(exc, (GeminiError, InterruptedError)) else "Resposta Gemini inválida; revise o trecho e tente novamente."
+                outputs.put((job_id, None, {"message": message, "halt": not isinstance(exc, InterruptedError)}, {}))
+            else:
+                outputs.put((job_id, None, str(exc), ENGINE))
 
 
 class TriageRunner:
-    def __init__(self, root: Path, store: ReviewStore, emit):
+    def __init__(self, root: Path, store: ReviewStore, emit, config=None):
+        self.config = (config or TriageConfig()).validate()
         self.root, self.store, self.emit = root, store, emit
         self.token = "triage-" + uuid.uuid4().hex
         self.jobs = queue.Queue()
         self.cancelled = threading.Event()
         self.lock = threading.Lock()
         self.pending = 0
+        self.blocked_reason = ""
         self.context = mp.get_context("spawn")
         self.process = None
         self.inputs, self.outputs = self.context.Queue(), self.context.Queue()
@@ -208,8 +240,10 @@ class TriageRunner:
         with self.lock:
             if self.cancelled.is_set():
                 raise ValueError("A triagem foi cancelada. Reabra a sessão para analisar novamente.")
+            if self.blocked_reason:
+                raise ValueError(self.blocked_reason)
             if self.pending >= 30:
-                raise ValueError("A fila local chegou a 30 trechos. Aguarde e tente novamente.")
+                raise ValueError("A fila de triagem chegou a 30 trechos. Aguarde e tente novamente.")
             job = self.store.begin_analysis(pid, force)
             if job is None:
                 return False
@@ -238,9 +272,11 @@ class TriageRunner:
             try:
                 if self.cancelled.is_set():
                     raise InterruptedError("Triagem cancelada.")
+                if self.blocked_reason:
+                    raise ValueError(self.blocked_reason)
                 if self.process is None:
                     self.process = self.context.Process(target=_model_worker,
-                        args=(str(self.root), self.inputs, self.outputs, self.worker_cancelled), daemon=True)
+                        args=(str(self.root), self.inputs, self.outputs, self.worker_cancelled, self.config), daemon=True)
                     self.process.start()
                 self.inputs.put((job_id, source["text"]))
                 while True:
@@ -252,11 +288,16 @@ class TriageRunner:
                         response_id, items, error, engine = self.outputs.get(timeout=0.1)
                     except queue.Empty:
                         if not self.process.is_alive():
-                            raise RuntimeError("O processo de IA local foi interrompido.")
+                            raise RuntimeError("O processo de IA foi interrompido.")
                         continue
                     if response_id != job_id:
                         continue
                     if error:
+                        if isinstance(error, dict):
+                            if error.get("halt"):
+                                with self.lock:
+                                    self.blocked_reason = error["message"] + " A fila foi interrompida. Use Configurar IA para retomar."
+                            raise ValueError(self.blocked_reason or error["message"])
                         raise ValueError(error)
                     with self.lock:
                         if self.cancelled.is_set():
