@@ -4,7 +4,7 @@ Checagem assistida por IA em debates políticos ao vivo.
 
 Projeto de um assistente de pesquisa para equipes humanas de checagem. Durante um debate, o sistema deverá transcrever falas, identificar afirmações verificáveis, pesquisar evidências e preparar análises preliminares para revisão editorial.
 
-**Status:** protótipo com captura e transcrição locais, minutagem do vídeo, combinação reversível, exportação de sessões em JSON/CSV, triagem local ou Gemini e dossiês com coleta e importação de fontes institucionais, versão 0.11, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
+**Status:** protótipo com captura e transcrição locais, minutagem do vídeo, combinação reversível, exportação de sessões em JSON/CSV, recuperação após interrupções, triagem local ou Gemini e dossiês com coleta e importação de fontes institucionais, versão 0.12, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
 
 ## Usar o protótipo
 
@@ -129,6 +129,16 @@ A fila comporta até 30 análises pendentes, processadas uma de cada vez. A capt
 
 O banco **review.sqlite3** guarda o cadastro atual, originais, revisões humanas, análises, afirmações, cópias extraídas das fontes e dossiês com histórico. Os arquivos de transcrição e parágrafos preservam o reconhecimento original; o texto corrigido aparece na aba de revisão e no banco. A identificação automática de quem fala e a busca automática de links continuam pendentes.
 
+### Retomar uma sessão interrompida
+
+Em **Revisar falas → Abrir sessão gravada**, selecione a pasta da sessão e use **Estado da sessão**. A tela informa interrupção, falas salvas, parágrafos sem encerramento, tarefas interrompidas e dados de áudio presentes. A abertura mantém as correções humanas e não reinicia chamadas à IA ou pesquisas. Uma captura ainda pertencente a processo ativo bloqueia a abertura como sessão gravada.
+
+Uma última linha JSONL incompleta, sem quebra final, gera aviso e permanece no arquivo original. Corrupção intermediária bloqueia a importação. **Encerrar parágrafos pendentes** pede confirmação, usa somente o texto existente e mantém a conferência humana pendente. O encerramento tem revisão e histórico próprios e aparece nas exportações.
+
+Se o WAV padrão do capturador ficou com cabeçalho incompleto, **Criar cópia recuperada do áudio** preserva as amostras completas disponíveis em `recovered/`. A operação ocorre em segundo plano, pode ser cancelada com confirmação e preserva o original. **Ouvir trecho** usa a cópia concluída, inclusive após reabrir. A duração encontrada não garante cobertura integral da fala; dados provisórios ou ainda não gravados podem ter sido perdidos.
+
+Para voltar à transmissão, inicie outra captura e confira a nova minutagem. Sessões antigas sem identificação do processo ficam com estado não confirmado e reparos bloqueados. Consulte o [procedimento de operação e recuperação](docs/operacao-e-recuperacao.md), incluindo o ensaio técnico repetível e a ficha para testar com vídeo real.
+
 ### Usar a API Gemini como alternativa
 
 O modo inicial continua sendo **Local** em cada abertura do aplicativo. Para usar a API:
@@ -225,6 +235,7 @@ O leitor PyAV está limitado a uma versão compatível com o faster-whisper util
 .\.venv\Scripts\python.exe -m factcheck --record-seconds 5 --no-transcription
 .\.venv\Scripts\python.exe -m factcheck --engine whisper --prepare-model
 .\.venv\Scripts\python.exe -m factcheck --engine whisper --record-seconds 20
+.\.venv\Scripts\python.exe -m scripts.rehearse_recovery
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
@@ -234,7 +245,8 @@ Para escolher uma saída pela linha de comando, acrescente **--device** com o í
 
 ### Validação realizada neste computador
 
-- Os 208 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Os 231 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Na versão 0.12, um subprocesso próprio com dados fictícios foi encerrado à força: a recuperação reverteu uma transação SQLite não confirmada e preservou revisão humana, decisão do dossiê e os 2,4 s de PCM disponíveis. Foram conferidos aviso de cauda incompleta, tarefas interrompidas, encerramento manual, exportação e reabertura repetível. Outros testes cobrem reparo de cabeçalho em cópia, amostra incompleta, cancelamento, mudança do arquivo durante a cópia e fechamento da interface. A tela de estado foi inspecionada com dados fictícios. O ensaio não usa ASR ou rede e não valida queda de energia nem qualidade editorial; consulte o [procedimento](docs/operacao-e-recuperacao.md).
 - Na versão 0.11, os testes exercitam a escrita real de JSON/CSV, os identificadores persistentes, reexportação, cópia de sessões, migração de bancos antigos e coerência durante uma revisão concorrente. Cobrem também opiniões, descartes, origens de combinações, preliminar e decisão humana separadas, fontes importadas, proteção de CSV, falha e cancelamento tardio preservando o arquivo anterior. A interface permite exportar durante a captura, tem confirmação de cancelamento e protege o fechamento. As telas foram inspecionadas com dados fictícios; a abertura em planilhas e o fluxo editorial real seguem pendentes de ensaio.
 - Na versão 0.10, os testes cobrem combinação de blocos adjacentes e concluídos, conferência de autoria indefinida, bloqueio de participantes diferentes, preservação dos originais e correções, combinações sucessivas, reabertura, atualizações tardias e rejeição de operações desatualizadas. A separação de textos corrigidos impede omissão de palavras, incluindo negações; dossiês e resultados antigos continuam históricos. A reprodução foi conferida pelo conteúdo PCM do intervalo combinado, sem mudar o áudio original. As novas janelas e a lista de revisão foram inspecionadas com dados fictícios; a operação editorial em um debate real permanece pendente de avaliação.
 - Na versão 0.9, os testes cobrem conversão e limites da minutagem, referência zero e remoção, persistência e histórico, rejeição de edição concorrente, abertura de bancos antigos e independência entre sessões. A interface foi inspecionada com dados fictícios; a reprodução mantém o intervalo original, e a alteração da referência preserva análises em andamento e decisões humanas. Essa validação não mede a precisão de sincronização com um player real.
@@ -280,7 +292,7 @@ A [proposta inicial](docs/proposta-inicial.md) é a referência local para a evo
 - Arquitetura proposta, plano do piloto e métricas de avaliação.
 - Riscos, decisões pendentes, backlog e referências.
 
-O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) detalha as tarefas, dependências, responsáveis sugeridos e critérios de conclusão de cada fase. Os arquivos deste repositório são a referência para acompanhar o andamento técnico.
+O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) detalha as tarefas, dependências, responsáveis sugeridos e critérios de conclusão de cada fase. O [guia de operação e recuperação](docs/operacao-e-recuperacao.md) orienta a retomada e o registro de ensaios. Os arquivos deste repositório são a referência para acompanhar o andamento técnico.
 
 ## Premissas centrais
 
@@ -294,4 +306,4 @@ O projeto avaliará a redução de trabalho humano junto com a qualidade das evi
 
 Usar **Testar conexão** para validar uma chave e o acesso real ao modelo no Windows, e exercitar a coleta online na execução normal do aplicativo. Enquanto isso, a revisão pode avançar com cópias importadas e origem explicitamente pendente de conferência. Em paralelo, avaliar transcrição, triagem e dossiês com gravações representativas e anotações humanas. A descoberta automática de links dependerá de um provedor de busca com custo e limites conhecidos. A definição editorial do piloto e seu conjunto de referência continuam no checklist.
 
-O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) também registra as prioridades de operação propostas em 23/10/2026. A minutagem de referência foi implementada na versão 0.9, a combinação reversível na 0.10 e a exportação estruturada na 0.11. O próximo marco proposto é ensaiar a operação e a recuperação após interrupções, conferir as exportações com uma sessão real e registrar lacunas e pendências. Essas melhorias mantêm o aplicativo independente.
+O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) também registra as prioridades de operação propostas em 23/10/2026. A minutagem de referência foi implementada na versão 0.9, a combinação reversível na 0.10, a exportação estruturada na 0.11 e o diagnóstico de retomada na 0.12. O ensaio técnico de queda preservou revisões, decisão humana e o áudio disponível; não substitui o ensaio editorial. O próximo marco é testar o fluxo com um vídeo representativo, conferir exportações no destino e registrar cobertura, tempos, lacunas e pendências. Essas melhorias mantêm o aplicativo independente.

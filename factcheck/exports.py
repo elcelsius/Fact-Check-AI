@@ -133,7 +133,7 @@ def snapshot(review, include_inactive=False, cancelled=None):
             continue
         record = _record(session_id, "paragraph", pid, {
             "paragraph_id": pid, **_pick(source, ("revision", "text", "speaker", "start", "end", "closed",
-            "human_reviewed", "needs_rebase", "source_version", "hidden_by", "retired")), **times(source),
+            "human_reviewed", "needs_rebase", "source_version", "hidden_by", "retired", "recovery_closure")), **times(source),
             "active": active(source), "recognition_text": source["original"]["source_text"],
             "source_paragraph_ids": source["original"].get("source_paragraph_ids", [pid]),
             "merged_from": source.get("merged_from", []),
@@ -163,7 +163,7 @@ def snapshot(review, include_inactive=False, cancelled=None):
 
 COMMON = ("formato_versao", "evento_id", "sessao_id", "exportado_em", "snapshot_sha256", "registro_id", "registro_sha256")
 COLUMNS = {
-    "paragraphs": (*COMMON, "paragrafo_id", "revisao", "ativo", "concluido", "transcricao_conferida", "precisa_reconciliar",
+    "paragraphs": (*COMMON, "paragrafo_id", "revisao", "ativo", "concluido", "encerramento_recuperado_em", "motivo_encerramento_recuperado", "transcricao_conferida", "precisa_reconciliar",
                    "participante", "inicio_captura_s", "fim_captura_s", "inicio_video_s", "fim_video_s", "inicio_video", "fim_video",
                    "referencia_revisao", "origens_ids", "componentes_ids", "substituido_por", "desfeito", "estado_triagem", "analise_id", "texto", "texto_reconhecido"),
     "claims": (*COMMON, "afirmacao_id", "paragrafo_id", "revisao_fala", "origens_ids", "origem_atual", "estado_triagem", "categoria",
@@ -207,7 +207,9 @@ def csv_rows(data, kind):
                           fim_video=timestamp(row["video_end"]) if row["video_end"] is not None else None,
                           referencia_revisao=row["video_reference_revision"], origens_ids=row["source_paragraph_ids"])
         if kind == "paragraphs":
+            closure = row.get("recovery_closure", {})
             record.update(revisao=row["revision"], ativo=row["active"], concluido=row["closed"], transcricao_conferida=row["human_reviewed"],
+                          encerramento_recuperado_em=closure.get("at"), motivo_encerramento_recuperado=closure.get("reason"),
                           precisa_reconciliar=row["needs_rebase"], inicio_video_s=row["video_start"], fim_video_s=row["video_end"],
                           componentes_ids=row["merged_from"], substituido_por=row.get("hidden_by"), desfeito=row.get("retired", False),
                           estado_triagem=row["triage"]["status"], analise_id=row["triage"]["id"], texto=row["text"], texto_reconhecido=row["recognition_text"])

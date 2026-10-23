@@ -18,6 +18,8 @@ from .connection_test import ConnectionTest
 from .timeline import describe_time, parse_video_position, timestamp, video_range
 from .grouping import active, reconciliation_needed
 from .exports import ExportTask, FORMATS
+from .recovery import (AudioRecoveryTask, SAFE_STATES, STATE_NAMES, capture_state,
+                       describe, inspect_session, playback_path)
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -32,6 +34,9 @@ class Workbench:
         self.runner = None
         self.connection_test = None
         self.export_task = None
+        self.recovery_task = None
+        self.import_warnings = []
+        self.session_label = tk.StringVar(value="Nenhuma sessão carregada.")
         self.export_label = tk.StringVar(value="Exportação: nenhum arquivo gerado nesta execução.")
         self.connection_handlers = {}
         self.ai_config = TriageConfig()
@@ -58,6 +63,12 @@ class Workbench:
         ttk.Button(actions, text="Exportar sessão", command=self.configure_export).pack(side="left", padx=8)
         ttk.Label(self.review_tab, textvariable=self.ai_label, wraplength=950).pack(anchor="w", pady=(0, 8))
         ttk.Label(self.review_tab, textvariable=self.export_label, wraplength=950).pack(anchor="w", pady=(0, 8))
+        recovery_row = ttk.Frame(self.review_tab)
+        recovery_row.pack(fill="x", pady=(0, 8))
+        ttk.Button(recovery_row, text="Estado da sessão", command=self.show_recovery).pack(side="left")
+        ttk.Label(recovery_row, textvariable=self.session_label, wraplength=680).pack(side="left", padx=8)
+        self.cancel_recovery_button = ttk.Button(recovery_row, text="Cancelar recuperação", command=self.cancel_recovery, state="disabled")
+        self.cancel_recovery_button.pack(side="right")
         ttk.Checkbutton(self.review_tab, text="Identificar afirmações automaticamente ao concluir cada parágrafo",
                         variable=self.auto).pack(anchor="w", pady=(0, 8))
         self.source_tree = self.tree(self.review_tab,
@@ -110,7 +121,93 @@ class Workbench:
 
     def busy(self):
         return (bool(self.runner and self.runner.pending) or self.evidence.busy()
-                or bool(self.connection_test and self.connection_test.pending) or bool(self.export_task and self.export_task.pending))
+                or bool(self.connection_test and self.connection_test.pending) or bool(self.export_task and self.export_task.pending)
+                or bool(self.recovery_task and self.recovery_task.pending))
+
+    def update_session_status(self):
+        if self.store:
+            state, _ = capture_state(self.store.folder)
+            suffix = " · histórico incompleto; consulte o estado" if self.import_warnings else ""
+            self.session_label.set(STATE_NAMES[state] + suffix)
+
+    def show_recovery(self):
+        if not self.store:
+            messagebox.showinfo("Estado da sessão", "Abra uma sessão gravada ou inicie uma captura.", parent=self.root)
+            return
+        store = self.store
+        report = inspect_session(store, self.import_warnings)
+        self.update_session_status()
+        window, close = self.dialog("Estado da sessão · retomada e pendências")
+        window.geometry("940x730")
+        frame = ttk.Frame(window, padding=16)
+        frame.pack(fill="both", expand=True)
+        text = ScrolledText(frame, wrap="word", font=("Segoe UI", 11))
+        text.pack(fill="both", expand=True, pady=(0, 12))
+        text.insert("1.0", describe(report))
+        text.configure(state="disabled")
+        row = ttk.Frame(frame)
+        row.pack(fill="x")
+
+        def require_idle():
+            if self.store is not store or self.app.session or self.busy() or capture_state(store.folder)[0] not in SAFE_STATES:
+                raise ValueError("Aguarde as tarefas e confirme que a captura terminou antes de recuperar a sessão.")
+
+        def finish_paragraphs():
+            try:
+                require_idle()
+                if not messagebox.askyesno("Encerrar trechos interrompidos",
+                        "Usar somente o texto já salvo para encerrar os parágrafos pendentes?\n\n"
+                        "O restante da fala pode estar perdido. As correções serão preservadas e a conferência humana continuará pendente.",
+                        default=messagebox.NO, parent=window):
+                    return
+                require_idle()
+                count = store.close_interrupted_paragraphs(report["unclosed"])
+                self.refresh()
+                self.progress.configure(text=f"{count} parágrafo(s) encerrado(s) com texto salvo. Confira o áudio e revise antes da triagem.")
+                close()
+            except ValueError as exc:
+                messagebox.showerror("Encerrar trechos", str(exc), parent=window)
+
+        def repair():
+            task = None
+            try:
+                require_idle()
+                task = AudioRecoveryTask(store, lambda kind, data: self.app.events.put((kind, data)))
+                self.app.register_activity(task.token, "Recuperação de áudio", task.cancel)
+                self.recovery_task = task
+                task.start()
+                self.cancel_recovery_button.configure(state="normal")
+                self.session_label.set("Criando cópia do áudio disponível; original preservado…")
+                close()
+            except (ValueError, RuntimeError) as exc:
+                if task is not None:
+                    self.app.activities.pop(task.token, None)
+                    self.recovery_task = None
+                messagebox.showerror("Recuperar áudio", str(exc), parent=window)
+
+        safe = report["state"] in SAFE_STATES and not self.app.session and not self.busy()
+        ttk.Button(row, text="Encerrar parágrafos pendentes", command=finish_paragraphs,
+                   state="normal" if safe and report["unclosed"] else "disabled").pack(side="left")
+        ttk.Button(row, text="Criar cópia recuperada do áudio", command=repair,
+                   state="normal" if safe and report["audio"]["state"] == "repairable" and report["audio"]["frames"]
+                   and not report["playable"] else "disabled").pack(side="left", padx=8)
+        ttk.Button(row, text="Fechar", command=close).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", close)
+
+    def cancel_recovery(self):
+        task = self.recovery_task
+        if task and task.pending and messagebox.askyesno("Cancelar recuperação",
+                "Cancelar a criação da cópia recuperada? O áudio original será preservado.", default=messagebox.NO, parent=self.root):
+            task.cancel()
+            self.session_label.set("Cancelando a recuperação do áudio…")
+
+    def recovery_done(self, data):
+        self.app.activities.pop(data["token"], None)
+        if self.recovery_task and self.recovery_task.token == data["token"]:
+            self.recovery_task = None
+            self.cancel_recovery_button.configure(state="disabled")
+            self.update_session_status()
+            self.progress.configure(text=data["message"])
 
     def configure_export(self):
         if not self.store:
@@ -417,16 +514,23 @@ class Workbench:
             raise ValueError("Aguarde ou cancele as tarefas antes de abrir outra sessão.")
         if self.runner:
             self.runner.cancel()
+        if not live and capture_state(folder)[0] == "active":
+            raise ValueError("Esta sessão ainda está sendo capturada ou finalizada por um processo ativo. Aguarde seu encerramento.")
         store = ReviewStore(folder)
+        warnings = []
         if not live:
-            store.import_paragraphs()
+            warnings = store.import_paragraphs()
             store.recover_interrupted()
         self.store = store
+        self.import_warnings = warnings
         self.runner = None
         self.evidence.load(store)
         self.debate = Debate(**store.debate())
         self.update_title()
         self.refresh()
+        self.update_session_status()
+        if not live:
+            self.progress.configure(text="Sessão carregada. Consulte Estado da sessão para conferir a retomada e as pendências.")
 
     def open_session(self):
         if self.app.session or self.busy():
@@ -443,7 +547,7 @@ class Workbench:
                 for source in self.store.sources(include_inactive=True):
                     if not source.get("merged_from"):
                         self.app.update_paragraph(source["original"])
-                self.progress.configure(text="Sessão carregada. Você pode revisar as falas e iniciar a triagem.")
+                self.progress.configure(text="Sessão carregada. Consulte Estado da sessão para conferir a retomada e as pendências.")
             except Exception as exc:
                 messagebox.showerror("Abrir sessão", str(exc), parent=self.root)
 
@@ -776,7 +880,7 @@ class Workbench:
             return
         try:
             import winsound
-            with wave.open(str(self.store.folder / "audio.wav"), "rb") as wav:
+            with wave.open(str(playback_path(self.store.folder)), "rb") as wav:
                 start = max(0, int(source["start"] * wav.getframerate()))
                 end = min(wav.getnframes(), int(source["end"] * wav.getframerate()))
                 if start >= end:

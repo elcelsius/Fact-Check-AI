@@ -375,6 +375,8 @@ class CaptureApp:
                 self.workbench.evidence.done(data)
             elif kind == "export_done":
                 self.workbench.export_done(data)
+            elif kind == "recovery_done":
+                self.workbench.recovery_done(data)
             elif kind == "connection_test_done":
                 self.workbench.connection_test_done(data)
             elif kind == "triage_notice":
@@ -393,6 +395,7 @@ class CaptureApp:
             elif kind == "done":
                 self.session = None
                 self.workbench.refresh()
+                self.workbench.update_session_status()
                 self.set_partial("")
                 self.started_at = None
                 self.meter["value"] = 0

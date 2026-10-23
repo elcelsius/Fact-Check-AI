@@ -2,6 +2,7 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
+import struct
 import tempfile
 import threading
 import tkinter as tk
@@ -43,6 +44,18 @@ class FakeExportTask:
     pending = 1
     def __init__(self, review, target, kind, include_inactive, emit):
         self.review, self.target, self.kind, self.include_inactive, self.emit = review, target, kind, include_inactive, emit
+        self.cancelled = threading.Event()
+    def start(self):
+        pass
+    def cancel(self):
+        self.cancelled.set()
+
+
+class FakeRecoveryTask:
+    token = "recovery-test-ui"
+    pending = 1
+    def __init__(self, review, emit):
+        self.review, self.emit = review, emit
         self.cancelled = threading.Event()
     def start(self):
         pass
@@ -630,6 +643,68 @@ class WorkbenchTests(unittest.TestCase):
             self.work.play_selected()
         info.assert_called_once()
         self.assertFalse((self.project / ".cache/playback/trecho.wav").exists())
+
+    def test_reopening_incomplete_history_shows_warning_and_does_not_start_triage(self):
+        reviewed = self.work.store.revise(1, 1, "Correção humana de teste.", "Ana")
+        with (self.folder / "paragraphs.jsonl").open("ab") as stream:
+            stream.write(b'\n{"interrompido":')
+        with patch.object(self.work, "analyze") as analyze:
+            self.work.load(self.folder)
+        analyze.assert_not_called()
+        self.assertEqual(self.work.store.source(1), reviewed)
+        self.assertIn("histórico incompleto", self.work.session_label.get())
+        self.assertIsNone(self.work.runner)
+
+    def test_another_live_capture_is_rejected_before_creating_review_database(self):
+        folder = self.project / "active"
+        folder.mkdir()
+        (folder / "session.json").write_text('{"status":"recording","owner_pid":1}', encoding="utf8")
+        previous = self.work.store
+        with patch("factcheck.recovery.process_alive", return_value=True), self.assertRaises(ValueError):
+            self.work.load(folder)
+        self.assertIs(self.work.store, previous)
+        self.assertFalse((folder / "review.sqlite3").exists())
+
+    def test_manual_closure_requires_confirmation_and_preserves_original_text(self):
+        metadata = json.loads((self.folder / "session.json").read_text(encoding="utf8"))
+        (self.folder / "session.json").write_text(json.dumps({**metadata, "status": "completed"}), encoding="utf8")
+        self.work.store.ingest({**self.paragraph, "paragraph_id": 2, "closed": False})
+        original = self.work.store.source(2)["original"]
+        self.work.show_recovery()
+        window = widgets(self.root, tk.Toplevel)[0]
+        button = next(b for b in widgets(window, ttk.Button) if b["text"] == "Encerrar parágrafos pendentes")
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=False):
+            button.invoke()
+        self.assertFalse(self.work.store.source(2)["closed"])
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=True):
+            button.invoke()
+        self.assertTrue(self.work.store.source(2)["closed"])
+        self.assertFalse(self.work.store.source(2)["human_reviewed"])
+        self.assertEqual(self.work.store.source(2)["original"], original)
+
+    def test_audio_recovery_registers_close_guard_and_waits_for_worker_completion(self):
+        metadata = json.loads((self.folder / "session.json").read_text(encoding="utf8"))
+        (self.folder / "session.json").write_text(json.dumps({**metadata, "status": "completed"}), encoding="utf8")
+        raw = bytearray((self.folder / "audio.wav").read_bytes())
+        struct.pack_into("<I", raw, 40, 2)
+        (self.folder / "audio.wav").write_bytes(raw)
+        self.work.show_recovery()
+        window = widgets(self.root, tk.Toplevel)[0]
+        button = next(b for b in widgets(window, ttk.Button) if b["text"] == "Criar cópia recuperada do áudio")
+        self.assertEqual(str(button["state"]), "normal")
+        with patch("factcheck.workbench.AudioRecoveryTask", FakeRecoveryTask):
+            button.invoke()
+        self.assertTrue(self.work.busy())
+        self.assertIn("recovery-test-ui", self.app.activities)
+        with patch("factcheck.ui.messagebox.askyesno", return_value=True), patch.object(self.root, "destroy") as destroy:
+            self.app.close()
+            self.assertTrue(self.work.recovery_task.cancelled.is_set())
+            destroy.assert_not_called()
+            self.work.recovery_task.pending = 0
+            self.app.events.put(("recovery_done", {"token": "recovery-test-ui", "success": False, "message": "Cancelado"}))
+            self.app.poll()
+            destroy.assert_called_once()
 
     def test_automatic_analysis_waits_for_closed_paragraph_and_ignores_cancelled_tail(self):
         with patch.object(self.work, "analyze") as analyze:

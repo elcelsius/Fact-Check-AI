@@ -13,6 +13,7 @@ import uuid
 
 from .timeline import validate_video_position
 from .grouping import active, combine, uncombine
+from .persistence import paragraph_log
 
 
 def process_alive(pid: int) -> bool:
@@ -225,11 +226,28 @@ class ReviewStore:
             return source
 
     def import_paragraphs(self):
-        path = self.folder / "paragraphs.jsonl"
-        if path.is_file():
-            for line in path.read_text(encoding="utf8").splitlines():
-                if line.strip():
-                    self.ingest(json.loads(line))
+        records, warnings = paragraph_log(self.folder / "paragraphs.jsonl")
+        for paragraph in records:
+            self.ingest(paragraph)
+        return warnings
+
+    def close_interrupted_paragraphs(self, expected: list[tuple[int, int]]) -> int:
+        """Encerrar somente a organização editorial; nunca completar texto perdido."""
+        from .recovery import SAFE_STATES, capture_state
+        if capture_state(self.folder)[0] not in SAFE_STATES:
+            raise ValueError("A captura ainda está ativa ou seu encerramento não foi confirmado.")
+        with self.connection() as db:
+            for pid, revision in expected:
+                row = db.execute("SELECT payload FROM paragraphs WHERE id=?", (pid,)).fetchone()
+                source = json.loads(row[0]) if row else None
+                if not source or not active(source) or source["revision"] != revision or source["closed"]:
+                    raise ValueError("As falas mudaram. Atualize o estado da sessão antes de encerrar os trechos.")
+                source.update(closed=True, revision=revision + 1, human_reviewed=False,
+                              recovery_closure={"at": now(), "reason": "encerramento_manual_apos_interrupcao"})
+                self._save(db, source)
+                self._invalidate(db, pid)
+                self._audit(db, "interrupted_paragraph_closed", source)
+        return len(expected)
 
     def sources(self, include_inactive: bool = False) -> list[dict]:
         with self.connection() as db:
@@ -321,11 +339,18 @@ class ReviewStore:
                        ("cancelled" if cancelled else "failed", json.dumps({"error": message, "at": now()}), analysis_id))
 
     def recover_interrupted(self):
+        recovered = 0
         with self.connection() as db:
             for analysis_id, payload in db.execute("SELECT id,payload FROM analyses WHERE status='running'").fetchall():
                 owner = json.loads(payload).get("owner_pid")
                 if not owner or not process_alive(owner):
-                    db.execute("UPDATE analyses SET status='interrupted' WHERE id=?", (analysis_id,))
+                    data = {**json.loads(payload), "recovered_at": now(),
+                            "error": "Processo responsável encerrado; nova tentativa depende do operador."}
+                    db.execute("UPDATE analyses SET status='interrupted',payload=? WHERE id=?",
+                               (json.dumps(data, ensure_ascii=False), analysis_id))
+                    self._audit(db, "analysis_interrupted", {"id": analysis_id, **data})
+                    recovered += 1
+        return recovered
 
     def analysis_states(self) -> dict:
         with self.connection() as db:

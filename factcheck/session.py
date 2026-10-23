@@ -3,6 +3,7 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import queue
 import threading
@@ -15,6 +16,7 @@ from . import __version__
 from .audio import AudioChunk, AudioDevice, PCMChunker, RollingChunker, pcm_levels
 from .paragraphs import ParagraphAssembler, ParagraphConfig
 from .review import Debate, ReviewStore
+from .persistence import atomic_json
 from .streaming import MODEL_NAME, MODEL_REVISION, PACKET_SECONDS, StreamingTranscriber
 from .transcription import LocalTranscriber
 
@@ -88,7 +90,7 @@ class CaptureSession:
         self.folder.mkdir(parents=True, exist_ok=False)
         streaming = self.engine_name == "streaming"
         self.metadata = {
-            "schema_version": 4, "app_version": __version__,
+            "schema_version": 5, "app_version": __version__, "owner_pid": os.getpid(),
             "session_id": self.folder.name, "started_at": utc_now(),
             "status": "recording", "device": asdict(self.device),
             "debate": asdict(self.debate),
@@ -111,8 +113,7 @@ class CaptureSession:
             "cancelled_chunks": 0, "issues": [],
         }
         metadata_path = self.folder / "session.json"
-        metadata_path.write_text(json.dumps(self.metadata, ensure_ascii=False, indent=2),
-                                 encoding="utf-8")
+        atomic_json(metadata_path, self.metadata)
         review_store = ReviewStore(self.folder)
         packets: queue.Queue = queue.Queue(maxsize=512)
         jobs: queue.Queue[AudioChunk | None] = queue.Queue(maxsize=50 if streaming else 12)
@@ -259,14 +260,21 @@ class CaptureSession:
                 return None, pa.paContinue
 
             try:
-                with wave.open(str(self.folder / "audio.wav"), "wb") as wav:
+                with (self.folder / "audio.wav").open("wb") as audio_file, wave.open(audio_file, "wb") as wav:
                     wav.setnchannels(self.device.channels)
                     wav.setsampwidth(2)
                     wav.setframerate(self.device.sample_rate)
 
+                    last_flush = time.perf_counter()
+
                     def write_pcm(data: bytes) -> None:
-                        nonlocal frames, last_meter
-                        wav.writeframesraw(data)
+                        nonlocal frames, last_meter, last_flush
+                        # Atualizar o cabeçalho a cada pacote; disponibilizar os
+                        # buffers ao sistema ao menos a cada segundo com amostras.
+                        wav.writeframes(data)
+                        if time.perf_counter() - last_flush >= 1:
+                            audio_file.flush()
+                            last_flush = time.perf_counter()
                         frames += len(data) // frame_bytes
                         for chunk in chunker.push(data):
                             enqueue(chunk)
@@ -346,6 +354,11 @@ class CaptureSession:
                 capture_error = str(exc)
                 issue("capture_error", capture_error)
             finally:
+                self.metadata.update(status="finalizing", frames=frames)
+                try:
+                    atomic_json(metadata_path, self.metadata)
+                except OSError as exc:
+                    issue("metadata_error", str(exc))
                 final_chunk = chunker.finish()
                 if final_chunk and not self.cancel_event.is_set():
                     enqueue(final_chunk)
@@ -374,8 +387,7 @@ class CaptureSession:
                 if self.cancel_event.is_set():
                     event("cancelled", {"cancelled_chunks": self.metadata["cancelled_chunks"],
                                         "files_preserved": True})
-                metadata_path.write_text(json.dumps(self.metadata, ensure_ascii=False, indent=2),
-                                         encoding="utf-8")
+                atomic_json(metadata_path, self.metadata)
             if capture_error and not self.cancel_event.is_set():
                 self.emit("error", {"message": capture_error})
             return capture_error is None and not self.cancel_event.is_set()

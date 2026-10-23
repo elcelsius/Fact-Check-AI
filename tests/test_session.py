@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -138,6 +139,8 @@ class SessionCancellationTests(unittest.TestCase):
                     patch("factcheck.session.LocalTranscriber", return_value=engine):
                 self.assertTrue(session.run())
             self.assertEqual(session.metadata["status"], "completed")
+            self.assertEqual(session.metadata["owner_pid"], os.getpid())
+            self.assertEqual(session.metadata["schema_version"], 5)
             self.assertTrue(session.metadata["transcription_complete"])
             self.assertGreaterEqual(engine.calls, 3)
             self.assertGreater(session.metadata["transcript_lines"], 0)

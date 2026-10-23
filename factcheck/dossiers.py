@@ -125,11 +125,18 @@ class DossierStore:
                        ("cancelled" if cancelled else "failed", message, now(), jid))
 
     def recover(self):
+        recovered = 0
         with self.review.connection() as db:
             for jid, payload in db.execute("SELECT id,payload FROM research_jobs WHERE status='running'").fetchall():
                 owner = json.loads(payload).get("owner_pid")
                 if not owner or not process_alive(owner):
-                    db.execute("UPDATE research_jobs SET status='interrupted' WHERE id=?", (jid,))
+                    data = {**json.loads(payload), "recovered_at": now(),
+                            "error": "Processo responsável encerrado; nova tentativa depende do operador."}
+                    db.execute("UPDATE research_jobs SET status='interrupted',payload=? WHERE id=?",
+                               (json.dumps(data, ensure_ascii=False), jid))
+                    self.review._audit(db, "research_interrupted", {"id": jid, **data})
+                    recovered += 1
+        return recovered
 
     def record_query(self, cid, query):
         with self.review.connection() as db:
