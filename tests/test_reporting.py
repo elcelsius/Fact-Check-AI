@@ -28,6 +28,13 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn("MARCADOR-SECRETO", json.dumps(report))
         self.assertNotIn("A inflação", render_report(report))
 
+    def test_old_report_without_planning_fields_remains_readable(self):
+        report = session_report(self.review)
+        del report["claims"]["planning"]
+        text = render_report(report)
+        self.assertIn("não registrado neste relatório antigo", text)
+        self.assertIn("NÃO AVALIADOS", text)
+
     def test_human_decisions_ratio_uses_current_factual_claims_and_excludes_opinions(self):
         self.dossiers.decide(self.cid, 0, "inconclusiva", "Revisor fictício", "Sem fonte neste ensaio.")
         report = session_report(self.review)

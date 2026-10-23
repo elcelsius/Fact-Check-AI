@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.13.0**, de 23/10/2026. As funções são locais; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão.
+Procedimento do protótipo Windows, versão **0.14.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão.
 
 ## Antes de um ensaio com vídeo
 
@@ -68,13 +68,31 @@ Testes adicionais verificam a cópia de um WAV com cabeçalho incompleto, a excl
 
 Esse ensaio cobre encerramento de processo e persistência local. Continuam pendentes o ensaio editorial completo com vídeo representativo, qualidade da transcrição/checagem, falha elétrica, disco defeituoso ou cheio, recuperação entre máquinas e restauração de backup em outro computador. A chamada real ao Gemini e a coleta online ainda precisam ser validadas na execução normal do Windows.
 
+## Planejar a checagem
+
+Em **Dossiê e fontes**, use **Planejar checagem** para registrar pergunta verificável, período, território, indicador ou fato a demonstrar, comparação, lacunas e URLs candidatas. Escolha a situação da pesquisa. Um pedido de explicação sem proposição explícita pode exigir descarte ou outra delimitação; essa avaliação não decorre apenas da etiqueta factual da IA.
+
+Campos vazios permanecem a definir. A pergunta e os recortes do plano orientam as sugestões de busca, sem recolocar valores antigos do modelo onde o operador deixou campos vazios. As URLs candidatas passam pela validação institucional, mas não são acessadas nem arquivadas ao salvar. Colete ou importe uma fonte para obter conteúdo com localizadores, origem e data de acesso.
+
+Rascunhos preparados pela IA ficam como **conferência humana pendente**. Salvar pelo operador registra essa origem no plano, sem conferir a transcrição ou decidir o veredito. Uma mudança tem revisão e histórico, limpa a análise e a decisão atuais e rejeita a conclusão de tarefas que usaram a versão anterior. As cópias de fontes permanecem disponíveis para reavaliar pertinência; nova coleta, análise ou retirada de fonte preservam o plano. Salvar dados idênticos não invalida resultados. Um editor concorrente não pode sobrescrever a versão mais recente.
+
+O plano aparece no dossiê interno, em `dossiers.plan` no JSON e em colunas `plano_*` no CSV de afirmações. O relatório conta os planos das extrações atuais, incluindo as indefinidas. Uma sugestão de extração não verificável não altera a categoria nem descarta a afirmação; após conferir o caso, use **Descartar com justificativa** quando pertinente. A proporção de decisões continua usando apenas afirmações factuais atuais. A análise automática Gemini permanece inconclusiva quando depende de plano com contexto pendente, possível ausência de alegação verificável ou rascunho de IA sem conferência.
+
+### Ensaio dos primeiros rascunhos na versão 0.14
+
+Uma nova cópia da sessão usada na versão 0.13 recebeu outra execução dos três primeiros parágrafos, após ajustar a orientação de triagem e exigir campos não vazios na gramática local. Foram concluídos dois trechos; o inicial continuou rejeitado porque a citação gerada não corresponde ao texto salvo. Nenhuma correção de transcrição foi inventada. O pedido genérico de explicação passou a indefinido, e a alegação percentual passou a fato a pesquisar. Essas mudanças em uma amostra pequena não estimam precisão nem eliminam erros de segmentação ou classificação.
+
+Foram preparados **quatro rascunhos de IA**: três com contexto pendente e um indicando possível ausência de alegação verificável. A página [Dados nacionais de segurança pública do MJSP](https://www.gov.br/mj/pt-br/assuntos/sua-seguranca/seguranca-publica/estatistica) foi baixada pela coleta real e gerou 23 blocos extraídos. Ela orienta a escolha de indicadores e metodologia; não comprova a tendência alegada no trecho. A candidata do TSE foi identificada em fonte oficial, mas a tentativa de coleta retornou PermissionError e não gerou evidência arquivada.
+
+Os rascunhos preservam citação, categoria e atribuição da extração, distinguem fontes arquivadas de URLs candidatas e mantêm os nomes, períodos e recortes ausentes sem preenchimento por suposição. Não houve chamada a API de IA nem decisão humana. Os arquivos originais permaneceram iguais; a cópia, os dossiês e os relatórios estão em diretórios locais ignorados pelo Git. O próximo passo exige ouvir os trechos e definir o contexto dos casos antes de completar evidências e revisão factual.
+
 ## Ensaio editorial com gravação
 
 1. Escolha um intervalo de três a cinco minutos com afirmações verificáveis, opiniões e frases que dependam de contexto. Registre vídeo, posição inicial, versão, operador e motor utilizado. Preserve o vídeo para rever a mesma fala.
 2. Para preparar uma referência sem ver as sugestões, desmarque **Identificar afirmações automaticamente ao concluir cada parágrafo** antes da captura. Ouça e anote as afirmações elegíveis, com tempos e recortes. Separe essa referência das sugestões da IA; se usar revisão já assistida, registre essa condição.
 3. Encerre a captura. Confira a transcrição, números, negações e participantes com o áudio. Registre correções necessárias, trechos ausentes e tempo gasto. As contagens automáticas do relatório não substituem essa conferência.
 4. Execute a triagem nos parágrafos escolhidos. Compare as afirmações com a referência, incluindo as que a IA não identificou. Registre erros de extração, duplicações e tentativas rejeitadas. Uma resposta inválida permanece como falha; confira a fala antes de repetir a tentativa.
-5. Para cada caso factual selecionado, colete uma fonte institucional ou importe uma cópia já baixada, conferindo a URL declarada. Verifique período, território, indicador, método e possíveis fontes divergentes. Uma cópia importada não comprova acesso à URL.
+5. Para cada caso selecionado, use **Planejar checagem**, defina a pergunta e explicite recortes ausentes. Colete uma fonte institucional ou importe uma cópia já baixada, conferindo a URL declarada. Verifique período, território, indicador, método e possíveis fontes divergentes. Uma cópia importada não comprova acesso à URL.
 6. Se optar por Gemini, configure e teste sua chave antes da análise preliminar. Sem API, a equipe pode ler as fontes e revisar manualmente. Registre a decisão humana e a justificativa somente após a conferência; casos sem evidência suficiente podem permanecer inconclusivos. Não há publicação automática.
 7. Exporte o JSON completo, os CSVs necessários e **Relatório do ensaio · TXT/JSON**, usando **Exportar sessão**. Abra os arquivos no destino e confira campos, texto, fontes e estados. O relatório usa as afirmações atuais; tentativas antigas ficam separadas, inclusive depois de uma nova tentativa bem-sucedida.
 8. Preencha a ficha abaixo com a referência humana e as observações. Compare esforço, cobertura e falhas, mantendo o denominador das afirmações reais separado da quantidade detectada pela IA. Defina as correções e os limites aceitáveis antes de repetir ou avançar para um evento ao vivo.

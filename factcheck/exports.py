@@ -13,6 +13,7 @@ from . import __version__
 from .grouping import active
 from .review import now
 from .timeline import timestamp
+from .planning import PLAN_FIELDS
 
 
 SCHEMA_VERSION = 1
@@ -125,7 +126,8 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
         dossiers.append(_record(session_id, "dossier", cid,
             {"claim_id": cid, "revision": revision, "source_current": valid, "state": state,
              "preliminary_current": bool(valid and preliminary), "decision_current": bool(valid and decision),
-             "preliminary": preliminary, "decision": decision}))
+             "preliminary": preliminary, "decision": decision,
+             "plan": _pick(case["plan"], (*PLAN_FIELDS, "origin", "updated_at")) if case.get("plan") else None}))
         claims.append(_record(session_id, "claim", cid,
             {"claim_id": cid, **_pick(claim, CLAIM_KEYS), **times(claim), "source_current": valid,
              "source_paragraph_ids": claim.get("source_paragraph_ids", [claim["paragraph_id"]]),
@@ -186,7 +188,9 @@ COLUMNS = {
                "participante", "inicio_captura_s", "fim_captura_s", "inicio_video", "fim_video", "referencia_revisao", "citacao", "resumo", "motivo",
                "tema", "local", "periodo", "indicador", "comparacao", "contexto_analisado", "analise_id", "modelo", "estado_dossie", "dossie_revisao",
                "preliminar_classificacao", "preliminar_resumo", "preliminar_justificativa", "preliminar_atual", "evidencias_citadas", "decisao_humana_classificacao", "decisao_humana_responsavel",
-               "decisao_humana_justificativa", "decisao_humana_em", "decisao_atual", "motivo_descarte", "fontes_urls", "fonte_ids"),
+               "decisao_humana_justificativa", "decisao_humana_em", "decisao_atual", "motivo_descarte", "fontes_urls", "fonte_ids",
+               "plano_pergunta", "plano_situacao", "plano_periodo", "plano_territorio", "plano_indicador", "plano_comparacao",
+               "plano_observacoes", "plano_urls_candidatas", "plano_origem"),
     "sources": (*COMMON, "fonte_id", "afirmacao_id", "origem_afirmacao_atual", "titulo", "instituicao", "autoria", "url", "publicado_em",
                 "acessado_em", "origem", "acesso_url_confirmado", "importado_em", "sha256", "texto_sha256", "leitura_limitada", "avisos", "localizadores"),
 }
@@ -233,6 +237,7 @@ def csv_rows(data, kind):
             dossier = dossiers[row["claim_id"]]
             preliminary, decision = dossier["preliminary"] or {}, dossier["decision"] or {}
             documents = [doc for doc in data["sources"] if doc["claim_id"] == row["claim_id"]]
+            plan = dossier.get("plan") or {}
             record.update(afirmacao_id=row["claim_id"], revisao_fala=row["revision"], origem_atual=row["source_current"], estado_triagem=row["status"],
                           categoria=row["category"], citacao=row["quote"], resumo=row["summary"], motivo=row["reason"], tema=row.get("topic"),
                           local=row.get("location"), periodo=row.get("period"), indicador=row.get("indicator"), comparacao=row.get("comparison"),
@@ -243,6 +248,9 @@ def csv_rows(data, kind):
                           decisao_humana_classificacao=decision.get("verdict"), decisao_humana_responsavel=decision.get("reviewer"),
                           decisao_humana_justificativa=decision.get("reason"), decisao_humana_em=decision.get("at"), decisao_atual=dossier["decision_current"],
                           motivo_descarte=row.get("discard_reason"), fontes_urls=[doc["url"] for doc in documents], fonte_ids=[doc["document_id"] for doc in documents])
+            record.update(plano_pergunta=plan.get("question"), plano_situacao=plan.get("scope"), plano_periodo=plan.get("period"),
+                          plano_territorio=plan.get("territory"), plano_indicador=plan.get("indicator"), plano_comparacao=plan.get("comparison"),
+                          plano_observacoes=plan.get("notes"), plano_urls_candidatas=plan.get("candidate_urls", []), plano_origem=plan.get("origin"))
         else:
             record.update(fonte_id=row["document_id"], afirmacao_id=row["claim_id"], origem_afirmacao_atual=row["claim_source_current"], titulo=row.get("title"),
                           instituicao=row.get("institution"), autoria=row.get("author"), url=row["url"], publicado_em=row.get("published_at"),

@@ -558,6 +558,55 @@ class WorkbenchTests(unittest.TestCase):
         self.work.evidence.open_selected()
         return self.work.evidence, cid
 
+    def test_plan_editor_saves_recuts_without_running_ai_or_approving_facts(self):
+        pane, cid = self.open_dossier()
+        pane.plan()
+        window = widgets(self.root, tk.Toplevel)[0]
+        question, notes, urls = widgets(window, tk.Text)
+        question.insert("1.0", "Qual indicador está sendo comparado?")
+        notes.insert("1.0", "Definir o período antes de pesquisar.")
+        urls.insert("1.0", "https://ibge.gov.br/")
+        with patch("factcheck.evidence_ui.ResearchTask") as research, patch("factcheck.workbench.TriageRunner") as triage:
+            next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar planejamento").invoke()
+        research.assert_not_called()
+        triage.assert_not_called()
+        result = pane.store.snapshot(cid)
+        self.assertEqual(result["plan"]["question"], "Qual indicador está sendo comparado?")
+        self.assertEqual(result["plan"]["period"], "")
+        self.assertEqual(result["plan"]["origin"], "operator_input")
+        self.assertIsNone(result["decision"])
+        self.assertEqual(result["documents"], [])
+        self.assertFalse(self.work.store.source(1)["human_reviewed"])
+
+    def test_cancel_dirty_plan_requires_confirmation_and_keeps_database_unchanged(self):
+        pane, cid = self.open_dossier()
+        pane.plan()
+        window = widgets(self.root, tk.Toplevel)[0]
+        widgets(window, tk.Text)[0].insert("1.0", "Pergunta ainda não salva")
+        cancel = next(button for button in widgets(window, ttk.Button) if button["text"] == "Cancelar")
+        with patch("factcheck.evidence_ui.messagebox.askyesno", return_value=False):
+            cancel.invoke()
+        self.assertTrue(window.winfo_exists())
+        self.assertIsNone(pane.store.snapshot(cid)["plan"])
+        with patch("factcheck.evidence_ui.messagebox.askyesno", return_value=True):
+            cancel.invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertIsNone(pane.store.snapshot(cid)["plan"])
+
+    def test_stale_plan_editor_preserves_newer_decision_and_stays_open(self):
+        pane, cid = self.open_dossier()
+        pane.plan()
+        window = widgets(self.root, tk.Toplevel)[0]
+        question, notes, _ = widgets(window, tk.Text)
+        question.insert("1.0", "Pergunta antiga?")
+        notes.insert("1.0", "Contexto a definir.")
+        pane.store.decide(cid, 0, "inconclusiva", "Revisor fictício", "Decisão posterior à abertura.")
+        with patch("factcheck.evidence_ui.messagebox.showerror") as error:
+            next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar planejamento").invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertIsNotNone(pane.store.snapshot(cid)["decision"])
+
     def test_dossier_opening_and_export_do_not_start_network_or_approve_result(self):
         with patch("factcheck.evidence_ui.ResearchTask") as task, patch("factcheck.evidence_ui.webbrowser.open") as browser:
             pane, cid = self.open_dossier()

@@ -203,11 +203,11 @@ def read_local_document(path, url, cancelled):
             "url": url, "requested_url": url, "acquisition": "local_import", "file_name": file.name[:255]}
 
 
-def search_plan(claim):
+def search_plan(claim, plan=None):
     # Termos são dados da fala. Nada aqui decide se a afirmação está correta.
-    terms = str(claim.get("summary") or claim.get("quote") or "")
-    for key in ("location", "period", "indicator"):
-        value = str(claim.get(key) or "")
+    terms = str((plan or {}).get("question") or claim.get("summary") or claim.get("quote") or "")
+    for key in ("location", "period", "indicator", "comparison"):
+        value = str((plan.get("territory" if key == "location" else key) if plan is not None else claim.get(key)) or "")
         if value and value.casefold() not in terms.casefold():
             terms += " " + value
     terms = re.sub(r"\s+", " ", terms)[:350]

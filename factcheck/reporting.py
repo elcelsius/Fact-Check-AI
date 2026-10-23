@@ -101,6 +101,7 @@ def session_report(review, cancelled=None):
                  else "sources_only" if cid in with_sources else "pending_sources")
         flow[stage] += 1
     reviewed = flow["human_decided"]
+    plans = [dossiers[row["claim_id"]].get("plan") for row in current if dossiers[row["claim_id"]].get("plan")]
     analyzed = sum(row["triage"]["status"] == "completed" for row in paragraphs)
     closed = sum(row["closed"] for row in paragraphs)
     chunks = [row for row in events if row["kind"] == "transcription_chunk"]
@@ -150,6 +151,9 @@ def session_report(review, cancelled=None):
                              "speaker_unassigned": sum(not row["speaker"] for row in paragraphs),
                              "triage_completed": analyzed, "triage_not_completed": len(paragraphs) - analyzed},
               "claims": {"current": len(current), "by_category": dict(Counter(row["category"] for row in current)),
+                         "planning": {"recorded": len(plans), "ai_drafts": sum(plan["origin"] == "ai_draft" for plan in plans),
+                                      "needs_context": sum(plan["scope"] == "falta_contexto" for plan in plans),
+                                      "possibly_not_checkable": sum(plan["scope"] == "nao_verificavel" for plan in plans)},
                          "historical_or_discarded": len(data["claims"]) - len(current),
                          "detected_factual": len(factual), "factual_flow": {key: flow[key] for key in
                              ("pending_sources", "sources_only", "preliminary_pending_human", "human_decided")},
@@ -190,6 +194,7 @@ def render_report(report):
                           ("cancelled", "canceladas"), ("interrupted", "interrompidas"), ("stale", "desatualizadas"), ("other", "outras")))
 
     paragraphs, claims, timing = report["paragraphs"], report["claims"], report["timing_seconds"]
+    planning = claims.get("planning")
     ratio_value = claims["human_decisions_on_detected_factual"]
     lines = ["RELATÓRIO DO ENSAIO · USO INTERNO", "", f"Evento: {report['event']['title']}",
              f"Sessão: {report['session_id']}", f"Gerado em: {report['generated_at']}",
@@ -203,6 +208,9 @@ def render_report(report):
              f"Afirmações atuais: {claims['current']} · históricas/descartadas: {claims['historical_or_discarded']}",
              f"Categorias atuais: {json.dumps(claims['by_category'], ensure_ascii=False)}",
              f"Afirmações factuais identificadas pela IA: {claims['detected_factual']}",
+             (f"Planos registrados: {planning['recorded']} · rascunhos de IA: {planning['ai_drafts']} · "
+              f"com contexto pendente: {planning['needs_context']} · possivelmente não verificáveis: {planning['possibly_not_checkable']}"
+              if planning is not None else "Planejamento: não registrado neste relatório antigo."),
              f"Decisão humana nas factuais identificadas: {ratio_value['numerator']}/{ratio_value['denominator']}" +
              (f" ({ratio_value['fraction']:.1%})" if ratio_value['fraction'] is not None else " (sem denominador)"),
              f"Aguardando fontes: {claims['factual_flow']['pending_sources']}",

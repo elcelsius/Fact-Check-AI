@@ -11,6 +11,7 @@ import webbrowser
 from .dossiers import DossierStore, VERDICTS, render
 from .research import ResearchTask
 from .sources import search_plan, source_url
+from .planning import ORIGINS, SCOPES
 
 
 class EvidencePane:
@@ -54,6 +55,7 @@ class EvidencePane:
         row = ttk.Frame(self.tab)
         row.pack(fill="x", side="bottom", before=self.preview, pady=4)
         ttk.Button(row, text="Registrar decisão humana", command=self.decide).pack(side="left")
+        ttk.Button(row, text="Planejar checagem", command=self.plan).pack(side="left", padx=8)
         ttk.Button(row, text="Exportar dossiê interno", command=self.export).pack(side="left", padx=8)
         ttk.Label(row, text="Sem divulgação automática.").pack(side="right")
 
@@ -75,10 +77,84 @@ class EvidencePane:
         if not claim:
             return
         self.cid = claim["id"]
-        self.query.configure(values=search_plan(claim))
+        self.query.configure(values=search_plan(claim, self.store.snapshot(self.cid).get("plan")))
         self.query.current(0)
         self.refresh()
         self.notebook.select(self.tab)
+
+    def plan(self):
+        if not self.store or not self.cid:
+            return
+        snapshot = self.store.snapshot(self.cid)
+        if not snapshot["valid"]:
+            messagebox.showinfo("Planejar checagem", "Abra uma afirmação da revisão atual antes de planejar.", parent=self.root)
+            return
+        saved = snapshot.get("plan") or {}
+        window, close = self.work.dialog("Planejar checagem · pergunta, recortes e lacunas")
+        window.geometry("850x760")
+        frame = ttk.Frame(window, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Planejamento não confirma fatos nem confere a transcrição. A citação original será preservada.",
+                  wraplength=780).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frame, text=ORIGINS[saved["origin"]] if saved else "Plano ainda não registrado.", wraplength=780).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frame, text="Pergunta verificável").pack(anchor="w")
+        question = ScrolledText(frame, height=2, wrap="word")
+        question.pack(fill="x", pady=5)
+        question.insert("1.0", saved.get("question", ""))
+        ttk.Label(frame, text="Situação da pesquisa").pack(anchor="w")
+        scope = ttk.Combobox(frame, state="readonly", values=list(SCOPES.values()))
+        scope.set(SCOPES[saved.get("scope", "falta_contexto")])
+        scope.pack(fill="x", pady=5)
+        grid = ttk.Frame(frame)
+        grid.pack(fill="x", pady=6)
+        fields = {}
+        for index, (key, label) in enumerate((("period", "Período"), ("territory", "Território"),
+                                              ("indicator", "Indicador / fato a demonstrar"), ("comparison", "Comparação"))):
+            row, column = divmod(index, 2)
+            cell = ttk.Frame(grid, padding=(0, 0, 12, 6))
+            cell.grid(row=row, column=column, sticky="ew")
+            ttk.Label(cell, text=label).pack(anchor="w")
+            fields[key] = ttk.Entry(cell)
+            fields[key].insert(0, saved.get(key, ""))
+            fields[key].pack(fill="x", pady=3)
+        grid.columnconfigure((0, 1), weight=1)
+        ttk.Label(frame, text="Lacunas, contexto necessário e observações").pack(anchor="w")
+        notes = ScrolledText(frame, height=4, wrap="word")
+        notes.insert("1.0", saved.get("notes", ""))
+        notes.pack(fill="both", expand=True, pady=5)
+        ttk.Label(frame, text="URLs institucionais candidatas · uma por linha · não são evidências coletadas").pack(anchor="w")
+        urls = ScrolledText(frame, height=3, wrap="word")
+        urls.insert("1.0", "\n".join(saved.get("candidate_urls", [])))
+        urls.pack(fill="x", pady=5)
+        ttk.Label(frame, text="Campos vazios permanecem a definir. Salvar uma mudança invalida a análise e a decisão anteriores, "
+                  "preserva as fontes e rejeita resultados da versão anterior ainda em processamento.", wraplength=780).pack(anchor="w", pady=8)
+
+        def value():
+            return {"question": question.get("1.0", "end-1c"), "scope": next(key for key, label in SCOPES.items() if label == scope.get()),
+                    **{key: entry.get() for key, entry in fields.items()}, "notes": notes.get("1.0", "end-1c"),
+                    "candidate_urls": [line.strip() for line in urls.get("1.0", "end-1c").splitlines() if line.strip()]}
+        initial = value()
+
+        def save():
+            try:
+                self.store.save_plan(snapshot["claim"]["id"], snapshot["revision"], value())
+                self.query.configure(values=search_plan(snapshot["claim"], self.store.snapshot(self.cid).get("plan")))
+                self.query.current(0)
+                self.refresh()
+                self.work.refresh()
+                close()
+            except ValueError as exc:
+                messagebox.showerror("Planejar checagem", str(exc), parent=window)
+
+        def cancel():
+            if value() == initial or messagebox.askyesno("Descartar planejamento?", "Há alterações ainda não salvas. Deseja descartá-las?",
+                                                        default=messagebox.NO, parent=window):
+                close()
+        row = ttk.Frame(frame)
+        row.pack(fill="x", pady=8)
+        ttk.Button(row, text="Salvar planejamento", command=save).pack(side="left")
+        ttk.Button(row, text="Cancelar", command=cancel).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", cancel)
 
     def show_text(self, value):
         self.preview.configure(state="normal")

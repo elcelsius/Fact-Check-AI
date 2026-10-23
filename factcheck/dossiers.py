@@ -7,6 +7,7 @@ import uuid
 from .review import now, process_alive
 from .timeline import describe_time, timestamp
 from .grouping import active as active_source
+from .planning import ORIGINS, PLAN_FIELDS, SCOPES, validate_plan
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -44,6 +45,9 @@ class DossierStore:
         return 0, {"preliminary": None, "decision": None}
 
     def _save(self, db, cid, revision, case, kind):
+        if "plan" not in case:
+            _, previous = self._case(db, cid)
+            case = {**case, "plan": previous.get("plan")}
         db.execute("INSERT OR REPLACE INTO cases VALUES (?,?,?)", (cid, revision, json.dumps(case, ensure_ascii=False)))
         self.review._audit(db, kind, {"claim_id": cid, "case_revision": revision, **case})
 
@@ -60,7 +64,23 @@ class DossierStore:
                        if json.loads(payload).get("claim_id") == cid]
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
                     "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
-                    "jobs": jobs, "queries": queries, **case}
+                    "jobs": jobs, "queries": queries, "plan": case.get("plan"), **case}
+
+    def save_plan(self, cid, expected_revision, plan, origin="operator_input"):
+        if origin not in ORIGINS:
+            raise ValueError("Origem do plano inválida.")
+        plan = {**validate_plan(plan), "origin": origin}
+        with self.review.connection() as db:
+            self._claim(db, cid, active=True)
+            revision, case = self._case(db, cid)
+            if revision != expected_revision:
+                raise ValueError("O dossiê mudou. Reabra o planejamento antes de salvar.")
+            previous = case.get("plan") or {}
+            if {key: previous.get(key) for key in (*PLAN_FIELDS, "origin")} == plan:
+                return False
+            case = {**case, "plan": {**plan, "updated_at": now()}, "preliminary": None, "decision": None}
+            self._save(db, cid, revision + 1, case, "check_plan_changed")
+            return True
 
     def begin(self, cid, kind):
         if kind not in {"collect", "import", "analyze"}:
@@ -146,9 +166,11 @@ class DossierStore:
     def states(self):
         with self.review.connection() as db:
             states = {}
+            with_sources = {row[0] for row in db.execute("SELECT DISTINCT claim_id FROM evidence")}
             for cid, payload in db.execute("SELECT claim_id,payload FROM cases"):
                 case = json.loads(payload)
-                states[cid] = "Revisão humana registrada" if case["decision"] else "Análise preliminar pronta" if case["preliminary"] else "Fontes coletadas"
+                states[cid] = ("Revisão humana registrada" if case["decision"] else "Análise preliminar pronta" if case["preliminary"] else
+                               "Fontes coletadas" if cid in with_sources else "Planejamento salvo" if case.get("plan") else "Aguardando pesquisa")
             return states
 
     def remove_document(self, cid, expected_revision, did, reason):
@@ -196,7 +218,18 @@ def render(snapshot):
               if offset is not None else "Referência do vídeo não definida; horários relativos à captura."), "",
              *(["Parágrafos de origem da combinação: " + ", ".join(map(str, claim["source_paragraph_ids"])), ""]
                if len(claim.get("source_paragraph_ids", [])) > 1 else []),
-             "## Fala literal", "", claim["quote"], "", "## Contexto", "", claim["context"], "", "## Fontes coletadas", ""]
+             "## Fala literal", "", claim["quote"], "", "## Contexto", "", claim["context"], ""]
+    plan = snapshot.get("plan")
+    lines += ["## Planejamento da checagem", ""]
+    if plan:
+        lines += [ORIGINS[plan["origin"]], SCOPES[plan["scope"]], f"Pergunta: {plan['question'] or 'Não definida'}",
+                  f"Período: {plan['period'] or 'A definir'}", f"Território: {plan['territory'] or 'A definir'}",
+                  f"Indicador: {plan['indicator'] or 'A definir'}", f"Comparação: {plan['comparison'] or 'A definir'}",
+                  f"Lacunas e observações: {plan['notes'] or 'Não informadas'}", "",
+                  "URLs candidatas para pesquisa; não são evidências coletadas:", *plan["candidate_urls"], ""]
+    else:
+        lines += ["Pergunta e recortes ainda não registrados.", ""]
+    lines += ["## Fontes coletadas", ""]
     if not snapshot["documents"]:
         lines.append("Nenhuma fonte coletada. Não há evidências para concluir.")
     for doc in snapshot["documents"]:
