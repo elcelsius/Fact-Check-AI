@@ -166,6 +166,39 @@ class DossierTests(unittest.TestCase):
         self.add()
         self.assertEqual(self.store.snapshot(self.cid)["decision"]["reviewer"], "Revisor")
 
+    def combine_with_next(self):
+        self.review.ingest({"paragraph_id": 2, "version": 1, "source_text": "Outra declaração fictícia.",
+                            "text": "Outra declaração fictícia.", "start": 6, "end": 9,
+                            "closed": True, "speaker": None, "parts": []})
+        return self.review.combine(1, self.review.source(1)["revision"], 2, 1, True)
+
+    def test_combination_invalidates_dossier_and_late_research_without_erasing_human_decision(self):
+        self.store.decide(self.cid, 0, "inconclusiva", "Revisor", "Faltam fontes.")
+        decision = self.store.snapshot(self.cid)["decision"]
+        job = self.store.begin(self.cid, "collect")
+        combined = self.combine_with_next()
+        self.assertFalse(self.store.finish(job, document()))
+        snapshot = self.store.snapshot(self.cid)
+        self.assertFalse(snapshot["valid"])
+        self.assertEqual(snapshot["decision"], decision)
+        self.assertEqual(snapshot["documents"], [])
+        self.assertIn("DESATUALIZADO", render(snapshot))
+        self.review.uncombine(combined["paragraph_id"], 1)
+        self.assertFalse(self.store.snapshot(self.cid)["valid"])
+
+    def test_new_combined_claim_keeps_origin_paragraph_ids_in_dossier(self):
+        combined = self.combine_with_next()
+        job, source = self.review.begin_analysis(combined["paragraph_id"])
+        item = {"quote": source["text"], "summary": source["text"], "reason": "Exemplo fictício.",
+                "category": "fato", "topic": "Economia", "location": None,
+                "period": None, "indicator": None, "comparison": None}
+        self.review.finish_analysis(job, validate_items([item], source["text"]), {})
+        claim = self.review.claims()[0]
+        self.assertEqual(claim["source_paragraph_ids"], [1, 2])
+        exported = render(self.store.snapshot(claim["id"]))
+        self.assertIn("Parágrafos de origem da combinação: 1, 2", exported)
+        self.assertIn("PENDENTE DE REVISÃO HUMANA", exported)
+
     def test_video_reference_changes_exported_times_without_changing_editorial_decision(self):
         self.store.decide(self.cid, 0, "inconclusiva", "Revisor", "Faltam fontes.")
         before = self.store.snapshot(self.cid)

@@ -4,7 +4,7 @@ Checagem assistida por IA em debates políticos ao vivo.
 
 Projeto de um assistente de pesquisa para equipes humanas de checagem. Durante um debate, o sistema deverá transcrever falas, identificar afirmações verificáveis, pesquisar evidências e preparar análises preliminares para revisão editorial.
 
-**Status:** protótipo com captura e transcrição locais, minutagem de referência do vídeo, revisão das falas, triagem local ou Gemini e dossiês com coleta e importação de fontes institucionais, versão 0.9, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
+**Status:** protótipo com captura e transcrição locais, minutagem de referência do vídeo, combinação reversível de parágrafos na revisão, triagem local ou Gemini e dossiês com coleta e importação de fontes institucionais, versão 0.10, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
 
 ## Usar o protótipo
 
@@ -58,6 +58,20 @@ O organizador usa regras locais de português para sugerir a organização do te
 A pausa pode ser configurada de **0,8 a 5 segundos**. Os horários são os estimados pelo reconhecimento. A conclusão de uma ideia é uma heurística que considera conectivos, verbos, auxiliares e finais incompletos; mudanças implícitas de tema e a qualidade da segmentação continuam sujeitas a avaliação. A triagem das afirmações usa um modelo separado, descrito abaixo.
 
 A pontuação e a capitalização são sugestões de apresentação. **Ver texto original** permite acompanhar as mesmas falas sem essas sugestões. Os registros originais permanecem em **transcript.jsonl** e **transcript.txt**. Cada revisão de parágrafo mantém os identificadores e textos dos trechos de origem, e continua marcada como não revisada por uma pessoa. O encerramento normal inclui o último trecho; cancelar preserva os parágrafos já persistidos e descarta os resultados pendentes.
+
+### Combinar e descombinar na revisão
+
+Na aba **Revisar falas**, selecione um parágrafo e clique em **Combinar com o próximo**. A prévia reúne seu texto atual ao do parágrafo imediatamente abaixo, preservando as correções humanas. Os dois precisam estar concluídos e sem atualização pendente da origem; a operação também funciona durante uma captura. Falas atribuídas a participantes diferentes não podem ser combinadas. Se algum participante estiver indefinido, é necessário confirmar que os trechos pertencem à mesma pessoa; essa confirmação não identifica automaticamente quem fala.
+
+Clique em **Combinar trechos** para criar o parágrafo marcado como **Combinado**. Os componentes saem da lista ativa, permanecem no banco e podem ser recuperados. É possível combinar o resultado com o próximo parágrafo novamente. **Ouvir trecho**, após encerrar a captura, reproduz o intervalo completo entre o início e o fim do combinado, incluindo as pausas; a minutagem de referência continua funcionando.
+
+**Descombinar** desfaz a última combinação e restaura os dois componentes com novas revisões. Se houve edição, atribuição ou conferência do combinado, abre-se uma tela para distribuir o texto entre os componentes e confirmar a conferência. A separação exige preservar todas as palavras e sua ordem, desconsiderando diferenças de espaços. Se o participante foi alterado no combinado, ele será atribuído aos dois textos restaurados, que ficam com revisão humana pendente. **Cancelar** mantém o combinado e suas correções.
+
+Se uma atualização do reconhecimento mudar a origem, o combinado fica pendente de reconciliação e sua análise é bloqueada. Use **Descombinar** para conferir os textos atuais; as versões originais mais recentes são preservadas. Nas combinações sucessivas, desfazer retorna uma etapa por vez.
+
+Combinar e descombinar invalidam as análises e os dossiês afetados, mantendo decisões anteriores no histórico. Desfazer não revalida automaticamente uma análise antiga. A operação não inicia outra chamada à IA: confira a fala e use **Analisar seleção** quando desejar nova triagem. As novas afirmações e os dossiês identificam os parágrafos de origem.
+
+O agrupamento editorial e seu histórico ficam no **review.sqlite3** e são recuperados ao reabrir. A aba **Captura e transcrição** e os arquivos TXT/JSONL continuam mostrando o reconhecimento original; o áudio não é reescrito. Use a aba **Revisar falas** para consultar os agrupamentos e as correções atuais.
 
 ### Triagem de afirmações e revisão
 
@@ -183,7 +197,8 @@ Para escolher uma saída pela linha de comando, acrescente **--device** com o í
 
 ### Validação realizada neste computador
 
-- Os 159 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Os 183 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Na versão 0.10, os testes cobrem combinação de blocos adjacentes e concluídos, conferência de autoria indefinida, bloqueio de participantes diferentes, preservação dos originais e correções, combinações sucessivas, reabertura, atualizações tardias e rejeição de operações desatualizadas. A separação de textos corrigidos impede omissão de palavras, incluindo negações; dossiês e resultados antigos continuam históricos. A reprodução foi conferida pelo conteúdo PCM do intervalo combinado, sem mudar o áudio original. As novas janelas e a lista de revisão foram inspecionadas com dados fictícios; a operação editorial em um debate real permanece pendente de avaliação.
 - Na versão 0.9, os testes cobrem conversão e limites da minutagem, referência zero e remoção, persistência e histórico, rejeição de edição concorrente, abertura de bancos antigos e independência entre sessões. A interface foi inspecionada com dados fictícios; a reprodução mantém o intervalo original, e a alteração da referência preserva análises em andamento e decisões humanas. Essa validação não mede a precisão de sincronização com um player real.
 - Na versão 0.8, os testes verificam a chamada fictícia de conexão, o limite reduzido de saída, a proteção da chave, o cancelamento, a troca da chave durante uma resposta pendente e o fechamento da configuração/aplicativo. A importação de HTML e PDF fictícios foi exercitada sem rede, com extração em processo Windows real, metadados de origem não confirmada, preservação dos arquivos originais e decisão humana separada. Outros testes cobrem arquivos inválidos ou grandes demais, atualização da origem após coleta online e rebaixamento de análise dependente de cópia importada para inconclusiva. Não houve chamada real com chave Google nesta validação.
 - A configuração com **Testar conexão** e o painel com **Importar PDF/HTML** foram inspecionados visualmente em janelas descartáveis, usando somente dados fictícios e sem iniciar gravação.
@@ -241,4 +256,4 @@ O projeto avaliará a redução de trabalho humano junto com a qualidade das evi
 
 Usar **Testar conexão** para validar uma chave e o acesso real ao modelo no Windows, e exercitar a coleta online na execução normal do aplicativo. Enquanto isso, a revisão pode avançar com cópias importadas e origem explicitamente pendente de conferência. Em paralelo, avaliar transcrição, triagem e dossiês com gravações representativas e anotações humanas. A descoberta automática de links dependerá de um provedor de busca com custo e limites conhecidos. A definição editorial do piloto e seu conjunto de referência continuam no checklist.
 
-O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) também registra as prioridades de operação propostas em 23/10/2026. A minutagem de referência foi implementada na versão 0.9; o próximo desenvolvimento proposto é combinar e descombinar parágrafos preservando os originais e as revisões. Exportação estruturada e ensaio de recuperação continuam pendentes. Essas melhorias mantêm o aplicativo independente.
+O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) também registra as prioridades de operação propostas em 23/10/2026. A minutagem de referência foi implementada na versão 0.9 e a combinação reversível na 0.10. O próximo desenvolvimento proposto é exportar falas revisadas, afirmações e estados em JSON e CSV, preservando seus identificadores e vínculos. O ensaio de recuperação continua pendente. Essas melhorias mantêm o aplicativo independente.

@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 import uuid
 
 from .timeline import validate_video_position
+from .grouping import active, combine, uncombine
 
 
 def process_alive(pid: int) -> bool:
@@ -166,9 +167,12 @@ class ReviewStore:
         with self.connection() as db:
             row = db.execute("SELECT payload FROM paragraphs WHERE id=?", (pid,)).fetchone()
             source = json.loads(row[0]) if row else None
+            if source and source.get("merged_from"):
+                raise ValueError("Parágrafos combinados não recebem atualizações do reconhecimento.")
             if source and paragraph["version"] <= source["source_version"]:
                 return source
-            changed = source and paragraph["source_text"] != source["original"]["source_text"]
+            changed = source and any(paragraph.get(key) != source["original"].get(key)
+                                     for key in ("source_text", "start", "end", "speaker"))
             if source is None:
                 source = {"paragraph_id": pid, "revision": 1, "text": paragraph["source_text"],
                           "speaker": paragraph.get("speaker"), "edited": False,
@@ -187,6 +191,14 @@ class ReviewStore:
             self._save(db, source)
             if changed or not row:
                 self._audit(db, "source_updated", source)
+            parent_id = source.get("hidden_by") if changed else None
+            while parent_id is not None:
+                parent = json.loads(db.execute("SELECT payload FROM paragraphs WHERE id=?", (parent_id,)).fetchone()[0])
+                parent.update(revision=parent["revision"] + 1, needs_rebase=True, human_reviewed=False)
+                self._save(db, parent)
+                self._invalidate(db, parent_id)
+                self._audit(db, "combined_origin_updated", {"source_id": pid, "combined": parent})
+                parent_id = parent.get("hidden_by")
             return source
 
     def import_paragraphs(self):
@@ -196,9 +208,19 @@ class ReviewStore:
                 if line.strip():
                     self.ingest(json.loads(line))
 
-    def sources(self) -> list[dict]:
+    def sources(self, include_inactive: bool = False) -> list[dict]:
         with self.connection() as db:
-            return [json.loads(row[0]) for row in db.execute("SELECT payload FROM paragraphs ORDER BY id")]
+            sources = [json.loads(row[0]) for row in db.execute("SELECT payload FROM paragraphs")]
+            return sorted((source for source in sources if include_inactive or active(source)),
+                          key=lambda source: (source["start"], source["end"], source["paragraph_id"]))
+
+    def combine(self, left_id: int, left_revision: int, right_id: int, right_revision: int,
+                confirmed_unknown: bool = False) -> dict:
+        return combine(self, left_id, left_revision, right_id, right_revision, confirmed_unknown)
+
+    def uncombine(self, pid: int, expected_revision: int, reconciled_texts: list[str] | None = None,
+                  confirmed: bool = False) -> list[dict]:
+        return uncombine(self, pid, expected_revision, reconciled_texts, confirmed)
 
     def source(self, pid: int) -> dict:
         with self.connection() as db:
@@ -213,6 +235,10 @@ class ReviewStore:
             raise ValueError("O texto deve ter de 1 a 30.000 caracteres.")
         with self.connection() as db:
             source = json.loads(db.execute("SELECT payload FROM paragraphs WHERE id=?", (pid,)).fetchone()[0])
+            if not active(source):
+                raise ValueError("O trecho foi substituído por uma combinação. Revise o parágrafo ativo.")
+            if source.get("merged_from") and source["needs_rebase"]:
+                raise ValueError("A origem do combinado mudou. Descombine e confira as falas atualizadas antes de editar.")
             if source["revision"] != expected_revision:
                 raise ValueError("Esse trecho mudou. Reabra a revisão para conferir a versão atual.")
             debate = json.loads(db.execute("SELECT payload FROM debate WHERE id=1").fetchone()[0])
@@ -229,6 +255,8 @@ class ReviewStore:
     def begin_analysis(self, pid: int, force: bool = False) -> tuple[str, dict] | None:
         with self.connection() as db:
             source = json.loads(db.execute("SELECT payload FROM paragraphs WHERE id=?", (pid,)).fetchone()[0])
+            if not active(source):
+                raise ValueError("O trecho foi substituído. Analise a versão ativa na revisão de falas.")
             if source["needs_rebase"]:
                 raise ValueError("Confira a atualização do texto original antes de analisar.")
             states = ("running",) if force else ("running", "completed")
@@ -244,7 +272,7 @@ class ReviewStore:
         with self.connection() as db:
             pid, revision, state = db.execute("SELECT paragraph_id,revision,status FROM analyses WHERE id=?", (analysis_id,)).fetchone()
             source = json.loads(db.execute("SELECT payload FROM paragraphs WHERE id=?", (pid,)).fetchone()[0])
-            if state != "running" or source["revision"] != revision or source["needs_rebase"]:
+            if state != "running" or not active(source) or source["revision"] != revision or source["needs_rebase"]:
                 db.execute("UPDATE analyses SET status='stale' WHERE id=?", (analysis_id,))
                 return False
             self._invalidate(db, pid)
@@ -253,6 +281,7 @@ class ReviewStore:
                 claim = {**item, "id": claim_id, "analysis_id": analysis_id, "paragraph_id": pid,
                          "revision": revision, "speaker": source["speaker"], "start": source["start"],
                          "end": source["end"], "context": source["text"], "created_at": now(),
+                         "source_paragraph_ids": source["original"].get("source_paragraph_ids", [pid]),
                          "status": "precisa_contexto" if item["category"] == "fato" and item.get("context_notes") else
                                    "aguardando_pesquisa" if item["category"] == "fato" else
                                    "precisa_contexto" if item["category"] == "indefinida" else "fora_da_fila",

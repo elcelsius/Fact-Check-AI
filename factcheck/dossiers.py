@@ -6,6 +6,7 @@ import uuid
 
 from .review import now, process_alive
 from .timeline import describe_time, timestamp
+from .grouping import active as active_source
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -30,7 +31,7 @@ class DossierStore:
         claim = json.loads(row[0])
         source = json.loads(db.execute("SELECT payload FROM paragraphs WHERE id=?", (claim["paragraph_id"],)).fetchone()[0])
         valid = not (claim.get("source_outdated") or claim["status"] in {"descartada", "analise_desatualizada"}
-                     or source["revision"] != claim["revision"] or source["needs_rebase"])
+                     or source["revision"] != claim["revision"] or source["needs_rebase"] or not active_source(source))
         if active and not valid:
             raise ValueError("A afirmação foi alterada ou descartada. Use a triagem da revisão atual.")
         return claim, valid
@@ -186,6 +187,8 @@ def render(snapshot):
              f"Participante: {claim['speaker'] or 'Não identificado'} · parágrafo {claim['paragraph_id']} · {describe_time(claim, offset)}",
              (f"Referência manual atual: vídeo em {timestamp(offset)} no início da captura · revisão {reference['revision']}."
               if offset is not None else "Referência do vídeo não definida; horários relativos à captura."), "",
+             *(["Parágrafos de origem da combinação: " + ", ".join(map(str, claim["source_paragraph_ids"])), ""]
+               if len(claim.get("source_paragraph_ids", [])) > 1 else []),
              "## Fala literal", "", claim["quote"], "", "## Contexto", "", claim["context"], "", "## Fontes coletadas", ""]
     if not snapshot["documents"]:
         lines.append("Nenhuma fonte coletada. Não há evidências para concluir.")

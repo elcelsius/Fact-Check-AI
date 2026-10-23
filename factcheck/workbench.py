@@ -16,6 +16,7 @@ from .gemini import MODEL as GEMINI_MODEL
 from .evidence_ui import EvidencePane
 from .connection_test import ConnectionTest
 from .timeline import describe_time, parse_video_position, timestamp, video_range
+from .grouping import active, reconciliation_needed
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -49,6 +50,8 @@ class Workbench:
         ttk.Button(actions, text="Abrir sessão gravada", command=self.open_session).pack(side="left")
         ttk.Button(actions, text="Revisar fala selecionada", command=self.edit_selected).pack(side="left", padx=8)
         ttk.Button(actions, text="Ouvir trecho", command=self.play_selected).pack(side="left")
+        ttk.Button(actions, text="Combinar com o próximo", command=self.combine_selected).pack(side="left", padx=8)
+        ttk.Button(actions, text="Descombinar", command=self.uncombine_selected).pack(side="left")
         ttk.Label(self.review_tab, textvariable=self.ai_label, wraplength=950).pack(anchor="w", pady=(0, 8))
         ttk.Checkbutton(self.review_tab, text="Identificar afirmações automaticamente ao concluir cada parágrafo",
                         variable=self.auto).pack(anchor="w", pady=(0, 8))
@@ -353,8 +356,9 @@ class Workbench:
                 self.app.folder_button.configure(state="normal")
                 self.app.paragraphs.clear()
                 self.app.render_paragraphs()
-                for source in self.sources.values():
-                    self.app.update_paragraph(source["original"])
+                for source in self.store.sources(include_inactive=True):
+                    if not source.get("merged_from"):
+                        self.app.update_paragraph(source["original"])
                 self.progress.configure(text="Sessão carregada. Você pode revisar as falas e iniciar a triagem.")
             except Exception as exc:
                 messagebox.showerror("Abrir sessão", str(exc), parent=self.root)
@@ -363,6 +367,8 @@ class Workbench:
         if not self.store:
             return
         self.refresh()
+        if data["paragraph_id"] not in self.sources:
+            return
         if self.auto.get() and data.get("closed") and data.get("end_reason") not in {"cancelamento", "captura_interrompida", "transcricao_interrompida"}:
             self.analyze(data["paragraph_id"])
 
@@ -383,7 +389,8 @@ class Workbench:
                        "cancelled": "Cancelada", "interrupted": "Interrompida", "stale": "Desatualizada"}
         self._rows(self.source_tree, {str(pid): (f"{source['start']:.1f}–{source['end']:.1f}",
             video_range(source, offset) if offset is not None else "Não definida", source["speaker"] or "Não identificado",
-            ("Original atualizado" if source["needs_rebase"] else "Conferida" if source["human_reviewed"] else "Pendente")
+            ("Combinado · " if source.get("merged_from") else "")
+            + ("Original atualizado" if source["needs_rebase"] else "Conferida" if source["human_reviewed"] else "Pendente")
             + " · " + state_names.get(states.get((pid, source["revision"]), {}).get("status"), "Sem triagem"),
             source["text"][:220]) for pid, source in self.sources.items()})
         case_states = self.evidence.store.states() if self.evidence.store else {}
@@ -397,11 +404,12 @@ class Workbench:
         for key in tree.get_children():
             if key not in rows:
                 tree.delete(key)
-        for key, values in rows.items():
+        for index, (key, values) in enumerate(rows.items()):
             if tree.exists(key):
                 tree.item(key, values=values)
             else:
                 tree.insert("", "end", iid=key, values=values)
+            tree.move(key, "", index)
 
     def time(self, source):
         return describe_time(source, self.video_reference["offset_seconds"])
@@ -415,12 +423,135 @@ class Workbench:
         if source:
             self.edit(source["paragraph_id"])
 
+    def combine_selected(self):
+        left = self.selected_source()
+        if not left:
+            return
+        sources = list(self.sources.values())
+        index = next(index for index, source in enumerate(sources) if source["paragraph_id"] == left["paragraph_id"])
+        if index + 1 >= len(sources):
+            messagebox.showinfo("Combinar parágrafos", "Selecione um parágrafo que tenha outro logo abaixo.", parent=self.root)
+            return
+        right = sources[index + 1]
+        if not all(source["closed"] and not source["needs_rebase"] for source in (left, right)):
+            messagebox.showinfo("Combinar parágrafos", "Aguarde a conclusão dos dois parágrafos e confira atualizações pendentes da origem.", parent=self.root)
+            return
+        if left["speaker"] and right["speaker"] and left["speaker"] != right["speaker"]:
+            messagebox.showinfo("Combinar parágrafos", "Não é possível combinar falas de participantes diferentes.", parent=self.root)
+            return
+        store = self.store
+        window, close = self.dialog("Combinar parágrafos · conferir contexto")
+        window.geometry("850x540")
+        frame = ttk.Frame(window, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Confira se os trechos formam uma fala da mesma pessoa.", wraplength=800).pack(anchor="w", pady=(0, 8))
+        for source in (left, right):
+            ttk.Label(frame, text=f"Trecho {source['paragraph_id']} · {self.time(source)} · {source['speaker'] or 'Não identificado'}",
+                      wraplength=800).pack(anchor="w")
+        preview = ScrolledText(frame, height=10, wrap="word")
+        preview.pack(fill="both", expand=True, pady=12)
+        preview.insert("1.0", left["text"].strip() + " " + right["text"].strip())
+        preview.configure(state="disabled")
+        confirmed = tk.BooleanVar(value=False)
+        if not left["speaker"] or not right["speaker"]:
+            ttk.Checkbutton(frame, text="Conferi que os dois trechos pertencem à mesma pessoa", variable=confirmed).pack(anchor="w")
+        ttk.Label(frame, text="Os originais e o histórico serão preservados. As análises anteriores ficarão desatualizadas. "
+                  "O combinado precisará de nova revisão e triagem.", wraplength=800).pack(anchor="w", pady=12)
+
+        def save():
+            try:
+                if self.store is not store:
+                    raise ValueError("A sessão mudou. Reabra a combinação.")
+                combined = store.combine(left["paragraph_id"], left["revision"], right["paragraph_id"], right["revision"], confirmed.get())
+                self.refresh()
+                self.source_tree.selection_set(str(combined["paragraph_id"]))
+                self.source_tree.see(str(combined["paragraph_id"]))
+                self.progress.configure(text="Parágrafos combinados. Confira a fala e use Analisar seleção para uma nova triagem.")
+                close()
+            except (ValueError, OSError) as exc:
+                messagebox.showerror("Combinar parágrafos", str(exc), parent=window)
+
+        row = ttk.Frame(frame)
+        row.pack(fill="x")
+        ttk.Button(row, text="Combinar trechos", command=save).pack(side="left")
+        ttk.Button(row, text="Cancelar", command=close).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", close)
+
+    def uncombine_selected(self):
+        source = self.selected_source()
+        if not source:
+            return
+        if not source.get("merged_from"):
+            messagebox.showinfo("Descombinar", "Selecione um parágrafo combinado.", parent=self.root)
+            return
+        store = self.store
+
+        def restore(texts=None, confirmed=False):
+            if self.store is not store:
+                raise ValueError("A sessão mudou. Reabra a separação dos trechos.")
+            restored = store.uncombine(source["paragraph_id"], source["revision"], texts, confirmed)
+            self.refresh()
+            self.source_tree.selection_set(str(restored[0]["paragraph_id"]))
+            self.source_tree.see(str(restored[0]["paragraph_id"]))
+            self.progress.configure(text="Parágrafos separados. As análises anteriores continuam no histórico; confira as falas antes de analisar novamente.")
+
+        if not reconciliation_needed(source):
+            try:
+                restore()
+            except (ValueError, OSError) as exc:
+                messagebox.showerror("Descombinar", str(exc), parent=self.root)
+            return
+        window, close = self.dialog("Descombinar · preservar alterações")
+        window.geometry("900x760")
+        frame = ttk.Frame(window, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="O combinado mudou. Confira a distribuição antes de separar.", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Texto combinado atual · as correções devem ser preservadas integralmente nos dois campos abaixo.", wraplength=850).pack(anchor="w", pady=(10, 4))
+        current = ScrolledText(frame, height=4, wrap="word")
+        current.pack(fill="both", expand=True)
+        current.insert("1.0", source["text"])
+        current.configure(state="disabled")
+        editors = []
+        for pid in source["merged_from"]:
+            child = store.source(pid)
+            ttk.Label(frame, text=f"Trecho {pid} · {self.time(child)} · {child['speaker'] or 'Não identificado'}", wraplength=850).pack(anchor="w", pady=(10, 4))
+            editor = ScrolledText(frame, height=5, wrap="word")
+            editor.pack(fill="both", expand=True)
+            editor.insert("1.0", child["text"])
+            editors.append(editor)
+        confirmed = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frame, text="Conferi a distribuição das alterações e dos trechos atualizados", variable=confirmed).pack(anchor="w", pady=10)
+        ttk.Label(frame, text="Os originais e o combinado permanecerão no histórico. Os textos restaurados precisarão de revisão. "
+                  "Se o participante foi alterado no combinado, ele será atribuído aos dois trechos. "
+                  "Quando a origem tiver mudado, confira também as versões atuais nos campos acima.", wraplength=850).pack(anchor="w", pady=(0, 10))
+
+        def save():
+            try:
+                restore([editor.get("1.0", "end-1c") for editor in editors], confirmed.get())
+                close()
+            except (ValueError, OSError) as exc:
+                messagebox.showerror("Descombinar", str(exc), parent=window)
+
+        row = ttk.Frame(frame)
+        row.pack(fill="x")
+        ttk.Button(row, text="Descombinar preservando texto", command=save).pack(side="left")
+        ttk.Button(row, text="Cancelar", command=close).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", close)
+
     def edit(self, pid):
         source = self.store.source(pid)
+        if not active(source):
+            messagebox.showinfo("Revisar fala", "O trecho foi substituído por uma combinação. Selecione o parágrafo ativo em Revisar falas.", parent=self.root)
+            return
+        if source.get("merged_from") and source["needs_rebase"]:
+            messagebox.showinfo("Revisar fala", "A origem do combinado mudou. Use Descombinar para conferir as falas atualizadas.", parent=self.root)
+            return
         window, close = self.dialog("Revisar fala · revisão da transcrição")
         frame = ttk.Frame(window, padding=16)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text=f"Trecho {pid} · {self.time(source)} · revisão {source['revision']}").pack(anchor="w")
+        if source.get("merged_from"):
+            ttk.Label(frame, text="Parágrafos de origem: " + ", ".join(map(str, source["original"]["source_paragraph_ids"]))).pack(anchor="w")
         ttk.Label(frame, text="Original reconhecido · preservado no histórico").pack(anchor="w", pady=(12, 4))
         original = ScrolledText(frame, height=6, wrap="word")
         original.pack(fill="both", expand=True)
@@ -519,6 +650,8 @@ class Workbench:
                 [("topic", "Tema"), ("location", "Local"), ("period", "Período"), ("indicator", "Indicador"), ("comparison", "Comparação")])
             text = (f"{LABELS[claim['status']]} · {CATEGORIES[claim['category']]} · {claim['speaker'] or 'Não identificado'}\n"
                     f"Horário aproximado do parágrafo: {self.time(claim)} · parágrafo {claim['paragraph_id']} · revisão {claim['revision']}\n\n"
+                    + ("Parágrafos de origem da combinação: " + ", ".join(map(str, claim["source_paragraph_ids"])) + "\n\n"
+                       if len(claim.get("source_paragraph_ids", [])) > 1 else "") +
                     f"FALA LITERAL\n{claim['quote']}\n\nRESUMO\n{claim['summary']}\n\n{fields}\n\n"
                     f"CRITÉRIO DA TRIAGEM\n{claim['reason']}\n\n"
                     f"MOTOR UTILIZADO\n{provenance}\n\n"

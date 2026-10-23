@@ -82,6 +82,125 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(self.work.debate.participants, ["Ana"])
         self.assertEqual(self.work.store.claims(), [])
 
+    def add_second_paragraph(self):
+        second = {**self.paragraph, "paragraph_id": 2, "start": 4.5, "end": 5.5,
+                  "text": "A taxa foi de 4%.", "source_text": "A taxa foi de 4%."}
+        with (self.folder / "paragraphs.jsonl").open("a", encoding="utf8") as log:
+            log.write("\n" + json.dumps(second))
+        self.work.store.ingest(second)
+        self.work.refresh()
+        self.work.source_tree.selection_set("1")
+        return second
+
+    def combine_dialog(self):
+        self.work.combine_selected()
+        window = widgets(self.root, tk.Toplevel)[0]
+        button = next(button for button in widgets(window, ttk.Button) if button["text"] == "Combinar trechos")
+        return window, button
+
+    def combine_paragraphs(self):
+        window, button = self.combine_dialog()
+        for checkbox in widgets(window, ttk.Checkbutton):
+            checkbox.invoke()
+        button.invoke()
+        return self.work.selected_source()
+
+    def test_combination_preview_requires_authorship_check_and_cancel_preserves_sources(self):
+        self.add_second_paragraph()
+        window, button = self.combine_dialog()
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            button.invoke()
+        error.assert_called_once()
+        self.assertEqual(len(self.work.store.sources()), 2)
+        next(button for button in widgets(window, ttk.Button) if button["text"] == "Cancelar").invoke()
+        self.assertEqual(len(self.work.store.sources(include_inactive=True)), 2)
+
+    def test_combining_closed_paragraphs_during_capture_keeps_capture_and_skips_hidden_triage(self):
+        self.add_second_paragraph()
+        original_file = (self.folder / "paragraphs.jsonl").read_bytes()
+        self.app.session = Mock()
+        self.app.folder = self.folder
+        with patch.object(self.work, "analyze") as analyze:
+            combined = self.combine_paragraphs()
+            self.work.on_paragraph(self.paragraph)
+            self.assertEqual(self.work.source_tree.get_children(), (str(combined["paragraph_id"]),))
+            self.work.uncombine_selected()
+        analyze.assert_not_called()
+        self.assertEqual(self.work.source_tree.get_children(), ("1", "2"))
+        self.app.session.cancel.assert_not_called()
+        self.assertEqual((self.folder / "paragraphs.jsonl").read_bytes(), original_file)
+
+    def test_reopening_grouped_session_preserves_original_capture_view(self):
+        second = self.add_second_paragraph()
+        combined = self.combine_paragraphs()
+        with patch("factcheck.workbench.filedialog.askdirectory", return_value=str(self.folder)):
+            self.work.open_session()
+        self.assertEqual(self.work.source_tree.get_children(), (str(combined["paragraph_id"]),))
+        self.assertEqual(list(self.app.paragraphs), [1, 2])
+        self.assertEqual(self.app.paragraphs[1]["source_text"], self.text)
+        self.assertEqual(self.app.paragraphs[2]["source_text"], second["source_text"])
+
+    def test_combined_audio_uses_original_range_with_video_reference(self):
+        self.add_second_paragraph()
+        self.work.store.save_video_reference(750, 0)
+        self.work.refresh()
+        combined = self.combine_paragraphs()
+        self.assertIn("00:12:31 → 00:12:35", self.work.time(combined))
+        module = SimpleNamespace(PlaySound=Mock(), SND_FILENAME=1, SND_ASYNC=2, SND_NODEFAULT=4)
+        with patch.dict("sys.modules", {"winsound": module}):
+            self.work.play_selected()
+        with wave.open(str(self.project / ".cache/playback/trecho.wav"), "rb") as wav:
+            self.assertEqual(wav.getnframes(), 4500)
+            self.assertEqual(wav.readframes(4500), self.pcm[2000:11000])
+        with wave.open(str(self.folder / "audio.wav"), "rb") as wav:
+            self.assertEqual(wav.readframes(6000), self.pcm)
+
+    def test_edited_combination_requires_text_distribution_before_undo(self):
+        second = self.add_second_paragraph()
+        combined = self.combine_paragraphs()
+        corrected = "A inflação não caiu para 3,5% em 2025."
+        self.work.store.revise(combined["paragraph_id"], 1, corrected + " " + second["text"], "Ana")
+        self.work.refresh()
+        self.work.uncombine_selected()
+        window = widgets(self.root, tk.Toplevel)[0]
+        save = next(button for button in widgets(window, ttk.Button) if button["text"] == "Descombinar preservando texto")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            save.invoke()
+            widgets(window, ttk.Checkbutton)[0].invoke()
+            save.invoke()
+        self.assertEqual(error.call_count, 2)
+        editors = [editor for editor in widgets(window, tk.Text) if str(editor["state"]) == "normal"]
+        editors[0].delete("1.0", "end")
+        editors[0].insert("1.0", corrected)
+        save.invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.source_tree.get_children(), ("1", "2"))
+        self.assertEqual(self.work.store.source(1)["text"], corrected)
+        self.assertEqual(self.work.store.source(1)["original"]["source_text"], self.text)
+        self.assertTrue(all(source["speaker"] == "Ana" and not source["human_reviewed"] for source in self.work.sources.values()))
+
+    def test_cancelled_reconciliation_keeps_combined_correction(self):
+        self.add_second_paragraph()
+        combined = self.combine_paragraphs()
+        edited = self.work.store.revise(combined["paragraph_id"], 1, "Texto corrigido e preservado.", "Ana")
+        self.work.refresh()
+        self.work.uncombine_selected()
+        window = widgets(self.root, tk.Toplevel)[0]
+        next(button for button in widgets(window, ttk.Button) if button["text"] == "Cancelar").invoke()
+        self.assertEqual(self.work.store.sources(), [edited])
+
+    def test_combination_blocks_different_participants_before_opening_preview(self):
+        self.add_second_paragraph()
+        self.work.store.save_debate(Debate(participants=["Ana", "Bruno"]))
+        for pid, speaker in [(1, "Ana"), (2, "Bruno")]:
+            source = self.work.store.source(pid)
+            self.work.store.revise(pid, source["revision"], source["text"], speaker)
+        self.work.refresh()
+        with patch("factcheck.workbench.messagebox.showinfo") as info:
+            self.work.combine_selected()
+        info.assert_called_once()
+        self.assertEqual(widgets(self.root, tk.Toplevel), [])
+
     def timeline_dialog(self):
         self.work.configure_timeline()
         window = widgets(self.root, tk.Toplevel)[0]
