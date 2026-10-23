@@ -151,22 +151,36 @@ class Workbench:
         if self.app.session or self.busy():
             messagebox.showinfo("Configurar IA", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa antes de mudar o motor.", parent=self.root)
             return
-        window, close = self.dialog("Configurar IA · identificação de afirmações")
+        window, close = self.dialog("Configurar IA · sua chave Google Gemini")
         frame = ttk.Frame(window, padding=20)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Motor para identificar afirmações").pack(anchor="w")
         provider = ttk.Combobox(frame, state="readonly", values=["Local · Qwen3-4B", f"Gemini API · {GEMINI_MODEL}"])
         provider.current(0 if self.ai_config.provider == "local" else 1)
         provider.pack(fill="x", pady=(6, 12))
+        key_frame = ttk.LabelFrame(frame, text="Sua chave da API Google (Gemini)", padding=12)
+        key_frame.pack(fill="x", pady=(0, 12))
+        key = tk.StringVar(value=self.ai_config.api_key or os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", ""))
+        key_row = ttk.Frame(key_frame)
+        key_row.pack(fill="x")
+        key_entry = ttk.Entry(key_row, textvariable=key, show="*")
+        key_entry.pack(side="left", fill="x", expand=True)
+
+        def toggle_key():
+            visible = bool(key_entry.cget("show"))
+            key_entry.configure(show="" if visible else "*")
+            toggle_button.configure(text="Ocultar" if visible else "Mostrar")
+
+        toggle_button = ttk.Button(key_row, text="Mostrar", command=toggle_key)
+        toggle_button.pack(side="left", padx=(8, 0))
+        ttk.Button(key_row, text="Limpar", command=lambda: key.set("")).pack(side="left", padx=(6, 0))
+        ttk.Label(key_frame, text="Cole sua própria chave neste campo. Ela fica somente na memória enquanto o aplicativo estiver aberto.",
+                  wraplength=750).pack(anchor="w", pady=(8, 0))
         ttk.Label(frame, text="Captura e transcrição continuam locais. Quando Gemini é escolhido, a triagem envia o parágrafo ao Google. "
                   "A análise de evidências envia a fala, o participante informado, a data do debate e trechos das fontes coletadas. "
                   "O áudio permanece local. Na camada gratuita, o Google "
                   "pode usar entradas e respostas para melhorar produtos e permitir revisão humana desses dados.",
                   wraplength=780).pack(anchor="w", pady=8)
-        ttk.Label(frame, text="Chave da API Gemini · guardada apenas na memória desta execução").pack(anchor="w", pady=(12, 4))
-        key = tk.StringVar(value=self.ai_config.api_key or os.environ.get("GEMINI_API_KEY", "") or os.environ.get("GOOGLE_API_KEY", ""))
-        ttk.Entry(frame, textvariable=key, show="*").pack(fill="x")
-        ttk.Label(frame, text="Também aceita GEMINI_API_KEY ou GOOGLE_API_KEY no ambiente. Não coloque a chave no Git nem no chat.", wraplength=780).pack(anchor="w", pady=6)
         ttk.Label(frame, text="Máximo de requisições por minuto nesta fila").pack(anchor="w", pady=(12, 4))
         rpm = tk.StringVar(value=str(self.ai_config.requests_per_minute))
         ttk.Spinbox(frame, from_=1, to=60, textvariable=rpm, width=8).pack(anchor="w")
@@ -176,7 +190,7 @@ class Workbench:
                   "reaplique a configuração para tentar novamente. Limites também podem ser diários ou por tokens.", wraplength=780).pack(anchor="w", pady=12)
         links = ttk.Frame(frame)
         links.pack(fill="x", pady=6)
-        ttk.Button(links, text="Abrir AI Studio · chaves", command=lambda: webbrowser.open("https://aistudio.google.com/api-keys")).pack(side="left")
+        ttk.Button(links, text="Criar chave no Google AI Studio", command=lambda: webbrowser.open("https://aistudio.google.com/api-keys")).pack(side="left")
         ttk.Button(links, text="Cotas e limites", command=lambda: webbrowser.open("https://ai.google.dev/gemini-api/docs/rate-limits")).pack(side="left", padx=8)
         ttk.Button(links, text="Tratamento dos dados", command=lambda: webbrowser.open("https://ai.google.dev/gemini-api/terms")).pack(side="left")
 

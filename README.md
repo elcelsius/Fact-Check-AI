@@ -4,7 +4,7 @@ Checagem assistida por IA em debates políticos ao vivo.
 
 Projeto de um assistente de pesquisa para equipes humanas de checagem. Durante um debate, o sistema deverá transcrever falas, identificar afirmações verificáveis, pesquisar evidências e preparar análises preliminares para revisão editorial.
 
-**Status:** protótipo com captura e transcrição locais, revisão das falas, triagem local ou Gemini e dossiês com coleta de fontes institucionais, versão 0.7, de 22 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
+**Status:** protótipo com captura e transcrição locais, revisão das falas, triagem local ou Gemini e dossiês com coleta de fontes institucionais, versão 0.7.1, de 22 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
 
 ## Usar o protótipo
 
@@ -75,7 +75,7 @@ O banco **review.sqlite3** guarda o cadastro atual, originais, revisões humanas
 O modo inicial continua sendo **Local** em cada abertura do aplicativo. Para usar a API:
 
 1. Crie uma chave no [Google AI Studio](https://aistudio.google.com/api-keys). Para usar somente a camada gratuita, escolha um projeto sem faturamento ativado e confira suas cotas.
-2. Antes de iniciar uma captura, clique em **Configurar IA**, selecione **Gemini API** e preencha a chave no campo protegido. Também é possível definir **GEMINI_API_KEY** ou **GOOGLE_API_KEY** no ambiente antes de abrir o aplicativo.
+2. Antes de iniciar uma captura, clique em **Configurar IA · API Google**, selecione **Gemini API** e cole sua chave no campo **Sua chave da API Google (Gemini)**. Cada usuário pode informar sua própria chave diretamente no aplicativo. O campo começa oculto; **Mostrar/Ocultar** permite conferir a digitação e **Limpar** apaga o conteúdo antes de aplicar. Também é possível definir **GEMINI_API_KEY** ou **GOOGLE_API_KEY** no ambiente antes de abrir o aplicativo.
 3. Confira o aviso sobre envio de texto e clique em **Aplicar configuração**. A chave digitada fica apenas na memória desta execução, sem ser gravada pelo aplicativo em configurações, sessões, logs ou Git. Ela precisa ser informada novamente após fechar, salvo quando fornecida pelo ambiente.
 4. Analise uma fala ou inicie uma captura com identificação automática. Para comparar uma fala já analisada pelo motor local, use **Analisar seleção**, que solicita nova análise da revisão atual.
 

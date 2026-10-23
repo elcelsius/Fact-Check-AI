@@ -84,15 +84,19 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(provider.current(), 0)
         self.assertEqual(str(key["show"]), "*")
         self.assertEqual(self.work.ai_config.provider, "local")
+        key.delete(0, "end")
+        key.insert(0, "chave-propria-do-usuario")
         provider.current(1)
         apply.invoke()
         self.assertFalse(window.winfo_exists())
         self.assertEqual(self.work.ai_config.provider, "gemini")
+        self.assertEqual(self.work.ai_config.api_key, "chave-propria-do-usuario")
         self.assertIn("texto enviado ao Google", self.work.ai_label.get())
         self.assertIsNone(self.work.runner)
         for file in self.project.rglob("*"):
             if file.is_file():
                 self.assertNotIn(b"chave-de-teste", file.read_bytes())
+                self.assertNotIn(b"chave-propria-do-usuario", file.read_bytes())
 
     def test_gemini_missing_key_does_not_apply_configuration(self):
         with patch.dict("os.environ", {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""}):
