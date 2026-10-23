@@ -17,6 +17,7 @@ from .evidence_ui import EvidencePane
 from .connection_test import ConnectionTest
 from .timeline import describe_time, parse_video_position, timestamp, video_range
 from .grouping import active, reconciliation_needed
+from .exports import ExportTask, FORMATS
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -30,6 +31,8 @@ class Workbench:
         self.store = None
         self.runner = None
         self.connection_test = None
+        self.export_task = None
+        self.export_label = tk.StringVar(value="Exportação: nenhum arquivo gerado nesta execução.")
         self.connection_handlers = {}
         self.ai_config = TriageConfig()
         self.ai_label = tk.StringVar(value="IA: Local · Qwen3-4B · falas processadas neste computador")
@@ -52,7 +55,9 @@ class Workbench:
         ttk.Button(actions, text="Ouvir trecho", command=self.play_selected).pack(side="left")
         ttk.Button(actions, text="Combinar com o próximo", command=self.combine_selected).pack(side="left", padx=8)
         ttk.Button(actions, text="Descombinar", command=self.uncombine_selected).pack(side="left")
+        ttk.Button(actions, text="Exportar sessão", command=self.configure_export).pack(side="left", padx=8)
         ttk.Label(self.review_tab, textvariable=self.ai_label, wraplength=950).pack(anchor="w", pady=(0, 8))
+        ttk.Label(self.review_tab, textvariable=self.export_label, wraplength=950).pack(anchor="w", pady=(0, 8))
         ttk.Checkbutton(self.review_tab, text="Identificar afirmações automaticamente ao concluir cada parágrafo",
                         variable=self.auto).pack(anchor="w", pady=(0, 8))
         self.source_tree = self.tree(self.review_tab,
@@ -63,6 +68,7 @@ class Workbench:
         ttk.Button(lower, text="Analisar seleção", command=self.analyze_selected).pack(side="left")
         ttk.Button(lower, text="Analisar todos os trechos concluídos", command=self.analyze_all).pack(side="left", padx=8)
         ttk.Button(lower, text="Cancelar triagem", command=self.cancel_triage).pack(side="left")
+        ttk.Button(lower, text="Cancelar exportação", command=self.cancel_export).pack(side="left", padx=8)
         self.progress = ttk.Label(self.review_tab, text="Abra uma sessão gravada ou inicie uma captura.", wraplength=950)
         self.progress.pack(anchor="w")
         ttk.Label(self.review_tab, text="A revisão da transcrição e a identificação do participante são manuais. "
@@ -76,6 +82,8 @@ class Workbench:
         ttk.Button(row, text="Revisar origem", command=self.edit_claim_source).pack(side="left", padx=8)
         ttk.Button(row, text="Descartar com justificativa", command=self.discard).pack(side="left")
         ttk.Button(row, text="Abrir dossiê", command=lambda: self.evidence.open_selected()).pack(side="left", padx=8)
+        ttk.Button(row, text="Exportar sessão", command=self.configure_export).pack(side="left")
+        ttk.Label(self.claim_tab, textvariable=self.export_label, wraplength=950).pack(anchor="w", pady=(0, 8))
         self.claim_detail = ScrolledText(self.claim_tab, wrap="word", height=12, font=("Segoe UI", 11))
         self.claim_detail.pack(fill="both", expand=True)
         self.claim_detail.configure(state="disabled")
@@ -101,7 +109,83 @@ class Workbench:
         return tree
 
     def busy(self):
-        return bool(self.runner and self.runner.pending) or self.evidence.busy() or bool(self.connection_test and self.connection_test.pending)
+        return (bool(self.runner and self.runner.pending) or self.evidence.busy()
+                or bool(self.connection_test and self.connection_test.pending) or bool(self.export_task and self.export_task.pending))
+
+    def configure_export(self):
+        if not self.store:
+            messagebox.showinfo("Exportar sessão", "Inicie uma captura ou abra uma sessão gravada.", parent=self.root)
+            return
+        if self.export_task and self.export_task.pending:
+            messagebox.showinfo("Exportar sessão", "Aguarde ou cancele a exportação em andamento.", parent=self.root)
+            return
+        if self.app.session and self.app.folder != self.store.folder:
+            messagebox.showinfo("Exportar sessão", "Aguarde o início da nova captura para exportar seus dados.", parent=self.root)
+            return
+        store = self.store
+        window, close = self.dialog("Exportar sessão · JSON e CSV")
+        window.geometry("850x420")
+        frame = ttk.Frame(window, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Exportar falas, afirmações e fontes", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Formato").pack(anchor="w", pady=(16, 4))
+        format_box = ttk.Combobox(frame, state="readonly", values=list(FORMATS.values()))
+        format_box.current(0)
+        format_box.pack(fill="x")
+        include_inactive = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frame, text="Incluir itens substituídos, descartados e desatualizados", variable=include_inactive).pack(anchor="w", pady=16)
+        ttk.Label(frame, text="JSON reúne os dados e o texto extraído das fontes. Cada CSV contém uma tabela: falas, afirmações ou fontes. "
+                  "Os identificadores acompanham os registros para comparação entre exportações.", wraplength=790).pack(anchor="w", pady=(0, 12))
+        ttk.Label(frame, text="A exportação usa os dados salvos no momento da cópia. Falas provisórias e alterações ainda abertas nos editores "
+                  "não entram no arquivo. A classificação da IA e a decisão humana permanecem separadas.", wraplength=790).pack(anchor="w")
+
+        def save():
+            task = None
+            try:
+                if self.store is not store:
+                    raise ValueError("A sessão mudou. Reabra a exportação.")
+                kind = list(FORMATS)[format_box.current()]
+                suffix = ".json" if kind == "json" else ".csv"
+                directory = store.folder / "exports"
+                directory.mkdir(exist_ok=True)
+                filename = filedialog.asksaveasfilename(parent=window, title="Salvar exportação da sessão", initialdir=directory,
+                    initialfile=f"sessao-{store.session_id()}-{kind}{'-historico' if include_inactive.get() else ''}{suffix}",
+                    defaultextension=suffix, filetypes=[("JSON" if kind == "json" else "CSV", "*" + suffix)], confirmoverwrite=True)
+                if not filename:
+                    return
+                if self.store is not store:
+                    raise ValueError("A sessão mudou. Reabra a exportação.")
+                task = ExportTask(store, filename, kind, include_inactive.get(), lambda event, data: self.app.events.put((event, data)))
+                self.app.register_activity(task.token, "Exportação da sessão", task.cancel)
+                self.export_task = task
+                self.export_label.set("Exportando os registros salvos. A captura e a revisão podem continuar.")
+                task.start()
+                close()
+            except (ValueError, OSError, RuntimeError) as exc:
+                if task is not None:
+                    self.app.activities.pop(task.token, None)
+                    self.export_task = None
+                    self.export_label.set("Exportação não iniciada. Confira as informações e tente novamente.")
+                messagebox.showerror("Exportar sessão", str(exc), parent=window)
+
+        row = ttk.Frame(frame)
+        row.pack(fill="x", side="bottom", pady=(16, 0))
+        ttk.Button(row, text="Escolher arquivo e exportar", command=save).pack(side="left")
+        ttk.Button(row, text="Cancelar", command=close).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", close)
+
+    def cancel_export(self):
+        task = self.export_task
+        if task and task.pending and not task.cancelled.is_set() and messagebox.askyesno(
+                "Cancelar exportação", "Cancelar a exportação em andamento? O arquivo só é substituído após a gravação completa.",
+                default=messagebox.NO, parent=self.root):
+            task.cancel()
+            self.export_label.set("Cancelando a exportação…")
+
+    def export_done(self, data):
+        self.app.activities.pop(data["token"], None)
+        if self.export_task and self.export_task.token == data["token"]:
+            self.export_label.set(data["message"])
 
     def connection_test_done(self, data):
         self.app.activities.pop(data["token"], None)
@@ -133,7 +217,7 @@ class Workbench:
 
     def configure_debate(self):
         if self.app.session or self.busy():
-            messagebox.showinfo("Dados do debate", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa antes de alterar o cadastro.", parent=self.root)
+            messagebox.showinfo("Dados do debate", "Encerre a captura e aguarde ou cancele as tarefas antes de alterar o cadastro.", parent=self.root)
             return
         window, close = self.dialog("Dados do debate")
         frame = ttk.Frame(window, padding=20)
@@ -151,7 +235,7 @@ class Workbench:
         def save():
             try:
                 debate = Debate(**{key: value.get().strip() for key, value in variables.items()},
-                                participants=names.get("1.0", "end-1c").splitlines()).validate()
+                                participants=names.get("1.0", "end-1c").splitlines(), event_id=self.debate.event_id).validate()
                 if self.store:
                     self.store.save_debate(debate)
                 self.debate = debate
@@ -208,7 +292,7 @@ class Workbench:
 
     def configure_ai(self):
         if self.app.session or self.busy():
-            messagebox.showinfo("Configurar IA", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa antes de mudar o motor.", parent=self.root)
+            messagebox.showinfo("Configurar IA", "Encerre a captura e aguarde ou cancele as tarefas antes de mudar o motor.", parent=self.root)
             return
         window, close = self.dialog("Configurar IA · sua chave Google Gemini")
         window.geometry("850x740")
@@ -330,7 +414,7 @@ class Workbench:
 
     def load(self, folder: Path, live=False):
         if self.busy():
-            raise ValueError("Aguarde ou cancele a triagem e a pesquisa antes de abrir outra sessão.")
+            raise ValueError("Aguarde ou cancele as tarefas antes de abrir outra sessão.")
         if self.runner:
             self.runner.cancel()
         store = ReviewStore(folder)
@@ -346,7 +430,7 @@ class Workbench:
 
     def open_session(self):
         if self.app.session or self.busy():
-            messagebox.showinfo("Abrir sessão", "Encerre a captura e aguarde ou cancele a triagem e a pesquisa atuais.", parent=self.root)
+            messagebox.showinfo("Abrir sessão", "Encerre a captura e aguarde ou cancele as tarefas atuais.", parent=self.root)
             return
         folder = filedialog.askdirectory(parent=self.root, title="Pasta da sessão gravada", initialdir=self.app.project_root / "recordings")
         if folder:

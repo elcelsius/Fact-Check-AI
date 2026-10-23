@@ -38,6 +38,18 @@ class FakeConnectionTest:
         self.cancelled.set()
 
 
+class FakeExportTask:
+    token = "export-test-ui"
+    pending = 1
+    def __init__(self, review, target, kind, include_inactive, emit):
+        self.review, self.target, self.kind, self.include_inactive, self.emit = review, target, kind, include_inactive, emit
+        self.cancelled = threading.Event()
+    def start(self):
+        pass
+    def cancel(self):
+        self.cancelled.set()
+
+
 @unittest.skipUnless(sys.platform == "win32", "Interface Windows")
 class WorkbenchTests(unittest.TestCase):
     def setUp(self):
@@ -81,6 +93,132 @@ class WorkbenchTests(unittest.TestCase):
         self.assertIsNone(self.work.sources[1]["speaker"])
         self.assertEqual(self.work.debate.participants, ["Ana"])
         self.assertEqual(self.work.store.claims(), [])
+
+    def export_dialog(self):
+        self.work.configure_export()
+        window = widgets(self.root, tk.Toplevel)[0]
+        formats = widgets(window, ttk.Combobox)[0]
+        save = next(button for button in widgets(window, ttk.Button) if button["text"] == "Escolher arquivo e exportar")
+        return window, formats, save
+
+    def start_export(self):
+        window, formats, save = self.export_dialog()
+        formats.current(2)
+        widgets(window, ttk.Checkbutton)[0].invoke()
+        with patch("factcheck.workbench.filedialog.asksaveasfilename", return_value=str(self.project / "afirmacoes.csv")), \
+                patch("factcheck.workbench.ExportTask", FakeExportTask):
+            save.invoke()
+        return window, self.work.export_task
+
+    def test_export_dialog_cancel_does_not_start_task_or_create_directory(self):
+        with patch("factcheck.workbench.ExportTask") as task:
+            window, formats, save = self.export_dialog()
+            next(button for button in widgets(window, ttk.Button) if button["text"] == "Cancelar").invoke()
+        task.assert_not_called()
+        self.assertFalse((self.folder / "exports").exists())
+        self.assertIsNone(self.work.export_task)
+
+    def test_export_uses_selected_table_and_scope_without_starting_ai(self):
+        with patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            window, task = self.start_export()
+        triage.assert_not_called()
+        research.assert_not_called()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(task.kind, "claims")
+        self.assertTrue(task.include_inactive)
+        self.assertIn(task.token, self.app.activities)
+        self.assertTrue(self.work.busy())
+        task.pending = 0
+        task.emit("export_done", {"token": task.token, "success": True, "message": "Arquivo fictício exportado."})
+        self.app.poll()
+        self.assertNotIn(task.token, self.app.activities)
+        self.assertIn("Arquivo fictício exportado", self.work.export_label.get())
+
+    def test_cancelling_file_picker_keeps_export_configuration_open(self):
+        window, formats, save = self.export_dialog()
+        with patch("factcheck.workbench.filedialog.asksaveasfilename", return_value=""), patch("factcheck.workbench.ExportTask") as task:
+            save.invoke()
+        task.assert_not_called()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(list((self.folder / "exports").iterdir()), [])
+
+    def test_export_start_failure_cleans_close_guard_and_reports_failure(self):
+        window, formats, save = self.export_dialog()
+        with patch("factcheck.workbench.filedialog.asksaveasfilename", return_value=str(self.project / "export.json")), \
+                patch("factcheck.workbench.ExportTask", FakeExportTask), \
+                patch.object(FakeExportTask, "start", side_effect=RuntimeError("Falha fictícia.")), \
+                patch("factcheck.workbench.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertNotIn(FakeExportTask.token, self.app.activities)
+        self.assertIsNone(self.work.export_task)
+        self.assertIn("não iniciada", self.work.export_label.get())
+
+    def test_export_cancellation_requires_confirmation_and_waits_for_completion(self):
+        window, task = self.start_export()
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=False):
+            self.work.cancel_export()
+        self.assertFalse(task.cancelled.is_set())
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=True) as confirm:
+            self.work.cancel_export()
+            self.work.cancel_export()
+        confirm.assert_called_once()
+        self.assertEqual(confirm.call_args.kwargs["default"], "no")
+        self.assertTrue(task.cancelled.is_set())
+        self.assertTrue(self.work.busy())
+        task.pending = 0
+        self.work.export_done({"token": task.token, "success": False, "message": "Exportação cancelada."})
+        self.assertFalse(self.work.busy())
+
+    def test_window_close_cancels_export_and_waits_for_done_event(self):
+        window, task = self.start_export()
+        with patch("factcheck.ui.messagebox.askyesno", return_value=False), patch.object(self.root, "destroy") as destroy:
+            self.app.close()
+            destroy.assert_not_called()
+        self.assertFalse(task.cancelled.is_set())
+        with patch("factcheck.ui.messagebox.askyesno", return_value=True), patch.object(self.root, "destroy") as destroy:
+            self.app.close()
+            self.assertTrue(task.cancelled.is_set())
+            destroy.assert_not_called()
+            task.pending = 0
+            task.emit("export_done", {"token": task.token, "success": False, "message": "Exportação cancelada."})
+            self.app.poll()
+            destroy.assert_called_once()
+
+    def test_export_is_blocked_before_new_capture_starts_or_while_another_export_runs(self):
+        self.app.session = Mock()
+        self.app.folder = None
+        with patch("factcheck.workbench.messagebox.showinfo") as info:
+            self.work.configure_export()
+        info.assert_called_once()
+        self.assertEqual(widgets(self.root, tk.Toplevel), [])
+        self.app.session = None
+        window, task = self.start_export()
+        with patch("factcheck.workbench.messagebox.showinfo") as info:
+            self.work.configure_export()
+        info.assert_called_once()
+        self.assertEqual(widgets(self.root, tk.Toplevel), [])
+
+    def test_saving_debate_editor_preserves_event_identity(self):
+        event_id = self.work.debate.event_id
+        self.work.configure_debate()
+        window = widgets(self.root, tk.Toplevel)[0]
+        entry = widgets(window, ttk.Entry)[0]
+        entry.delete(0, "end")
+        entry.insert(0, "Título corrigido")
+        next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar cadastro").invoke()
+        self.assertEqual(self.work.debate.event_id, event_id)
+        self.assertEqual(self.work.store.debate()["event_id"], event_id)
+
+    def test_export_can_start_during_capture_without_interrupting_audio(self):
+        self.app.session = Mock()
+        self.app.folder = self.folder
+        window, task = self.start_export()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(task.review.folder, self.folder)
+        self.app.session.cancel.assert_not_called()
+        self.app.session.stop.assert_not_called()
 
     def add_second_paragraph(self):
         second = {**self.paragraph, "paragraph_id": 2, "start": 4.5, "end": 5.5,

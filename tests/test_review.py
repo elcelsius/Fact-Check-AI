@@ -190,7 +190,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(reloaded.video_reference(), {"revision": 0, "offset_seconds": None})
         self.assertEqual(reloaded.source(1), source)
         with reloaded.connection() as db:
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 3)
 
     def test_failed_or_interrupted_jobs_can_be_retried(self):
         job, _ = self.store.begin_analysis(1)

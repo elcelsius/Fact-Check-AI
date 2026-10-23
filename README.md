@@ -4,7 +4,7 @@ Checagem assistida por IA em debates políticos ao vivo.
 
 Projeto de um assistente de pesquisa para equipes humanas de checagem. Durante um debate, o sistema deverá transcrever falas, identificar afirmações verificáveis, pesquisar evidências e preparar análises preliminares para revisão editorial.
 
-**Status:** protótipo com captura e transcrição locais, minutagem de referência do vídeo, combinação reversível de parágrafos na revisão, triagem local ou Gemini e dossiês com coleta e importação de fontes institucionais, versão 0.10, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
+**Status:** protótipo com captura e transcrição locais, minutagem do vídeo, combinação reversível, exportação de sessões em JSON/CSV, triagem local ou Gemini e dossiês com coleta e importação de fontes institucionais, versão 0.11, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
 
 ## Usar o protótipo
 
@@ -24,7 +24,7 @@ Para interromper a sessão sem aguardar todas as transcrições pendentes, use *
 
 Ao fechar a janela durante a preparação, gravação ou transcrição, o aplicativo exige confirmação, com **Não** como escolha padrão. Confirmar interrompe a gravação, cancela as pendências e descarta o texto provisório. O áudio, os trechos e os parágrafos já gravados são preservados; a janela aguarda a finalização dos arquivos antes de fechar. Para concluir as transcrições pendentes, use **Encerrar e salvar** e aguarde o fim da sessão antes de fechar. Sem trabalho ativo, a janela fecha diretamente.
 
-A proteção de fechamento também considera a triagem, a pesquisa de evidências e os editores abertos. Confirmar o fechamento cancela as tarefas pendentes e aguarda sua finalização; os resultados já persistidos são mantidos. **Cancelar triagem** interrompe a identificação de afirmações, e **Cancelar pesquisa** interrompe a coleta ou análise do dossiê, ambos com confirmação.
+A proteção de fechamento também considera a triagem, a pesquisa de evidências, a exportação e os editores abertos. Confirmar o fechamento cancela as tarefas pendentes e aguarda sua finalização; os resultados já persistidos são mantidos. **Cancelar triagem**, **Cancelar pesquisa** e **Cancelar exportação** interrompem suas respectivas tarefas, com confirmação.
 
 A captura acompanha a saída de áudio selecionada e inclui outros sons reproduzidos nela. O modo contínuo mantém o estado do reconhecimento e recebe pacotes sem sobreposição a cada **0,2 segundo**, usando Nemotron 3.5 ASR Streaming pelo sherpa-onnx, em CPU/int8 e português brasileiro. O arquivo WAV preserva o formato nativo; o motor converte o sinal para mono e reamostra internamente para 16 kHz. [Documentação do modelo contínuo](https://k2-fsa.github.io/sherpa/onnx/nemo/nemotron-streaming.html#sherpa-onnx-nemotron-3-5-asr-streaming-0-6b-560ms-int8-2026-06-11-multilingual)
 
@@ -72,6 +72,43 @@ Se uma atualização do reconhecimento mudar a origem, o combinado fica pendente
 Combinar e descombinar invalidam as análises e os dossiês afetados, mantendo decisões anteriores no histórico. Desfazer não revalida automaticamente uma análise antiga. A operação não inicia outra chamada à IA: confira a fala e use **Analisar seleção** quando desejar nova triagem. As novas afirmações e os dossiês identificam os parágrafos de origem.
 
 O agrupamento editorial e seu histórico ficam no **review.sqlite3** e são recuperados ao reabrir. A aba **Captura e transcrição** e os arquivos TXT/JSONL continuam mostrando o reconhecimento original; o áudio não é reescrito. Use a aba **Revisar falas** para consultar os agrupamentos e as correções atuais.
+
+### Exportar a sessão em JSON e CSV
+
+Na aba **Revisar falas** ou **Afirmações para checagem**, clique em **Exportar sessão**. Escolha o formato e use **Escolher arquivo e exportar**:
+
+| Formato | Conteúdo |
+| --- | --- |
+| JSON completo | Cadastro, identidade da sessão, referência do vídeo, falas, origens das combinações, afirmações, dossiês e texto extraído das fontes. |
+| CSV · falas | Texto atual e reconhecido, participante informado, tempos, origem, combinação e estados de transcrição e triagem. |
+| CSV · afirmações | Citação, resumo, contexto, categoria, recortes, fontes e campos separados para análise preliminar e decisão humana. |
+| CSV · fontes | URL, instituição, autoria, datas, forma de aquisição, hashes, avisos e localizadores. O texto extraído completo acompanha o JSON. |
+
+O destino inicial é a subpasta **exports** da sessão. Dentro da pasta da sessão, a gravação fica restrita a essa subpasta para preservar os arquivos originais. Você pode escolher outro diretório. A operação usa os dados salvos em uma única transação e grava o arquivo em segundo plano; a captura e a revisão podem continuar. O campo provisório e as alterações ainda abertas nos editores ficam fora desse retrato.
+
+Por padrão, são incluídas as falas atuais, mesmo com conferência humana pendente, e as afirmações ligadas à versão atual, incluindo opiniões e promessas. **Incluir itens substituídos, descartados e desatualizados** acrescenta esses registros com estado explícito. O JSON também inclui os componentes necessários para explicar uma combinação em **origin_paragraphs**. Esses componentes servem à rastreabilidade e não são novas falas ativas. O histórico integral das revisões e das fontes retiradas permanece no banco da sessão.
+
+Os CSVs usam **UTF-8 com BOM**, separador **ponto e vírgula** e campos entre aspas. Textos que podem iniciar fórmulas recebem uma tabulação de proteção; o JSON mantém o texto literal. O comportamento de planilhas varia e a proteção não é universal, conforme a [orientação da OWASP sobre CSV Injection](https://community.owasp.org/attacks/CSV_Injection). Para integração que dependa do texto exato, use JSON. A abertura real em Excel ou Google Sheets ainda precisa de validação operacional.
+
+**Cancelar exportação** exige confirmação. O arquivo escolhido só é substituído após a escrita completa, usando um temporário no mesmo diretório; falhas ou cancelamento anteriores à substituição preservam o arquivo existente. Fechar o aplicativo com exportação ativa também pede confirmação e aguarda o encerramento da tarefa. A exportação é local e destinada à revisão interna.
+
+#### Contrato de exportação · versão 1
+
+| Campo no JSON | Significado |
+| --- | --- |
+| format / schema_version | `factcheck-session` e versão numérica do formato. |
+| event.event_id / session_id | Identidades persistentes do cadastro do evento e da captura. Editar o cadastro preserva sua identidade; uma nova captura tem outra identidade de sessão. |
+| record_id | Identificador estável por registro, composto pela sessão, tipo e identificador local. Permite reconhecer o mesmo registro em outra exportação. |
+| record_sha256 | Hash dos campos exportados de um registro; muda quando seu conteúdo ou estado muda. |
+| content_sha256 / exported_at | Hash do retrato e horário UTC de sua cópia. O horário é excluído do hash; reexportar dados iguais na mesma versão mantém o hash. |
+| paragraphs / origin_paragraphs | Falas do escopo escolhido e componentes adicionais de origem. Seus identificadores locais se relacionam dentro de `session_id`. |
+| claims.source_current | A afirmação corresponde à versão atual e não foi descartada. Esse campo não classifica sua veracidade. |
+| dossiers | Análise preliminar e decisão humana em campos separados, com revisão e indicadores de atualidade. |
+| sources | Fontes associadas às afirmações incluídas, com cópia textual e localizadores. `url_access_confirmed` distingue consulta à URL de importação local ou origem não informada. |
+
+Cada CSV repete **evento_id**, **sessao_id**, **registro_id**, **registro_sha256**, **snapshot_sha256** e o horário de exportação. A coluna **origem_atual** das afirmações indica correspondência com a versão da fala; **preliminar_atual** e **decisao_atual** informam se as conclusões exibidas ainda se aplicam. Registros históricos ficam identificados como **historical** no estado do dossiê.
+
+Cada exportação copia os dados naquele instante. CSVs produzidos em momentos diferentes podem ter hashes de retrato diferentes durante uma captura ou revisão. O JSON reúne as tabelas do mesmo retrato. As definições de campos e a escrita dos arquivos estão em [factcheck/exports.py](factcheck/exports.py). As identidades de sessões antigas são preenchidas na abertura, sem reanalisar as falas; copiar a pasta completa com o SQLite preserva essas identidades.
 
 ### Triagem de afirmações e revisão
 
@@ -197,7 +234,8 @@ Para escolher uma saída pela linha de comando, acrescente **--device** com o í
 
 ### Validação realizada neste computador
 
-- Os 183 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Os 208 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Na versão 0.11, os testes exercitam a escrita real de JSON/CSV, os identificadores persistentes, reexportação, cópia de sessões, migração de bancos antigos e coerência durante uma revisão concorrente. Cobrem também opiniões, descartes, origens de combinações, preliminar e decisão humana separadas, fontes importadas, proteção de CSV, falha e cancelamento tardio preservando o arquivo anterior. A interface permite exportar durante a captura, tem confirmação de cancelamento e protege o fechamento. As telas foram inspecionadas com dados fictícios; a abertura em planilhas e o fluxo editorial real seguem pendentes de ensaio.
 - Na versão 0.10, os testes cobrem combinação de blocos adjacentes e concluídos, conferência de autoria indefinida, bloqueio de participantes diferentes, preservação dos originais e correções, combinações sucessivas, reabertura, atualizações tardias e rejeição de operações desatualizadas. A separação de textos corrigidos impede omissão de palavras, incluindo negações; dossiês e resultados antigos continuam históricos. A reprodução foi conferida pelo conteúdo PCM do intervalo combinado, sem mudar o áudio original. As novas janelas e a lista de revisão foram inspecionadas com dados fictícios; a operação editorial em um debate real permanece pendente de avaliação.
 - Na versão 0.9, os testes cobrem conversão e limites da minutagem, referência zero e remoção, persistência e histórico, rejeição de edição concorrente, abertura de bancos antigos e independência entre sessões. A interface foi inspecionada com dados fictícios; a reprodução mantém o intervalo original, e a alteração da referência preserva análises em andamento e decisões humanas. Essa validação não mede a precisão de sincronização com um player real.
 - Na versão 0.8, os testes verificam a chamada fictícia de conexão, o limite reduzido de saída, a proteção da chave, o cancelamento, a troca da chave durante uma resposta pendente e o fechamento da configuração/aplicativo. A importação de HTML e PDF fictícios foi exercitada sem rede, com extração em processo Windows real, metadados de origem não confirmada, preservação dos arquivos originais e decisão humana separada. Outros testes cobrem arquivos inválidos ou grandes demais, atualização da origem após coleta online e rebaixamento de análise dependente de cópia importada para inconclusiva. Não houve chamada real com chave Google nesta validação.
@@ -256,4 +294,4 @@ O projeto avaliará a redução de trabalho humano junto com a qualidade das evi
 
 Usar **Testar conexão** para validar uma chave e o acesso real ao modelo no Windows, e exercitar a coleta online na execução normal do aplicativo. Enquanto isso, a revisão pode avançar com cópias importadas e origem explicitamente pendente de conferência. Em paralelo, avaliar transcrição, triagem e dossiês com gravações representativas e anotações humanas. A descoberta automática de links dependerá de um provedor de busca com custo e limites conhecidos. A definição editorial do piloto e seu conjunto de referência continuam no checklist.
 
-O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) também registra as prioridades de operação propostas em 23/10/2026. A minutagem de referência foi implementada na versão 0.9 e a combinação reversível na 0.10. O próximo desenvolvimento proposto é exportar falas revisadas, afirmações e estados em JSON e CSV, preservando seus identificadores e vínculos. O ensaio de recuperação continua pendente. Essas melhorias mantêm o aplicativo independente.
+O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) também registra as prioridades de operação propostas em 23/10/2026. A minutagem de referência foi implementada na versão 0.9, a combinação reversível na 0.10 e a exportação estruturada na 0.11. O próximo marco proposto é ensaiar a operação e a recuperação após interrupções, conferir as exportações com uma sessão real e registrar lacunas e pendências. Essas melhorias mantêm o aplicativo independente.

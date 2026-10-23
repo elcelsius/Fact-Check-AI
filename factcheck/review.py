@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 from urllib.parse import urlparse
 import uuid
@@ -45,8 +46,13 @@ class Debate:
     event_date: str = field(default_factory=lambda: date.today().isoformat())
     source_url: str = ""
     participants: list[str] = field(default_factory=list)
+    event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
     def validate(self):
+        try:
+            self.event_id = uuid.UUID(self.event_id).hex
+        except (ValueError, AttributeError, TypeError):
+            raise ValueError("Identificador do evento inválido.") from None
         self.title = self.title.strip()
         if not self.title or len(self.title) > 160:
             raise ValueError("Informe um título com até 160 caracteres.")
@@ -81,16 +87,28 @@ class ReviewStore:
                     revision INTEGER, payload TEXT);
                 CREATE TABLE IF NOT EXISTS video_reference (
                     id INTEGER PRIMARY KEY CHECK (id=1), revision INTEGER NOT NULL, offset_seconds INTEGER);
+                CREATE TABLE IF NOT EXISTS session_identity (
+                    id INTEGER PRIMARY KEY CHECK (id=1), session_id TEXT NOT NULL);
             """)
             if not db.in_transaction:
                 db.execute("BEGIN IMMEDIATE")
-            if db.execute("PRAGMA user_version").fetchone()[0] < 2:
-                db.execute("PRAGMA user_version=2")
+            if db.execute("PRAGMA user_version").fetchone()[0] < 3:
+                db.execute("PRAGMA user_version=3")
             db.execute("INSERT OR IGNORE INTO video_reference VALUES (1, 0, NULL)")
-            if not db.execute("SELECT 1 FROM debate").fetchone():
-                metadata = json.loads((self.folder / "session.json").read_text(encoding="utf8"))
+            needs_debate = not db.execute("SELECT 1 FROM debate").fetchone()
+            needs_identity = not db.execute("SELECT 1 FROM session_identity").fetchone()
+            metadata = json.loads((self.folder / "session.json").read_text(encoding="utf8")) if needs_debate or needs_identity else {}
+            if needs_debate:
                 data = metadata.get("debate", asdict(Debate()))
                 db.execute("INSERT INTO debate VALUES (1, ?)", (json.dumps(data, ensure_ascii=False),))
+            data = json.loads(db.execute("SELECT payload FROM debate WHERE id=1").fetchone()[0])
+            if not data.get("event_id"):
+                data["event_id"] = uuid.uuid4().hex
+                db.execute("UPDATE debate SET payload=? WHERE id=1", (json.dumps(data, ensure_ascii=False),))
+            session_id = metadata.get("session_id", "")
+            if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", session_id):
+                session_id = uuid.uuid4().hex
+            db.execute("INSERT OR IGNORE INTO session_identity VALUES (1,?)", (session_id,))
 
     @contextmanager
     def connection(self):
@@ -125,6 +143,10 @@ class ReviewStore:
         with self.connection() as db:
             return json.loads(db.execute("SELECT payload FROM debate WHERE id=1").fetchone()[0])
 
+    def session_id(self) -> str:
+        with self.connection() as db:
+            return db.execute("SELECT session_id FROM session_identity WHERE id=1").fetchone()[0]
+
     def video_reference(self) -> dict:
         with self.connection() as db:
             revision, offset = db.execute("SELECT revision,offset_seconds FROM video_reference WHERE id=1").fetchone()
@@ -153,6 +175,7 @@ class ReviewStore:
                 if speaker and speaker not in data["participants"]:
                     raise ValueError(f"O participante {speaker} já está associado a uma fala.")
             old = json.loads(db.execute("SELECT payload FROM debate WHERE id=1").fetchone()[0])
+            data["event_id"] = old["event_id"]
             db.execute("UPDATE debate SET payload=? WHERE id=1", (json.dumps(data, ensure_ascii=False),))
             self._audit(db, "debate_updated", data)
             if old != data:
