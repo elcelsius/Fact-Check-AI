@@ -15,11 +15,7 @@ from .audio import loopback_devices
 from .paragraphs import ParagraphConfig
 from .session import CaptureSession
 from .workbench import Workbench
-
-
-def timestamp(seconds: float) -> str:
-    total = max(0, int(seconds))
-    return f"{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}"
+from .timeline import timestamp, video_range
 
 
 class CaptureApp:
@@ -55,6 +51,9 @@ class CaptureApp:
         event_bar.pack(fill="x", pady=(0, 8))
         ttk.Button(event_bar, text="Dados do debate", command=lambda: self.workbench.configure_debate()).pack(side="right")
         ttk.Button(event_bar, text="Configurar IA · API Google", command=lambda: self.workbench.configure_ai()).pack(side="right", padx=8)
+        timeline_bar = ttk.Frame(main)
+        timeline_bar.pack(fill="x", pady=(0, 8))
+        ttk.Button(timeline_bar, text="Minutagem do vídeo", command=lambda: self.workbench.configure_timeline()).pack(side="right")
         self.notebook = ttk.Notebook(main)
         self.notebook.pack(fill="both", expand=True)
         main = ttk.Frame(self.notebook, padding=10)
@@ -132,6 +131,7 @@ class CaptureApp:
         self.transcript.configure(state="disabled")
         self.workbench = Workbench(self, self.notebook)
         ttk.Label(event_bar, textvariable=self.workbench.title, wraplength=830).pack(side="left")
+        ttk.Label(timeline_bar, textvariable=self.workbench.timeline_label, wraplength=800).pack(side="left")
         self.refresh()
         self.root.after(100, self.poll)
 
@@ -300,7 +300,9 @@ class CaptureApp:
     def paragraph_text(self, data: dict) -> str:
         text = data["source_text"] if self.show_original.get() else data["text"]
         speaker = f" · {data['speaker']}" if data.get("speaker") else ""
-        return f"[{timestamp(data['start'])} → {timestamp(data['end'])}]{speaker}\n{text}\n\n"
+        offset = self.workbench.video_reference["offset_seconds"]
+        video = f" · vídeo (ref.) [{video_range(data, offset)}]" if offset is not None else ""
+        return f"[{timestamp(data['start'])} → {timestamp(data['end'])}]{video}{speaker}\n{text}\n\n"
 
     def update_paragraph(self, data: dict) -> None:
         paragraph_id = data["paragraph_id"]

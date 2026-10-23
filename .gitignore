@@ -5,6 +5,7 @@
 models/
 recordings/
 logs/
+/tmp/
 __pycache__/
 *.py[cod]
 .env

@@ -10,6 +10,8 @@ import sqlite3
 from urllib.parse import urlparse
 import uuid
 
+from .timeline import validate_video_position
+
 
 def process_alive(pid: int) -> bool:
     if os.name != "nt":
@@ -76,11 +78,14 @@ class ReviewStore:
                 CREATE INDEX IF NOT EXISTS analysis_source ON analyses(paragraph_id, revision, status);
                 CREATE TABLE IF NOT EXISTS claims (id TEXT PRIMARY KEY, paragraph_id INTEGER,
                     revision INTEGER, payload TEXT);
+                CREATE TABLE IF NOT EXISTS video_reference (
+                    id INTEGER PRIMARY KEY CHECK (id=1), revision INTEGER NOT NULL, offset_seconds INTEGER);
             """)
             if not db.in_transaction:
                 db.execute("BEGIN IMMEDIATE")
-            if db.execute("PRAGMA user_version").fetchone()[0] == 0:
-                db.execute("PRAGMA user_version=1")
+            if db.execute("PRAGMA user_version").fetchone()[0] < 2:
+                db.execute("PRAGMA user_version=2")
+            db.execute("INSERT OR IGNORE INTO video_reference VALUES (1, 0, NULL)")
             if not db.execute("SELECT 1 FROM debate").fetchone():
                 metadata = json.loads((self.folder / "session.json").read_text(encoding="utf8"))
                 data = metadata.get("debate", asdict(Debate()))
@@ -118,6 +123,25 @@ class ReviewStore:
     def debate(self) -> dict:
         with self.connection() as db:
             return json.loads(db.execute("SELECT payload FROM debate WHERE id=1").fetchone()[0])
+
+    def video_reference(self) -> dict:
+        with self.connection() as db:
+            revision, offset = db.execute("SELECT revision,offset_seconds FROM video_reference WHERE id=1").fetchone()
+            return {"revision": revision, "offset_seconds": offset}
+
+    def save_video_reference(self, offset_seconds: int | None, expected_revision: int) -> dict:
+        validate_video_position(offset_seconds)
+        with self.connection() as db:
+            revision, previous = db.execute("SELECT revision,offset_seconds FROM video_reference WHERE id=1").fetchone()
+            if revision != expected_revision:
+                raise ValueError("A referência do vídeo mudou. Reabra a configuração para conferir o valor atual.")
+            if previous == offset_seconds:
+                return {"revision": revision, "offset_seconds": previous}
+            reference = {"revision": revision + 1, "offset_seconds": offset_seconds}
+            db.execute("UPDATE video_reference SET revision=?,offset_seconds=? WHERE id=1",
+                       (reference["revision"], offset_seconds))
+            self._audit(db, "video_reference_updated", {"previous_offset_seconds": previous, **reference})
+            return reference
 
     def save_debate(self, debate: Debate):
         data = asdict(debate.validate())

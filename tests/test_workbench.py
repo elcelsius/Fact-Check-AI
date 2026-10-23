@@ -82,6 +82,77 @@ class WorkbenchTests(unittest.TestCase):
         self.assertEqual(self.work.debate.participants, ["Ana"])
         self.assertEqual(self.work.store.claims(), [])
 
+    def timeline_dialog(self):
+        self.work.configure_timeline()
+        window = widgets(self.root, tk.Toplevel)[0]
+        entry = widgets(window, ttk.Entry)[0]
+        save = next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar referência")
+        return window, entry, save
+
+    def test_video_reference_updates_live_transcript_review_claim_and_dossier_on_reopen(self):
+        pane, cid = self.open_dossier()
+        self.app.update_paragraph(self.paragraph)
+        with patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            window, entry, save = self.timeline_dialog()
+            entry.insert(0, "12:30")
+            save.invoke()
+        triage.assert_not_called()
+        research.assert_not_called()
+        self.assertFalse(window.winfo_exists())
+        self.assertIn("00:12:31 → 00:12:34", self.app.transcript.get("1.0", "end-1c"))
+        self.assertEqual(self.work.source_tree.item("1", "values")[:2], ("1.0–4.0", "00:12:31 → 00:12:34"))
+        self.assertIn("00:12:31 → 00:12:34", self.work.claim_detail.get("1.0", "end-1c"))
+        self.assertIn("00:12:31 → 00:12:34", pane.preview.get("1.0", "end-1c"))
+        self.work.load(self.folder)
+        self.assertEqual(self.work.video_reference["offset_seconds"], 750)
+        self.assertEqual(self.work.store.source(1)["start"], 1.0)
+
+    def test_invalid_video_reference_stays_in_dialog_and_cancel_does_not_save(self):
+        window, entry, save = self.timeline_dialog()
+        entry.insert(0, "12:99")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertIsNone(self.work.store.video_reference()["offset_seconds"])
+        next(button for button in widgets(window, ttk.Button) if button["text"] == "Cancelar").invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertIsNone(self.work.store.video_reference()["offset_seconds"])
+
+    def test_video_reference_can_be_set_during_capture_and_removed_later(self):
+        self.app.session = Mock()
+        self.app.folder = self.folder
+        window, entry, save = self.timeline_dialog()
+        entry.insert(0, "00:00")
+        save.invoke()
+        self.assertEqual(self.work.video_reference["offset_seconds"], 0)
+        self.assertEqual(self.work.source_tree.item("1", "values")[1], "00:00:01 → 00:00:04")
+        self.app.session = None
+        window, entry, save = self.timeline_dialog()
+        next(button for button in widgets(window, ttk.Button) if button["text"] == "Limpar campo").invoke()
+        save.invoke()
+        self.assertEqual(self.work.source_tree.item("1", "values")[1], "Não definida")
+        self.assertIn("referência não definida", self.work.timeline_label.get())
+
+    def test_new_session_does_not_inherit_reference_and_old_session_keeps_its_value(self):
+        self.work.store.save_video_reference(750, 0)
+        self.work.refresh()
+        second = self.project / "second"
+        second.mkdir()
+        (second / "session.json").write_text('{}', encoding="utf8")
+        self.work.load(second, live=True)
+        self.assertIsNone(self.work.video_reference["offset_seconds"])
+        self.work.load(self.folder)
+        self.assertEqual(self.work.video_reference["offset_seconds"], 750)
+
+    def test_video_reference_is_blocked_before_capture_starts(self):
+        self.app.session = Mock()
+        self.app.folder = None
+        with patch("factcheck.workbench.messagebox.showinfo") as info:
+            self.work.configure_timeline()
+        info.assert_called_once()
+        self.assertEqual(widgets(self.root, tk.Toplevel), [])
+
     def ai_dialog(self):
         self.work.configure_ai()
         window = widgets(self.root, tk.Toplevel)[0]
@@ -282,6 +353,8 @@ class WorkbenchTests(unittest.TestCase):
         self.assertFalse(window.winfo_exists())
 
     def test_audio_preview_reads_only_selected_range_and_preserves_recording(self):
+        self.work.store.save_video_reference(750, 0)
+        self.work.refresh()
         play = Mock()
         module = SimpleNamespace(PlaySound=play, SND_FILENAME=1, SND_ASYNC=2, SND_NODEFAULT=4)
         with patch.dict("sys.modules", {"winsound": module}):

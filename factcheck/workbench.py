@@ -15,6 +15,7 @@ from .triage import TriageConfig, TriageRunner
 from .gemini import MODEL as GEMINI_MODEL
 from .evidence_ui import EvidencePane
 from .connection_test import ConnectionTest
+from .timeline import describe_time, parse_video_position, timestamp, video_range
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -32,6 +33,8 @@ class Workbench:
         self.ai_config = TriageConfig()
         self.ai_label = tk.StringVar(value="IA: Local · Qwen3-4B · falas processadas neste computador")
         self.debate = Debate()
+        self.video_reference = {"revision": 0, "offset_seconds": None}
+        self.timeline_label = tk.StringVar(value="Vídeo: referência não definida · horários relativos à captura.")
         self.sources = {}
         self.claims = {}
         self.last_notice = ""
@@ -50,7 +53,8 @@ class Workbench:
         ttk.Checkbutton(self.review_tab, text="Identificar afirmações automaticamente ao concluir cada parágrafo",
                         variable=self.auto).pack(anchor="w", pady=(0, 8))
         self.source_tree = self.tree(self.review_tab,
-            [("time", "Horário", 130), ("speaker", "Participante", 140), ("review", "Revisão / triagem", 220), ("text", "Fala", 550)])
+            [("time", "Captura (s)", 130), ("video_time", "Vídeo (ref.)", 190),
+             ("speaker", "Participante", 140), ("review", "Revisão / triagem", 220), ("text", "Fala", 550)])
         lower = ttk.Frame(self.review_tab)
         lower.pack(fill="x", pady=10)
         ttk.Button(lower, text="Analisar seleção", command=self.analyze_selected).pack(side="left")
@@ -156,6 +160,47 @@ class Workbench:
 
         ttk.Button(frame, text="Salvar cadastro", command=save).pack(side="left", pady=12)
         ttk.Button(frame, text="Cancelar", command=close).pack(side="right", pady=12)
+        window.protocol("WM_DELETE_WINDOW", close)
+
+    def configure_timeline(self):
+        if self.store is None or (self.app.session and self.app.folder != self.store.folder):
+            messagebox.showinfo("Minutagem do vídeo", "Inicie uma captura e aguarde seu início, ou abra uma sessão gravada.", parent=self.root)
+            return
+        store = self.store
+        reference = store.video_reference()
+        window, close = self.dialog("Minutagem do vídeo · referência manual")
+        window.geometry("760x460")
+        frame = ttk.Frame(window, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Posição do vídeo no início desta captura", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Informe a posição que o vídeo tinha quando a captura começou. "
+                  "Você pode preencher durante a gravação ou depois.", wraplength=700).pack(anchor="w", pady=12)
+        ttk.Label(frame, text="MM:SS ou HH:MM:SS · deixe vazio para remover a referência").pack(anchor="w", pady=(0, 6))
+        value = tk.StringVar(value=timestamp(reference["offset_seconds"]) if reference["offset_seconds"] is not None else "")
+        entry = ttk.Entry(frame, textvariable=value, width=25)
+        entry.pack(anchor="w")
+        entry.focus_set()
+        ttk.Label(frame, text="Exemplo: início em 12:30 + trecho aos 30 s da captura = 13:00 no vídeo.",
+                  wraplength=700).pack(anchor="w", pady=12)
+        ttk.Label(frame, text="A referência é manual e vale somente para esta sessão. "
+                  "Se pausar ou saltar no vídeo, inicie outra sessão para manter a correspondência. "
+                  "Os horários e o áudio originais são preservados.", wraplength=700).pack(anchor="w", pady=(0, 12))
+
+        def save():
+            try:
+                if self.store is not store:
+                    raise ValueError("A sessão mudou. Reabra a configuração da minutagem.")
+                store.save_video_reference(parse_video_position(value.get()), reference["revision"])
+                self.refresh()
+                close()
+            except (ValueError, OSError) as exc:
+                messagebox.showerror("Minutagem do vídeo", str(exc), parent=window)
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", side="bottom")
+        ttk.Button(buttons, text="Salvar referência", command=save).pack(side="left")
+        ttk.Button(buttons, text="Limpar campo", command=lambda: value.set("")).pack(side="left", padx=8)
+        ttk.Button(buttons, text="Cancelar", command=close).pack(side="right")
         window.protocol("WM_DELETE_WINDOW", close)
 
     def configure_ai(self):
@@ -324,12 +369,20 @@ class Workbench:
     def refresh(self):
         if not self.store:
             return
+        previous_offset = self.video_reference["offset_seconds"]
+        self.video_reference = self.store.video_reference()
+        offset = self.video_reference["offset_seconds"]
+        self.timeline_label.set("Vídeo: referência não definida · horários relativos à captura." if offset is None else
+                                f"Vídeo no início da captura: {timestamp(offset)} · referência manual · revisão {self.video_reference['revision']}")
+        if previous_offset != offset:
+            self.app.render_paragraphs()
         self.sources = {source["paragraph_id"]: source for source in self.store.sources()}
         self.claims = {claim["id"]: claim for claim in self.store.claims()}
         states = self.store.analysis_states()
         state_names = {"running": "Em análise", "completed": "Triagem pronta", "failed": "Triagem falhou",
                        "cancelled": "Cancelada", "interrupted": "Interrompida", "stale": "Desatualizada"}
-        self._rows(self.source_tree, {str(pid): (self.time(source), source["speaker"] or "Não identificado",
+        self._rows(self.source_tree, {str(pid): (f"{source['start']:.1f}–{source['end']:.1f}",
+            video_range(source, offset) if offset is not None else "Não definida", source["speaker"] or "Não identificado",
             ("Original atualizado" if source["needs_rebase"] else "Conferida" if source["human_reviewed"] else "Pendente")
             + " · " + state_names.get(states.get((pid, source["revision"]), {}).get("status"), "Sem triagem"),
             source["text"][:220]) for pid, source in self.sources.items()})
@@ -350,9 +403,8 @@ class Workbench:
             else:
                 tree.insert("", "end", iid=key, values=values)
 
-    @staticmethod
-    def time(source):
-        return f"{source['start']:.1f}–{source['end']:.1f} s"
+    def time(self, source):
+        return describe_time(source, self.video_reference["offset_seconds"])
 
     def selected_source(self):
         selected = self.source_tree.selection()

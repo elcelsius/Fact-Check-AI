@@ -147,6 +147,51 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.save_debate(Debate(participants=["Bruno"]))
 
+    def test_video_reference_is_persistent_audited_and_independent_of_claims(self):
+        self.complete()
+        source = self.store.source(1)
+        claims = self.store.claims()
+        metadata = (self.folder / "session.json").read_bytes()
+        self.assertEqual(self.store.video_reference(), {"revision": 0, "offset_seconds": None})
+        self.store.save_video_reference(750, 0)
+        self.assertEqual(ReviewStore(self.folder).video_reference(), {"revision": 1, "offset_seconds": 750})
+        self.assertEqual(self.store.source(1), source)
+        self.assertEqual(self.store.claims(), claims)
+        self.assertEqual((self.folder / "session.json").read_bytes(), metadata)
+        with self.store.connection() as db:
+            payload = json.loads(db.execute("SELECT payload FROM history WHERE kind='video_reference_updated'").fetchone()[0])
+        self.assertEqual(payload, {"previous_offset_seconds": None, "revision": 1, "offset_seconds": 750})
+
+    def test_video_reference_change_does_not_reject_running_text_analysis(self):
+        job, source = self.store.begin_analysis(1)
+        self.store.save_video_reference(750, 0)
+        self.assertTrue(self.store.finish_analysis(job, validate_items([item()], source["text"]), {}))
+        self.assertEqual(self.store.claims()[0]["start"], source["start"])
+
+    def test_video_reference_rejects_stale_edits_and_distinguishes_zero_from_removed(self):
+        self.store.save_video_reference(0, 0)
+        with self.assertRaises(ValueError):
+            self.store.save_video_reference(750, 0)
+        self.assertEqual(self.store.video_reference(), {"revision": 1, "offset_seconds": 0})
+        self.store.save_video_reference(0, 1)
+        self.assertEqual(self.store.video_reference()["revision"], 1)
+        self.store.save_video_reference(None, 1)
+        self.assertEqual(self.store.video_reference(), {"revision": 2, "offset_seconds": None})
+        with self.assertRaises(ValueError):
+            self.store.save_video_reference(-1, 2)
+
+    def test_old_database_gains_unset_video_reference_without_losing_work(self):
+        self.store.revise(1, 1, "Texto corrigido.", "Ana")
+        source = self.store.source(1)
+        with self.store.connection() as db:
+            db.execute("DROP TABLE video_reference")
+            db.execute("PRAGMA user_version=1")
+        reloaded = ReviewStore(self.folder)
+        self.assertEqual(reloaded.video_reference(), {"revision": 0, "offset_seconds": None})
+        self.assertEqual(reloaded.source(1), source)
+        with reloaded.connection() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
+
     def test_failed_or_interrupted_jobs_can_be_retried(self):
         job, _ = self.store.begin_analysis(1)
         with patch("factcheck.review.process_alive", return_value=False):

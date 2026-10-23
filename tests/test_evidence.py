@@ -166,6 +166,24 @@ class DossierTests(unittest.TestCase):
         self.add()
         self.assertEqual(self.store.snapshot(self.cid)["decision"]["reviewer"], "Revisor")
 
+    def test_video_reference_changes_exported_times_without_changing_editorial_decision(self):
+        self.store.decide(self.cid, 0, "inconclusiva", "Revisor", "Faltam fontes.")
+        before = self.store.snapshot(self.cid)
+        self.review.save_video_reference(750, 0)
+        after = self.store.snapshot(self.cid)
+        self.assertEqual(after["decision"], before["decision"])
+        self.assertEqual(after["claim"], before["claim"])
+        self.assertEqual(after["revision"], before["revision"])
+        exported = render(after)
+        self.assertIn("00:12:31 → 00:12:35", exported)
+        self.assertIn("captura: 1.0–5.0 s", exported)
+        self.assertIn("Referência manual atual: vídeo em 00:12:30", exported)
+        self.assertIn("REVISADO POR PESSOA", exported)
+        self.review.save_video_reference(None, 1)
+        cleared = render(self.store.snapshot(self.cid))
+        self.assertIn("Referência do vídeo não definida", cleared)
+        self.assertNotIn("00:12:31", cleared)
+
     def test_native_local_import_requires_no_network_and_records_unconfirmed_origin(self):
         file = self.root / "documento-ficticio.html"
         file.write_bytes(HTML)

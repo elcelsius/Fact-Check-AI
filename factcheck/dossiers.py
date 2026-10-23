@@ -5,6 +5,7 @@ import os
 import uuid
 
 from .review import now, process_alive
+from .timeline import describe_time, timestamp
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -53,10 +54,12 @@ class DossierStore:
             jobs = [{"id": jid, "status": status, **json.loads(payload)} for jid, status, payload in
                     db.execute("SELECT id,status,payload FROM research_jobs WHERE claim_id=? ORDER BY rowid", (cid,))]
             debate = json.loads(db.execute("SELECT payload FROM debate WHERE id=1").fetchone()[0])
+            ref_revision, offset = db.execute("SELECT revision,offset_seconds FROM video_reference WHERE id=1").fetchone()
             queries = [json.loads(payload) for (payload,) in db.execute("SELECT payload FROM history WHERE kind='search_query_opened'")
                        if json.loads(payload).get("claim_id") == cid]
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
-                    "debate": debate, "jobs": jobs, "queries": queries, **case}
+                    "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
+                    "jobs": jobs, "queries": queries, **case}
 
     def begin(self, cid, kind):
         if kind not in {"collect", "import", "analyze"}:
@@ -173,12 +176,16 @@ class DossierStore:
 
 def render(snapshot):
     claim = snapshot["claim"]
+    reference = snapshot.get("video_reference", {"revision": 0, "offset_seconds": None})
+    offset = reference["offset_seconds"]
     decision, preliminary = snapshot["decision"], snapshot["preliminary"]
     state = "DESATUALIZADO — decisões abaixo são históricas" if not snapshot["valid"] else "REVISADO POR PESSOA" if decision else "PENDENTE DE REVISÃO HUMANA"
     lines = ["# Dossiê de checagem · uso interno", "", state, "", "Sem divulgação automática.", "",
              f"Evento: {snapshot['debate']['title']} · {snapshot['debate']['event_date']}",
              f"Afirmação: {claim['id']} · revisão da fala {claim['revision']} · dossiê {snapshot['revision']}",
-             f"Participante: {claim['speaker'] or 'Não identificado'} · parágrafo {claim['paragraph_id']} · {claim['start']:.1f}–{claim['end']:.1f} s", "",
+             f"Participante: {claim['speaker'] or 'Não identificado'} · parágrafo {claim['paragraph_id']} · {describe_time(claim, offset)}",
+             (f"Referência manual atual: vídeo em {timestamp(offset)} no início da captura · revisão {reference['revision']}."
+              if offset is not None else "Referência do vídeo não definida; horários relativos à captura."), "",
              "## Fala literal", "", claim["quote"], "", "## Contexto", "", claim["context"], "", "## Fontes coletadas", ""]
     if not snapshot["documents"]:
         lines.append("Nenhuma fonte coletada. Não há evidências para concluir.")
