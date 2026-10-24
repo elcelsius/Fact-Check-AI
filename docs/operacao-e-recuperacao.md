@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.15.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão.
+Procedimento do protótipo Windows, versão **0.16.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
 
 ## Antes de um ensaio com vídeo
 
@@ -67,6 +67,14 @@ Na execução da versão 0.12.0, foram conferidos:
 Testes adicionais verificam a cópia de um WAV com cabeçalho incompleto, a exclusão de um byte final sem amostra completa, cancelamento, mudança do arquivo durante a cópia, rejeição de corrupção intermediária e bloqueios da interface. A janela de estado foi inspecionada com dados fictícios.
 
 Esse ensaio cobre encerramento de processo e persistência local. Continuam pendentes o ensaio editorial completo com vídeo representativo, qualidade da transcrição/checagem, falha elétrica, disco defeituoso ou cheio, recuperação entre máquinas e restauração de backup em outro computador. A chamada real ao Gemini e a coleta online ainda precisam ser validadas na execução normal do Windows.
+
+## Localizar afirmações e pendências
+
+Em **Afirmações para checagem**, use os filtros acima da lista. Por exemplo, escolha **Somente atuais**, categoria **Factual** e estado **Planejamento a conferir** para localizar planos que precisam de revisão. Combine participante e tema quando necessário. **Não identificado** e **Sem tema** procuram campos sem valor; **Todos** remove aquela restrição.
+
+**Buscar** exige todas as palavras digitadas, ignora maiúsculas e acentos e consulta citação, resumo, contexto e campos extraídos. Os seletores usam valores exatos, para não unir participantes ou temas distintos. O estado exibido prioriza descarte e desatualização; uma decisão antiga não aparece como revisão humana atual. O contador de atuais e históricos considera a sessão inteira, enquanto **Exibindo** conta os resultados visíveis.
+
+Os filtros só mudam a visualização, sem ler novamente o banco, enviar falas ou iniciar análises. A exportação mantém seu próprio escopo. Se uma revisão mudar a categoria, o tema ou outro campo usado no filtro, a linha pode sair da lista e sua seleção é limpa. Um filtro selecionado continua ativo mesmo se perder o último resultado. Use **Limpar filtros** para voltar a todos os itens; abrir outra sessão também limpa os filtros. A aba **Dossiê e fontes** mantém seu próprio seletor.
 
 ## Revisar a extração de uma afirmação
 

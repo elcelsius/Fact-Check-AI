@@ -42,22 +42,24 @@ Na versão 0.14 foi implementado **Planejar checagem**, com pergunta, recortes, 
 
 Na versão 0.15 foi implementado **Revisar afirmação**, com edição de citação literal, resumo, categoria e tema e justificativa obrigatória. Cada extração tem identidade e revisão próprias; o conteúdo automático e as revisões intermediárias são preservados. A mudança invalida análises e decisões dependentes, marca o plano para conferência e rejeita tarefas e editores antigos. Os **290 testes passaram**, incluindo reclassificação, negações, duplicação, concorrência, migração de registros sem versão, preservação de fontes e histórico, relatórios, exportações e interface. A tela foi exercitada com uma opinião fictícia extraída como factual. Não houve nova inferência nem marcação dos casos reais como revisados. Descoberta automática de fontes, filtros, prioridades e identificação de falantes continuam como entregas técnicas, em paralelo à avaliação humana; essa entrega não conclui as fases 07 a 11.
 
+Na versão 0.16 foram implementados **filtros locais da fila** por texto, escopo atual/histórico, categoria, estado, participante e tema. Eles combinam critérios, distinguem campos vazios e preservam os registros e o escopo de exportação. A seleção desaparece quando o item sai do filtro; alterações de metadados não removem silenciosamente uma restrição selecionada. Os **302 testes passaram**, cobrindo correspondência sem acentos, versões antigas, estados de dossiê, preservação dos dados e edição sob filtro. A interface foi conferida com dados fictícios em 1120 × 860 e 1000 × 760. Foram criados e renderizados dois SVGs, de [funcionamento interno](diagramas/fluxo-interno.svg) e [jornada do usuário](diagramas/fluxo-usuario.svg), com funções futuras tracejadas. Não houve envio de falas, nova inferência ou revisão dos casos reais. Prioridades, responsáveis, busca automática e identificação de falantes seguem pendentes; a fase 11 não está concluída.
+
 ## Prioridades para a operação ao vivo
 
-**Planejamento atualizado em 23 de outubro de 2026; acompanhamento da implementação: versão 0.15.**
+**Planejamento atualizado em 23 de outubro de 2026; acompanhamento da implementação: versão 0.16.**
 
 A análise de um fluxo de desenvolvimento paralelo trouxe necessidades úteis para nosso piloto. Esta seção registra requisitos gerais, sem reproduzir mensagens, dados pessoais ou acessos do material privado. Os relatos não constituem uma auditoria da outra aplicação; imagens, vídeos e áudios omitidos na exportação não foram avaliados. A proposta mantém os produtos independentes, com transcrição e triagem locais e Gemini opcional no Fact-Check AI.
 
-| Necessidade observada | Situação no Fact-Check AI 0.15 | Melhoria proposta |
+| Necessidade observada | Situação no Fact-Check AI 0.16 | Melhoria proposta |
 | --- | --- | --- |
 | Encontrar a fala na transmissão | Tempos da captura, reprodução do áudio salvo e referência manual do vídeo por sessão. | Validar sincronização com um player real e tratamento operacional de descontinuidades. |
 | Corrigir cortes entre falas | Agrupamento automático e combinação reversível na revisão, com originais, correções e histórico preservados. | Avaliar a segmentação e o esforço de revisão com referência humana. |
 | Continuar após falhas | Diagnóstico de retomada, importação com aviso de cauda incompleta, cópia recuperada de WAV e encerramento manual de parágrafos. Ensaio de queda em subprocesso preservou revisão e decisão humana. | Validar com vídeo representativo, backup e troca de operador. Não há retomada automática da transmissão. |
 | Medir o ensaio | Relatório JSON/TXT com tempos registrados, denominadores, tentativas históricas e pendências atuais. Primeira prévia e entrega estabilizada passam a ser registradas nas novas capturas. | Conferir transcrição, precisão, cobertura e esforço com referência humana; completar fontes e decisão factual. |
 | Definir o que pesquisar | Planejamento versionado por dossiê, com pergunta, recortes, lacunas e URLs candidatas, separado de citação e decisão. | Conferir o áudio, identificar pessoas e datas e completar a pesquisa sem presumir contexto. |
-| Corrigir a extração da IA | Editor de citação, resumo, categoria e tema, com justificativa, revisão própria e preservação do automático. | Avaliar erros e esforço de correção com referência humana; filtros e prioridades ajudarão a organizar a fila. |
+| Corrigir a extração da IA | Editor de citação, resumo, categoria e tema, com justificativa, revisão própria e preservação do automático; filtros locais para localizar itens. | Avaliar erros e esforço de correção com referência humana e definir prioridades explicáveis. |
 | Trocar material entre ferramentas | Exportação estruturada em JSON e CSV, com identidades, origens e estados; dossiê interno em Markdown. | Validar consumo em outras ferramentas e depois implementar conectores opcionais com confirmação de recebimento. |
-| Distribuir o trabalho | Categoria factual, tema livre e estados por afirmação. | Temas configuráveis, filtros e prioridade explicável; atribuição de responsáveis em etapa posterior. |
+| Distribuir o trabalho | Categoria, tema livre, estados e filtros combináveis por texto, escopo, categoria, estado, participante e tema. | Vocabulário configurável de temas, prioridade explicável e atribuição de responsáveis. |
 | Reutilizar preparação editorial | Fontes adicionadas por URL ou importadas manualmente. | Coleção pesquisável de fontes e checagens anteriores, com validade temporal. |
 | Padronizar análises | Metodologia proposta e instruções dos modelos no código. | Manual editorial versionado, exemplos e avaliação contra referência humana. |
 
@@ -75,13 +77,15 @@ A análise de um fluxo de desenvolvimento paralelo trouxe necessidades úteis pa
 
 8. **Revisão das extrações — implementada na versão 0.15.** O operador pode corrigir categoria, resumo, tema e recorte literal sem alterar a transcrição nem decidir a veracidade. As mudanças têm revisão e histórico, afetam a fila atual e invalidam análises, decisões e tarefas que usaram a extração anterior. O plano fica a conferir, e os dados exportados distinguem o automático da revisão. Relacionado a **07.04, 10.07 e 11.07**.
 
-O plano de incrementos reúne **minutagem de referência, combinação reversível, exportação estruturada, recuperação local, relatório do ensaio, planejamento dos dossiês e revisão das extrações**, implementadas nas versões 0.9 a 0.15. A validação automatizada cobre persistência, áudio sem deslocamento, preservação das revisões, rejeição de análises antigas, exportação repetível, retomada após queda do processo, métricas com denominadores explícitos e revisão de planos e extrações. O ensaio operacional completo e a avaliação editorial continuam pendentes; essas entregas técnicas não constituem liberação para uso ao vivo.
+9. **Filtros da fila — implementados na versão 0.16.** Busca local e seleção combinada de escopo, categoria, estado, participante e tema. A visualização distingue registros atuais e históricos e não altera o banco, inicia análises ou restringe exportações. Há limpeza de seleção quando um item deixa de corresponder e reinicialização ao abrir outra sessão. Prioridades e responsáveis ainda não foram implementados. Relacionado a **11.02**, que permanece parcialmente atendida.
+
+O plano de incrementos reúne **minutagem de referência, combinação reversível, exportação estruturada, recuperação local, relatório do ensaio, planejamento dos dossiês, revisão das extrações e filtros da fila**, implementadas nas versões 0.9 a 0.16. A validação automatizada cobre persistência, áudio sem deslocamento, preservação das revisões, rejeição de análises antigas, exportação repetível, retomada após queda do processo, métricas com denominadores explícitos, revisão de planos e extrações e filtros sem alteração dos dados. Os [diagramas](diagramas/README.md) representam esses fluxos e identificam a evolução planejada. O ensaio operacional completo e a avaliação editorial continuam pendentes; essas entregas técnicas não constituem liberação para uso ao vivo.
 
 ### Evolução editorial e integração opcional
 
-Depois desse incremento, priorizar temas configuráveis e filtros, coleção de fontes preparadas e busca de checagens anteriores. Correspondência textual em uma planilha apenas indica material candidato: reutilizar uma conclusão exige conferir período, território, indicador, método e documentos de suporte. A busca automática de links, já prevista na fase 08, permanece pendente.
+Depois desse incremento, priorizar vocabulário configurável de temas, prioridade da fila, coleção de fontes preparadas e busca de checagens anteriores. Os filtros da versão 0.16 usam os temas livres já cadastrados. Correspondência textual em uma planilha apenas indica material candidato: reutilizar uma conclusão exige conferir período, território, indicador, método e documentos de suporte. A busca automática de links, já prevista na fase 08, permanece pendente.
 
-As próximas entregas técnicas podem avançar em paralelo ao ensaio humano: descoberta de fontes com provedor e limites explícitos; filtros, prioridades e controle da fila; tratamento de falhas e repetições; e separação de falantes com atribuição aos participantes. A avaliação humana informa essas escolhas, sem interromper o desenvolvimento dos recursos ainda pendentes.
+As próximas entregas técnicas podem avançar em paralelo ao ensaio humano: descoberta de fontes com provedor e limites explícitos; prioridades, responsáveis e controle da fila; tratamento de falhas e repetições; e separação de falantes com atribuição aos participantes. A avaliação humana informa essas escolhas, sem interromper o desenvolvimento dos recursos ainda pendentes.
 
 O manual editorial deve definir o recorte das afirmações, a preservação de negações e qualificadores, os critérios de fonte e as condições para concluir ou se abster. Registrar sua versão em cada análise e avaliá-lo com casos revisados por pessoas antes de ampliar a automação. Relacionado às fases **02, 07, 08 e 09**.
 
@@ -283,7 +287,7 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 **Responsável sugerido:** Produto, equipe técnica e revisores. **Dependências:** 03, 05, 10.
 
 - [ ] **11.01** Exibir evento, participantes e transcrição com acesso ao trecho de áudio.
-- [ ] **11.02** Exibir fila de afirmações com filtros por tema, participante, prioridade, estado e responsável.
+- [ ] **11.02** Exibir fila de afirmações com filtros por tema, participante, prioridade, estado e responsável. Parcial na versão 0.16: texto, escopo, categoria, tema, participante e estado implementados; prioridade e responsável pendentes.
 - [ ] **11.03** Permitir que um revisor assuma um caso e evitar sobrescrita entre revisões simultâneas.
 - [ ] **11.04** Apresentar fala literal, contexto, pergunta de checagem e recortes definidos.
 - [ ] **11.05** Exibir documentos, localizadores, evidências favoráveis e contrárias e lacunas de pesquisa.
@@ -374,6 +378,7 @@ O primeiro bloco de trabalho é **01.01 a 01.04**: escolher o debate, confirmar 
 
 - [Proposta inicial](proposta-inicial.md).
 - [Operação e recuperação](operacao-e-recuperacao.md).
+- [Diagramas de funcionamento](diagramas/README.md).
 - [Índice do projeto](../README.md).
 - [Checklist em página privada](https://chatgpt.com/space/page_ea170c8f1ddc8191885e9cf08919db22).
 

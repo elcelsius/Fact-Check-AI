@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1570" viewBox="0 0 1440 1570" role="img" aria-labelledby="title description">
+<title id="title">Fact-Check AI — jornada do usuário</title>
+<desc id="description">Jornada em quatro etapas: preparar e capturar, conferir e organizar, pesquisar evidências, decidir e exportar. Correções e encerramento têm proteção; funcionalidades futuras aparecem tracejadas.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#61738D"/></marker>
+  <marker id="return" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#B57A22"/></marker>
+  <style>
+    text { font-family: 'Segoe UI', Arial, sans-serif; fill: #23344E; }
+    .title { font-size: 40px; font-weight: 700; letter-spacing: -.5px; }
+    .subtitle { font-size: 19px; fill: #54667F; }
+    .section { font-size: 14px; font-weight: 700; letter-spacing: 1.7px; fill: #60738D; }
+    .heading { font-size: 21px; font-weight: 700; }
+    .body { font-size: 17px; }
+    .small { font-size: 15px; fill: #54667F; }
+    .tag { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+    .stage { font-size: 27px; font-weight: 700; }
+    .number { font-size: 20px; font-weight: 700; fill: white; }
+    .flow { fill: none; stroke: #61738D; stroke-width: 2.7; stroke-linejoin: round; marker-end: url(#arrow); }
+    .return { fill: none; stroke: #B57A22; stroke-width: 2.2; stroke-linejoin: round; marker-end: url(#return); }
+  </style>
+</defs>
+<rect width="1440" height="1570" fill="#F5F7FC"/>
+<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.16.0</text>
+<text x="60" y="96" class="title">Da transmissão ao dossiê revisado</text>
+<text x="60" y="133" class="subtitle">Você acompanha e decide. A IA ajuda a localizar afirmações e organizar a pesquisa.</text>
+<rect x="60" y="165" width="1320" height="57" rx="12" fill="#E6F5F2" stroke="#B5DCD4" stroke-width="1.5"/>
+<text x="82" y="201" class="body" style="fill:#087F74">Conferir transcrição, revisar extração e decidir fatos são três atividades diferentes.</text>
+<g data-card-bounds="60,260,620,340">
+<rect x="60" y="260" width="620" height="340" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<circle cx="100" cy="302" r="22" fill="#2455A4"/>
+<text x="94" y="309" class="number">1</text>
+<text x="138" y="311" class="stage">Preparar e capturar</text>
+<text x="85" y="361" class="body">• Cadastre o debate e os participantes.</text>
+<text x="85" y="392" class="body">• Reproduza o vídeo e escolha a saída de áudio.</text>
+<text x="85" y="423" class="body">• Use IA local ou configure sua chave Gemini.</text>
+<text x="85" y="454" class="body">• Inicie a captura e informe a minutagem do vídeo.</text>
+<rect x="80" y="504" width="580" height="75" rx="11" fill="#EAF1FF" stroke="#EAF1FF" stroke-width="1.5"/>
+<text x="95" y="533" class="body">O aplicativo grava áudio e mostra texto provisório.</text>
+<text x="95" y="558" class="body">Parágrafos concluídos podem alimentar a triagem.</text>
+</g>
+<g data-card-bounds="760,260,620,340">
+<rect x="760" y="260" width="620" height="340" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<circle cx="800" cy="302" r="22" fill="#9A5C00"/>
+<text x="794" y="309" class="number">2</text>
+<text x="838" y="311" class="stage">Conferir e organizar</text>
+<text x="785" y="361" class="body">• Encerre e salve para ouvir os trechos gravados.</text>
+<text x="785" y="392" class="body">• Corrija a fala e atribua o participante.</text>
+<text x="785" y="423" class="body">• Confira categoria, resumo e citação da extração.</text>
+<text x="785" y="454" class="body">• Use filtros para localizar itens e pendências.</text>
+<rect x="780" y="504" width="580" height="75" rx="11" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
+<text x="795" y="533" class="body">Fatos, opiniões e promessas têm estados próprios.</text>
+<text x="795" y="558" class="body">A revisão da extração não aprova a afirmação.</text>
+</g>
+<g data-card-bounds="760,740,620,340">
+<rect x="760" y="740" width="620" height="340" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<circle cx="800" cy="782" r="22" fill="#6552B8"/>
+<text x="794" y="789" class="number">3</text>
+<text x="838" y="791" class="stage">Pesquisar evidências</text>
+<text x="785" y="841" class="body">• Defina pergunta, recortes e lacunas no dossiê.</text>
+<text x="785" y="872" class="body">• Busque no navegador e colete URLs institucionais.</text>
+<text x="785" y="903" class="body">• Ou importe PDF/HTML e confira sua origem.</text>
+<text x="785" y="934" class="body">• Opcional: peça análise preliminar ao Gemini.</text>
+<rect x="780" y="984" width="580" height="75" rx="11" fill="#F0EDFF" stroke="#F0EDFF" stroke-width="1.5"/>
+<text x="795" y="1013" class="body">URLs candidatas ficam separadas das evidências.</text>
+<text x="795" y="1038" class="body">Contexto insuficiente pede nova conferência.</text>
+</g>
+<g data-card-bounds="60,740,620,340">
+<rect x="60" y="740" width="620" height="340" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<circle cx="100" cy="782" r="22" fill="#087F74"/>
+<text x="94" y="789" class="number">4</text>
+<text x="138" y="791" class="stage">Decidir e exportar</text>
+<text x="85" y="841" class="body">• Leia as fontes e confronte dados e contexto.</text>
+<text x="85" y="872" class="body">• Registre a decisão humana com justificativa:</text>
+<text x="85" y="903" class="body">  confirmada, contradita ou inconclusiva.</text>
+<text x="85" y="934" class="body">• Exporte o dossiê, os dados e o relatório do ensaio.</text>
+<rect x="80" y="984" width="580" height="75" rx="11" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
+<text x="95" y="1013" class="body">Arquivos podem conter pendências identificadas.</text>
+<text x="95" y="1038" class="body">A publicação permanece com a equipe editorial.</text>
+</g>
+<path d="M 680 430 H 760" class="flow"/>
+<path d="M 1070 600 V 740" class="flow"/>
+<path d="M 760 910 H 680" class="flow"/>
+<path d="M 1270 740 V 645 H 1250 V 600" class="return"/>
+<text x="1095" y="653" class="small">Falta contexto?</text>
+<text x="1095" y="676" class="small">Confira a fala.</text>
+<text x="60" y="1140" class="section">AÇÕES DE APOIO DURANTE O TRABALHO</text>
+<g data-card-bounds="60,1166,410,210">
+<rect x="60" y="1166" width="410" height="210" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 78 1166 H 452 Q 470 1166 470 1184 V 1176 H 60 V 1184 Q 60 1166 78 1166 Z" fill="#9A5C00"/>
+<rect x="78" y="1186" width="374" height="26" rx="7" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
+<text x="88" y="1204" class="tag" style="fill:#9A5C00">REVISÕES PROTEGIDAS</text>
+<text x="80" y="1242" class="heading">Se houver uma correção</text>
+<text x="80" y="1273" class="body">O histórico permanece disponível.</text>
+<text x="80" y="1298" class="body">Resultados anteriores são invalidados.</text>
+<text x="80" y="1323" class="body">O plano pode pedir nova conferência.</text>
+<text x="80" y="1348" class="body">Uma tarefa antiga não substitui a edição.</text>
+</g>
+<g data-card-bounds="515,1166,410,210">
+<rect x="515" y="1166" width="410" height="210" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 533 1166 H 907 Q 925 1166 925 1184 V 1176 H 515 V 1184 Q 515 1166 533 1166 Z" fill="#2455A4"/>
+<rect x="533" y="1186" width="374" height="26" rx="7" fill="#EAF1FF" stroke="#EAF1FF" stroke-width="1.5"/>
+<text x="543" y="1204" class="tag" style="fill:#2455A4">ENCERRAMENTO E RECUPERAÇÃO</text>
+<text x="535" y="1242" class="heading">Ao cancelar ou fechar</text>
+<text x="535" y="1273" class="body">Uma atividade em andamento pede</text>
+<text x="535" y="1298" class="body">confirmação de cancelamento.</text>
+<text x="535" y="1323" class="body">Dados já salvos são preservados.</text>
+<text x="535" y="1348" class="body">Texto provisório pode ser perdido.</text>
+</g>
+<g data-card-bounds="970,1166,410,210">
+<rect x="970" y="1166" width="410" height="210" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
+<path d="M 988 1166 H 1362 Q 1380 1166 1380 1184 V 1176 H 970 V 1184 Q 970 1166 988 1166 Z" fill="#52637B"/>
+<rect x="988" y="1186" width="374" height="26" rx="7" fill="#F0F3F8" stroke="#F0F3F8" stroke-width="1.5"/>
+<text x="998" y="1204" class="tag" style="fill:#52637B">EVOLUÇÃO DO PROTÓTIPO</text>
+<text x="990" y="1242" class="heading">Ainda planejado</text>
+<text x="990" y="1273" class="body">Busca automática de fontes</text>
+<text x="990" y="1298" class="body">Separação automática de falantes</text>
+<text x="990" y="1323" class="body">Prioridade e distribuição de casos</text>
+</g>
+<rect x="60" y="1420" width="1320" height="80" rx="12" fill="#EAF1FF" stroke="#CEDCF5" stroke-width="1.5"/>
+<text x="83" y="1452" class="body">Para começar: faça um ensaio curto e confira um caso completo antes de acompanhar um evento ao vivo.</text>
+<text x="83" y="1477" class="body">A análise da IA é preliminar. A validação e qualquer divulgação continuam sob responsabilidade humana.</text>
+<text x="60" y="1540" class="small">Fluxo recomendado para revisão. Captura, triagem e pesquisa podem ocorrer em paralelo, respeitando os estados e as tarefas ativas.</text>
+</svg>

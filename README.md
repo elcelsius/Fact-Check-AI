@@ -4,7 +4,16 @@ Checagem assistida por IA em debates políticos ao vivo.
 
 Projeto de um assistente de pesquisa para equipes humanas de checagem. Durante um debate, o sistema deverá transcrever falas, identificar afirmações verificáveis, pesquisar evidências e preparar análises preliminares para revisão editorial.
 
-**Status:** protótipo com captura e transcrição locais, minutagem do vídeo, combinação reversível, revisão das extrações, exportação de sessões, relatório do ensaio, recuperação após interrupções, triagem local ou Gemini e dossiês com planejamento, coleta e importação de fontes institucionais, versão 0.15, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
+**Status:** protótipo com captura e transcrição locais, minutagem do vídeo, combinação reversível, revisão das extrações, filtros da fila, exportação de sessões, relatório do ensaio, recuperação após interrupções, triagem local ou Gemini e dossiês com planejamento, coleta e importação de fontes institucionais, versão 0.16, de 23 de outubro de 2026. A identificação dos participantes e a escolha dos links são manuais. A busca automática na web e a avaliação editorial do piloto permanecem pendentes.
+
+## Diagramas de funcionamento
+
+Os dois diagramas são arquivos SVG editáveis, que podem ser abertos no navegador e ampliados sem perda de qualidade:
+
+- [Fluxo interno do sistema](docs/diagramas/fluxo-interno.svg): captura, transcrição, tarefas de IA, validação, persistência, evidências e decisão humana.
+- [Jornada do usuário](docs/diagramas/fluxo-usuario.svg): preparar a captura, conferir falas, organizar a fila, pesquisar e concluir a revisão.
+
+As caixas tracejadas identificam funções ainda planejadas: descoberta automática de fontes, separação de falantes e distribuição de casos. Os fluxos mostram possibilidades de uso; captura, triagem e pesquisa podem ocorrer em paralelo. A exportação interna pode conter pendências identificadas. Qualquer divulgação continua sob responsabilidade editorial humana. Consulte a [legenda e a regeneração dos diagramas](docs/diagramas/README.md).
 
 ## Usar o protótipo
 
@@ -33,6 +42,14 @@ O campo **Em andamento** contém uma hipótese que pode mudar ou terminar com um
 **Pacotes de 0,2 segundo não significam palavras prontas em 0,2 segundo.** A primeira prévia depende da chegada da fala e do processamento. Os horários são estimativas do reconhecimento, não marcações conferidas palavra por palavra. Se o dispositivo suspender as amostras durante o silêncio, a estabilização pode aguardar novas amostras ou o encerramento.
 
 O modo **Whisper · trechos a cada três segundos** continua disponível para comparação. Ele usa o modelo small do faster-whisper, envia o primeiro trecho após dois segundos e mantém até seis segundos de contexto. A escolha do modo acontece antes de iniciar a sessão.
+
+### Filtrar a fila de afirmações
+
+Na aba **Afirmações para checagem**, combine **Buscar**, **Escopo**, **Categoria**, **Estado**, **Participante** e **Tema**. O escopo inicial é **Todas**; **Somente atuais** exclui itens substituídos, descartados ou ligados a uma versão antiga da fala. **Históricas / descartadas** permite consultar esses registros sem reativá-los. Os totais distinguem itens exibidos, atuais e históricos.
+
+A busca ignora maiúsculas e acentos e exige todas as palavras digitadas, inclusive quando estão em campos diferentes da citação, resumo ou contexto. Os seletores combinam os valores cadastrados; **Não identificado** e **Sem tema** localizam campos vazios. O estado considera planejamento, fontes, análise preliminar e decisão humana; itens antigos continuam identificados como desatualizados ou descartados.
+
+Os filtros usam os dados já carregados: não alteram o banco, não iniciam IA ou pesquisa e não mudam o escopo da exportação. Se uma revisão tirar o item do filtro atual, ele sai da lista e a seleção é limpa. Um tema ou participante selecionado permanece como filtro mesmo sem resultados após uma edição. **Limpar filtros** ou abrir outra sessão restaura a visualização completa.
 
 ### Minutagem do vídeo
 
@@ -343,4 +360,4 @@ O projeto avaliará a redução de trabalho humano junto com a qualidade das evi
 
 Usar **Testar conexão** para validar uma chave e o acesso real ao modelo no Windows. A coleta real foi exercitada em uma página do MJSP; ampliar a validação para outros domínios e diagnosticar a tentativa do TSE antes de generalizar disponibilidade. Cópias importadas continuam com origem pendente de conferência. Avaliar transcrição, triagem e dossiês com gravações representativas e anotações humanas. A descoberta automática de links dependerá de um provedor de busca com custo e limites conhecidos. A definição editorial do piloto e seu conjunto de referência continuam no checklist.
 
-O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) registra as entregas das versões 0.9 a 0.15, incluindo a revisão das extrações. As próximas entregas técnicas são descoberta automática de fontes, filtros e prioridade da fila e avanços na identificação de falantes. Elas podem seguir em paralelo à conferência do áudio e dos rascunhos reais, à definição dos recortes e à pesquisa de evidências antes da decisão humana. Essas melhorias mantêm o aplicativo independente.
+O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) registra as entregas das versões 0.9 a 0.16, incluindo a revisão das extrações e os filtros da fila. As próximas entregas técnicas são descoberta automática de fontes, prioridade e distribuição de casos e avanços na identificação de falantes. Elas podem seguir em paralelo à conferência do áudio e dos rascunhos reais, à definição dos recortes e à pesquisa de evidências antes da decisão humana. Essas melhorias mantêm o aplicativo independente.

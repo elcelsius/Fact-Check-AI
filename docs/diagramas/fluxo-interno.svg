@@ -1,0 +1,217 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1550" viewBox="0 0 1600 1550" role="img" aria-labelledby="title description">
+<title id="title">Fact-Check AI — funcionamento interno</title>
+<desc id="description">Fluxo atual do áudio aos dossiês: captura, transcrição local, triagem, validação, fila, planejamento, fontes, análise opcional e decisão humana. Funções futuras aparecem em caixas tracejadas.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#61738D"/></marker>
+  <marker id="return" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#B57A22"/></marker>
+  <style>
+    text { font-family: 'Segoe UI', Arial, sans-serif; fill: #23344E; }
+    .title { font-size: 40px; font-weight: 700; letter-spacing: -.5px; }
+    .subtitle { font-size: 19px; fill: #54667F; }
+    .section { font-size: 14px; font-weight: 700; letter-spacing: 1.7px; fill: #60738D; }
+    .heading { font-size: 21px; font-weight: 700; }
+    .body { font-size: 17px; }
+    .small { font-size: 15px; fill: #54667F; }
+    .tag { font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+    .stage { font-size: 27px; font-weight: 700; }
+    .number { font-size: 20px; font-weight: 700; fill: white; }
+    .flow { fill: none; stroke: #61738D; stroke-width: 2.7; stroke-linejoin: round; marker-end: url(#arrow); }
+    .return { fill: none; stroke: #B57A22; stroke-width: 2.2; stroke-linejoin: round; marker-end: url(#return); }
+  </style>
+</defs>
+<rect width="1600" height="1550" fill="#F5F7FC"/>
+<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.16.0</text>
+<text x="60" y="96" class="title">Como o sistema processa uma fala</text>
+<text x="60" y="133" class="subtitle">Filas independentes, registros versionados e decisão factual sob responsabilidade humana.</text>
+<text x="60" y="187" class="section">01 / ÁUDIO E TRANSCRIÇÃO LOCAL</text>
+<g data-card-bounds="60,210,310,187">
+<rect x="60" y="210" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 78 210 H 352 Q 370 210 370 228 V 220 H 60 V 228 Q 60 210 78 210 Z" fill="#52637B"/>
+<rect x="78" y="230" width="274" height="26" rx="7" fill="#F0F3F8" stroke="#F0F3F8" stroke-width="1.5"/>
+<text x="88" y="248" class="tag" style="fill:#52637B">ENTRADA</text>
+<text x="80" y="286" class="heading">Vídeo no navegador</text>
+<text x="80" y="317" class="body">YouTube, Globoplay, Band…</text>
+<text x="80" y="342" class="body">A aplicação capta a saída</text>
+<text x="80" y="367" class="body">usada para ouvir o vídeo.</text>
+</g>
+<g data-card-bounds="450,210,310,187">
+<rect x="450" y="210" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 468 210 H 742 Q 760 210 760 228 V 220 H 450 V 228 Q 450 210 468 210 Z" fill="#2455A4"/>
+<rect x="468" y="230" width="274" height="26" rx="7" fill="#EAF1FF" stroke="#EAF1FF" stroke-width="1.5"/>
+<text x="478" y="248" class="tag" style="fill:#2455A4">CAPTURA</text>
+<text x="470" y="286" class="heading">Captura da saída</text>
+<text x="470" y="317" class="body">WASAPI loopback · PCM16</text>
+<text x="470" y="342" class="body">Fila de captura separada</text>
+<text x="470" y="367" class="body">WAV salvo durante a sessão.</text>
+</g>
+<g data-card-bounds="840,210,310,187">
+<rect x="840" y="210" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 858 210 H 1132 Q 1150 210 1150 228 V 220 H 840 V 228 Q 840 210 858 210 Z" fill="#2455A4"/>
+<rect x="858" y="230" width="274" height="26" rx="7" fill="#EAF1FF" stroke="#EAF1FF" stroke-width="1.5"/>
+<text x="868" y="248" class="tag" style="fill:#2455A4">PROCESSO LOCAL</text>
+<text x="860" y="286" class="heading">Transcrição local</text>
+<text x="860" y="317" class="body">sherpa-onnx ou Whisper</text>
+<text x="860" y="342" class="body">Hipóteses provisórias</text>
+<text x="860" y="367" class="body">Só trechos estáveis persistem.</text>
+</g>
+<g data-card-bounds="1230,210,310,187">
+<rect x="1230" y="210" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 1248 210 H 1522 Q 1540 210 1540 228 V 220 H 1230 V 228 Q 1230 210 1248 210 Z" fill="#087F74"/>
+<rect x="1248" y="230" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
+<text x="1258" y="248" class="tag" style="fill:#087F74">ORGANIZAÇÃO</text>
+<text x="1250" y="286" class="heading">Parágrafos</text>
+<text x="1250" y="317" class="body">Pausas e continuidade</text>
+<text x="1250" y="342" class="body">Ligação aos trechos originais</text>
+<text x="1250" y="367" class="body">Tempos relativos à captura.</text>
+</g>
+<path d="M 370 304 H 450" class="flow"/>
+<path d="M 760 304 H 840" class="flow"/>
+<path d="M 1150 304 H 1230" class="flow"/>
+<text x="60" y="435" class="small">Pacotes curtos alimentam o reconhecimento; tamanho do pacote não equivale à latência de uma palavra.</text>
+<text x="60" y="492" class="section">02 / EXTRAÇÃO, VALIDAÇÃO E REVISÃO</text>
+<g data-card-bounds="60,515,310,187">
+<rect x="60" y="515" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 78 515 H 352 Q 370 515 370 533 V 525 H 60 V 533 Q 60 515 78 515 Z" fill="#9A5C00"/>
+<rect x="78" y="535" width="274" height="26" rx="7" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
+<text x="88" y="553" class="tag" style="fill:#9A5C00">AÇÃO HUMANA</text>
+<text x="80" y="591" class="heading">Revisão do operador</text>
+<text x="80" y="622" class="body">Conferir fala e participante</text>
+<text x="80" y="647" class="body">Editar / reclassificar extração</text>
+<text x="80" y="672" class="body">Combinar trechos com histórico.</text>
+</g>
+<g data-card-bounds="450,515,310,187">
+<rect x="450" y="515" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 468 515 H 742 Q 760 515 760 533 V 525 H 450 V 533 Q 450 515 468 515 Z" fill="#087F74"/>
+<rect x="468" y="535" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
+<text x="478" y="553" class="tag" style="fill:#087F74">INTERFACE</text>
+<text x="470" y="591" class="heading">Fila de afirmações</text>
+<text x="470" y="622" class="body">Fatos, opiniões e promessas</text>
+<text x="470" y="647" class="body">Filtros por texto e contexto</text>
+<text x="470" y="672" class="body">Estados atuais e históricos.</text>
+</g>
+<g data-card-bounds="840,515,310,187">
+<rect x="840" y="515" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 858 515 H 1132 Q 1150 515 1150 533 V 525 H 840 V 533 Q 840 515 858 515 Z" fill="#087F74"/>
+<rect x="858" y="535" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
+<text x="868" y="553" class="tag" style="fill:#087F74">CONTROLES</text>
+<text x="860" y="591" class="heading">Validar extrações</text>
+<text x="860" y="622" class="body">Citação ligada ao texto</text>
+<text x="860" y="647" class="body">Controles de número e negação</text>
+<text x="860" y="672" class="body">Resposta inválida é rejeitada.</text>
+</g>
+<g data-card-bounds="1230,515,310,187">
+<rect x="1230" y="515" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 1248 515 H 1522 Q 1540 515 1540 533 V 525 H 1230 V 533 Q 1230 515 1248 515 Z" fill="#6552B8"/>
+<rect x="1248" y="535" width="274" height="26" rx="7" fill="#F0EDFF" stroke="#F0EDFF" stroke-width="1.5"/>
+<text x="1258" y="553" class="tag" style="fill:#6552B8">IA / FILA DE TAREFAS</text>
+<text x="1250" y="591" class="heading">Triagem de afirmações</text>
+<text x="1250" y="622" class="body">Qwen local OU Gemini opcional</text>
+<text x="1250" y="647" class="body">Tarefa em processo separado</text>
+<text x="1250" y="672" class="body">Não decide a veracidade.</text>
+</g>
+<path d="M 1385 397 V 515" class="flow"/>
+<path d="M 1230 609 H 1150" class="flow"/>
+<path d="M 840 609 H 760" class="flow"/>
+<path d="M 450 609 H 370" class="flow"/>
+<text x="765" y="590" class="small">válidas</text>
+<text x="450" y="743" class="small">Se corrigir a transcrição, solicite nova triagem. Revisar uma extração não inicia inferência.</text>
+<text x="450" y="800" class="section">03 / PESQUISA ASSISTIDA E DECISÃO</text>
+<g data-card-bounds="60,823,310,187">
+<rect x="60" y="823" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 78 823 H 352 Q 370 823 370 841 V 833 H 60 V 841 Q 60 823 78 823 Z" fill="#9A5C00"/>
+<rect x="78" y="843" width="274" height="26" rx="7" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
+<text x="88" y="861" class="tag" style="fill:#9A5C00">PERGUNTA E CONTEXTO</text>
+<text x="80" y="899" class="heading">Planejar checagem</text>
+<text x="80" y="930" class="body">Pergunta, recortes e lacunas</text>
+<text x="80" y="955" class="body">Rascunho de IA identificado</text>
+<text x="80" y="980" class="body">URLs candidatas ≠ evidências.</text>
+</g>
+<g data-card-bounds="450,823,310,187">
+<rect x="450" y="823" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 468 823 H 742 Q 760 823 760 841 V 833 H 450 V 841 Q 450 823 468 823 Z" fill="#087F74"/>
+<rect x="468" y="843" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
+<text x="478" y="861" class="tag" style="fill:#087F74">COLETA / IMPORTAÇÃO</text>
+<text x="470" y="899" class="heading">Coletar fontes</text>
+<text x="470" y="930" class="body">Busca orientada no navegador</text>
+<text x="470" y="955" class="body">URL institucional ou PDF/HTML</text>
+<text x="470" y="980" class="body">Texto, origem e localizadores.</text>
+</g>
+<g data-card-bounds="840,823,310,187">
+<rect x="840" y="823" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 858 823 H 1132 Q 1150 823 1150 841 V 833 H 840 V 841 Q 840 823 858 823 Z" fill="#6552B8"/>
+<rect x="858" y="843" width="274" height="26" rx="7" fill="#F0EDFF" stroke="#F0EDFF" stroke-width="1.5"/>
+<text x="868" y="861" class="tag" style="fill:#6552B8">IA / NÃO APROVADA</text>
+<text x="860" y="899" class="heading">Análise preliminar</text>
+<text x="860" y="930" class="body">Gemini opcional e explícito</text>
+<text x="860" y="955" class="body">Somente evidências fornecidas</text>
+<text x="860" y="980" class="body">Lacunas → resultado inconclusivo.</text>
+</g>
+<g data-card-bounds="1230,823,310,187">
+<rect x="1230" y="823" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 1248 823 H 1522 Q 1540 823 1540 841 V 833 H 1230 V 841 Q 1230 823 1248 823 Z" fill="#9A5C00"/>
+<rect x="1248" y="843" width="274" height="26" rx="7" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
+<text x="1258" y="861" class="tag" style="fill:#9A5C00">REVISOR RESPONSÁVEL</text>
+<text x="1250" y="899" class="heading">Decisão humana</text>
+<text x="1250" y="930" class="body">Conferir fontes e recortes</text>
+<text x="1250" y="955" class="body">Confirmada / contradita /</text>
+<text x="1250" y="980" class="body">inconclusiva + justificativa.</text>
+</g>
+<path d="M 215 702 V 823" class="flow"/>
+<path d="M 370 917 H 450" class="flow"/>
+<path d="M 760 917 H 840" class="flow"/>
+<path d="M 1150 917 H 1230" class="flow"/>
+<text x="845" y="1048" class="small">Sem API: leitura e decisão humanas continuam disponíveis.</text>
+<g data-card-bounds="60,1112,680,174">
+<rect x="60" y="1112" width="680" height="174" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 78 1112 H 722 Q 740 1112 740 1130 V 1122 H 60 V 1130 Q 60 1112 78 1112 Z" fill="#2455A4"/>
+<rect x="78" y="1132" width="644" height="26" rx="7" fill="#EAF1FF" stroke="#EAF1FF" stroke-width="1.5"/>
+<text x="88" y="1150" class="tag" style="fill:#2455A4">ARQUIVOS + BANCO LOCAL</text>
+<text x="80" y="1188" class="heading">Persistência por sessão</text>
+<text x="80" y="1219" class="body">audio.wav + transcrição / parágrafos JSONL e TXT</text>
+<text x="80" y="1244" class="body">SQLite: cadastro, extrações, revisões, fontes e dossiês</text>
+<text x="80" y="1269" class="body">Originais e histórico preservados; recuperação após interrupção.</text>
+</g>
+<g data-card-bounds="770,1112,350,174">
+<rect x="770" y="1112" width="350" height="174" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 788 1112 H 1102 Q 1120 1112 1120 1130 V 1122 H 770 V 1130 Q 770 1112 788 1112 Z" fill="#52637B"/>
+<rect x="788" y="1132" width="314" height="26" rx="7" fill="#F0F3F8" stroke="#F0F3F8" stroke-width="1.5"/>
+<text x="798" y="1150" class="tag" style="fill:#52637B">COORDENADORES E FILAS</text>
+<text x="790" y="1188" class="heading">Controle transversal</text>
+<text x="790" y="1219" class="body">Versões e resultados antigos</text>
+<text x="790" y="1244" class="body">Cancelamento com confirmação</text>
+<text x="790" y="1269" class="body">Chave Gemini só na memória.</text>
+</g>
+<g data-card-bounds="1230,1112,310,174">
+<rect x="1230" y="1112" width="310" height="174" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 1248 1112 H 1522 Q 1540 1112 1540 1130 V 1122 H 1230 V 1130 Q 1230 1112 1248 1112 Z" fill="#087F74"/>
+<rect x="1248" y="1132" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
+<text x="1258" y="1150" class="tag" style="fill:#087F74">SEM PUBLICAÇÃO AUTOMÁTICA</text>
+<text x="1250" y="1188" class="heading">Exportação interna</text>
+<text x="1250" y="1219" class="body">Sessão JSON / tabelas CSV</text>
+<text x="1250" y="1244" class="body">Dossiê e relatório do ensaio</text>
+<text x="1250" y="1269" class="body">Pendências acompanham o arquivo.</text>
+</g>
+<path d="M 1385 1010 V 1112" class="flow"/>
+<path d="M 605 397 V 411 H 32 V 1199 H 60" class="flow"/>
+<text x="42" y="1090" class="small">WAV</text>
+<text x="60" y="1336" class="section">EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS AINDA NÃO EXECUTADAS</text>
+<g data-card-bounds="60,1360,450,118">
+<rect x="60" y="1360" width="450" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
+<path d="M 78 1360 H 492 Q 510 1360 510 1378 V 1370 H 60 V 1378 Q 60 1360 78 1360 Z" fill="#52637B"/>
+<text x="80" y="1399" class="heading">Descoberta automática</text>
+<text x="80" y="1430" class="body">Provedor de busca, limites e fontes candidatas.</text>
+</g>
+<g data-card-bounds="545,1360,450,118">
+<rect x="545" y="1360" width="450" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
+<path d="M 563 1360 H 977 Q 995 1360 995 1378 V 1370 H 545 V 1378 Q 545 1360 563 1360 Z" fill="#52637B"/>
+<text x="565" y="1399" class="heading">Separação de falantes</text>
+<text x="565" y="1430" class="body">Distinguir vozes e associar participantes.</text>
+</g>
+<g data-card-bounds="1030,1360,510,118">
+<rect x="1030" y="1360" width="510" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
+<path d="M 1048 1360 H 1522 Q 1540 1360 1540 1378 V 1370 H 1030 V 1378 Q 1030 1360 1048 1360 Z" fill="#52637B"/>
+<text x="1050" y="1399" class="heading">Distribuição de casos</text>
+<text x="1050" y="1430" class="body">Prioridades, responsáveis e coordenação ampliada.</text>
+</g>
+<text x="60" y="1520" class="small">Setas: percurso principal possível. A coleta e a exportação não exigem aprovação factual; a divulgação depende da equipe editorial.</text>
+</svg>

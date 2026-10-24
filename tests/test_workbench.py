@@ -558,6 +558,78 @@ class WorkbenchTests(unittest.TestCase):
         self.work.evidence.open_selected()
         return self.work.evidence, cid
 
+    def test_queue_filters_hide_selection_without_database_reads_or_ai_calls(self):
+        pane, cid = self.open_dossier()
+        before = self.work.store.path.read_bytes()
+        with patch.object(self.work.store, "connection", side_effect=AssertionError("Filtro não deve consultar SQLite")), \
+                patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            self.work.claim_query.set("TERMO INEXISTENTE")
+            self.assertEqual(self.work.claim_tree.get_children(), ())
+            self.assertIsNone(self.work.selected_claim())
+            self.work.claim_query.set("inflacao 2025")
+            self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+        triage.assert_not_called()
+        research.assert_not_called()
+        self.assertEqual(self.work.store.path.read_bytes(), before)
+        self.assertIn("Exibindo 1 de 1", self.work.claim_count.get())
+
+    def test_queue_scope_state_and_export_scope_remain_consistent_after_discard(self):
+        pane, cid = self.open_dossier()
+        self.work.store.discard_claim(cid, "Teste de descarte.")
+        self.work.refresh()
+        self.work.claim_scope.set("Somente atuais")
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+        self.work.claim_scope.set("Históricas / descartadas")
+        self.work.filter_values["state"].set("Descartada")
+        self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+        self.work.claim_query.set("Sem correspondência")
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+        from factcheck.exports import snapshot
+        self.assertEqual(len(snapshot(self.work.store, True)["claims"]), 1)
+        self.work.reset_filters()
+        self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+
+    def test_reclassifying_under_category_filter_saves_even_when_row_disappears(self):
+        pane, cid = self.open_dossier()
+        self.work.filter_values["category"].set("Factual")
+        self.work.edit_claim()
+        window = widgets(self.root, tk.Toplevel)[0]
+        widgets(window, ttk.Combobox)[0].set("Opinião")
+        widgets(window, tk.Text)[-1].insert("1.0", "Reclassificação fictícia para testar o filtro.")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar revisão da extração").invoke()
+        error.assert_not_called()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+        self.assertIsNone(self.work.selected_claim())
+        self.assertEqual(self.work.claims[cid]["category"], "opiniao")
+        self.work.reset_filters()
+        self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+
+    def test_filter_values_follow_claim_metadata_and_new_session_resets_filters(self):
+        pane, cid = self.open_dossier()
+        self.work.filter_values["topic"].set("Economia")
+        claim = self.work.claims[cid]
+        fields = {key: claim.get(key) for key in ("quote", "summary", "category", "topic")}
+        fields["topic"] = "Saúde"
+        self.work.store.revise_claim(cid, 1, 1, fields, "Tema do exemplo fictício.")
+        self.work.refresh()
+        self.assertIn("Saúde", self.work.filter_options["topic"])
+        self.assertEqual(self.work.filter_options["topic"][self.work.filter_values["topic"].get()], "Economia")
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+        self.work.filter_values["topic"].set("Saúde")
+        self.work.filter_values["speaker"].set("Não identificado")
+        self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+        self.work.claim_query.set("nada")
+        other = self.project / "outra-sessao"
+        other.mkdir()
+        (other / "session.json").write_text('{}', encoding="utf8")
+        self.work.load(other)
+        self.assertEqual(self.work.claim_query.get(), "")
+        self.assertEqual(self.work.claim_scope.get(), "Todas")
+        self.assertTrue(all(variable.get() == "Todos" for variable in self.work.filter_values.values()))
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+
     def claim_editor(self):
         pane, cid = self.open_dossier()
         self.work.edit_claim()

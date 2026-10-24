@@ -20,11 +20,8 @@ from .grouping import active, reconciliation_needed
 from .exports import ExportTask, FORMATS, SUFFIXES
 from .recovery import (AudioRecoveryTask, SAFE_STATES, STATE_NAMES, capture_state,
                        describe, inspect_session, playback_path)
-
-
-LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
-          "fora_da_fila": "Opinião / promessa", "analise_desatualizada": "Análise desatualizada", "descartada": "Descartada"}
-CATEGORIES = {"fato": "Factual", "opiniao": "Opinião", "promessa": "Promessa", "indefinida": "Indefinida"}
+from .queue_filters import (CATEGORIES, LABELS, SCOPES, STATES, QueueFilters, display_state,
+                            field_choices, filter_claims, is_current)
 
 
 class Workbench:
@@ -46,6 +43,8 @@ class Workbench:
         self.timeline_label = tk.StringVar(value="Vídeo: referência não definida · horários relativos à captura.")
         self.sources = {}
         self.claims = {}
+        self.visible_claims = {}
+        self.case_states = {}
         self.last_notice = ""
         self.title = tk.StringVar(value="Debate sem título · participantes não cadastrados")
         self.auto = tk.BooleanVar(value=True)
@@ -84,8 +83,11 @@ class Workbench:
         self.progress.pack(anchor="w")
         ttk.Label(self.review_tab, text="A revisão da transcrição e a identificação do participante são manuais. "
                   "A IA sugere afirmações; todas continuam sem verificação factual.", wraplength=950).pack(anchor="w", pady=10)
+        ttk.Label(self.claim_tab, text="Aguardando pesquisa significa que ainda não há evidências nem conclusão sobre veracidade.",
+                  wraplength=950).pack(side="bottom", anchor="w", pady=8)
+        self.build_filters()
         self.claim_tree = self.tree(self.claim_tab,
-            [("state", "Estado", 150), ("category", "Tipo", 90), ("speaker", "Participante", 140), ("text", "Afirmação", 600)], height=9)
+            [("state", "Estado", 180), ("category", "Tipo", 90), ("speaker", "Participante", 140), ("text", "Afirmação", 600)], height=6)
         self.claim_tree.bind("<<TreeviewSelect>>", lambda _: self.show_claim())
         row = ttk.Frame(self.claim_tab)
         row.pack(fill="x", pady=8)
@@ -96,11 +98,80 @@ class Workbench:
         ttk.Button(row, text="Abrir dossiê", command=lambda: self.evidence.open_selected()).pack(side="left", padx=8)
         ttk.Button(row, text="Exportar sessão", command=self.configure_export).pack(side="left")
         ttk.Label(self.claim_tab, textvariable=self.export_label, wraplength=950).pack(anchor="w", pady=(0, 8))
-        self.claim_detail = ScrolledText(self.claim_tab, wrap="word", height=12, font=("Segoe UI", 11))
+        self.claim_detail = ScrolledText(self.claim_tab, wrap="word", height=8, font=("Segoe UI", 11))
         self.claim_detail.pack(fill="both", expand=True)
         self.claim_detail.configure(state="disabled")
-        ttk.Label(self.claim_tab, text="Aguardando pesquisa significa que ainda não há evidências nem conclusão sobre veracidade.").pack(anchor="w", pady=8)
         self.evidence = EvidencePane(self, notebook)
+
+    def build_filters(self):
+        frame = ttk.LabelFrame(self.claim_tab, text="Filtrar afirmações", padding=8)
+        frame.pack(fill="x", pady=(0, 8))
+        row = ttk.Frame(frame)
+        row.pack(fill="x")
+        ttk.Label(row, text="Buscar").pack(side="left")
+        self.claim_query = tk.StringVar()
+        ttk.Entry(row, textvariable=self.claim_query).pack(side="left", fill="x", expand=True, padx=8)
+        ttk.Label(row, text="Escopo").pack(side="left")
+        self.claim_scope = tk.StringVar(value=SCOPES["all"])
+        ttk.Combobox(row, textvariable=self.claim_scope, values=list(SCOPES.values()), state="readonly", width=22).pack(side="left", padx=8)
+        ttk.Button(row, text="Limpar filtros", command=self.reset_filters).pack(side="right")
+        self.filter_options = {
+            "category": {"Todos": None, **{label: key for key, label in CATEGORIES.items()}},
+            "state": {"Todos": None, **{label: label for label in STATES}},
+            "speaker": field_choices([], "Não identificado"), "topic": field_choices([], "Sem tema")}
+        self.filter_values, self.filter_boxes = {}, {}
+        facets = ttk.Frame(frame)
+        facets.pack(fill="x", pady=(5, 0))
+        for column, (key, label) in enumerate((("category", "Categoria"), ("state", "Estado"),
+                                               ("speaker", "Participante"), ("topic", "Tema"))):
+            cell = ttk.Frame(facets, padding=(0, 0, 8 if column < 3 else 0, 0))
+            cell.grid(row=0, column=column, sticky="ew")
+            facets.columnconfigure(column, weight=1, uniform="facets")
+            ttk.Label(cell, text=label).pack(anchor="w")
+            variable = tk.StringVar(value="Todos")
+            box = ttk.Combobox(cell, textvariable=variable, values=list(self.filter_options[key]), state="readonly", width=18)
+            box.pack(fill="x")
+            self.filter_values[key], self.filter_boxes[key] = variable, box
+        self.claim_count = tk.StringVar(value="Nenhuma sessão carregada.")
+        ttk.Label(self.claim_tab, textvariable=self.claim_count, wraplength=950).pack(anchor="w", pady=(0, 5))
+        for variable in (self.claim_query, self.claim_scope, *self.filter_values.values()):
+            variable.trace_add("write", lambda *_: self.apply_filters())
+
+    def reset_filters(self):
+        self.claim_query.set("")
+        self.claim_scope.set(SCOPES["all"])
+        for variable in self.filter_values.values():
+            variable.set("Todos")
+
+    def apply_filters(self):
+        if not hasattr(self, "claim_tree"):
+            return
+        selected = {key: self.filter_options[key].get(value.get()) for key, value in self.filter_values.items()}
+        scope = next((key for key, label in SCOPES.items() if label == self.claim_scope.get()), "all")
+        filters = QueueFilters(query=self.claim_query.get(), scope=scope, **selected)
+        rows = filter_claims(self.claims.values(), self.sources, self.case_states, filters)
+        self.visible_claims = {claim["id"]: claim for claim in rows}
+        self._rows(self.claim_tree, {claim["id"]: (display_state(claim, self.sources, self.case_states), CATEGORIES[claim["category"]],
+                   claim["speaker"] or "Não identificado", claim["summary"]) for claim in rows})
+        current = sum(is_current(claim, self.sources) for claim in self.claims.values())
+        self.claim_count.set(f"Exibindo {len(rows)} de {len(self.claims)} itens · {current} atuais · {len(self.claims) - current} históricos/descartados. Filtros afetam a visualização.")
+        self.show_claim()
+
+    def update_filter_options(self):
+        for key, label in (("speaker", "Não identificado"), ("topic", "Sem tema")):
+            selected = self.filter_values[key].get()
+            previous = self.filter_options[key].get(selected)
+            options = field_choices((claim.get(key) for claim in self.claims.values()), label)
+            chosen = next((title for title, value in options.items() if value == previous), None)
+            if chosen is None:
+                chosen = selected
+                while chosen in options:
+                    chosen += " (sem itens)"
+                options[chosen] = previous
+            self.filter_options[key] = options
+            self.filter_boxes[key].configure(values=list(options))
+            if selected != chosen:
+                self.filter_values[key].set(chosen)
 
     @staticmethod
     def tree(parent, columns, height=14):
@@ -537,6 +608,7 @@ class Workbench:
         self.evidence.load(store)
         self.debate = Debate(**store.debate())
         self.update_title()
+        self.reset_filters()
         self.refresh()
         self.update_session_status()
         if not live:
@@ -591,10 +663,9 @@ class Workbench:
             + ("Original atualizado" if source["needs_rebase"] else "Conferida" if source["human_reviewed"] else "Pendente")
             + " · " + state_names.get(states.get((pid, source["revision"]), {}).get("status"), "Sem triagem"),
             source["text"][:220]) for pid, source in self.sources.items()})
-        case_states = self.evidence.store.states() if self.evidence.store else {}
-        self._rows(self.claim_tree, {cid: (LABELS[claim["status"]] if claim.get("source_outdated") or claim["status"] == "descartada" else case_states.get(cid, LABELS[claim["status"]]), CATEGORIES[claim["category"]], claim["speaker"] or "Não identificado",
-            claim["summary"]) for cid, claim in self.claims.items()})
-        self.show_claim()
+        self.case_states = self.evidence.store.states() if self.evidence.store else {}
+        self.update_filter_options()
+        self.apply_filters()
         self.evidence.refresh()
 
     @staticmethod
@@ -833,7 +904,7 @@ class Workbench:
 
     def selected_claim(self):
         selected = self.claim_tree.selection()
-        return self.claims.get(selected[0]) if selected else None
+        return self.visible_claims.get(selected[0]) if selected else None
 
     def edit_claim(self):
         claim = self.selected_claim()
@@ -893,7 +964,8 @@ class Workbench:
                 fields, justification = values()
                 store.revise_claim(claim["id"], claim.get("claim_revision", 1), source["revision"], fields, justification)
                 self.refresh()
-                self.claim_tree.selection_set(claim["id"])
+                if self.claim_tree.exists(claim["id"]):
+                    self.claim_tree.selection_set(claim["id"])
                 self.show_claim()
                 self.progress.configure(text="Extração revisada. Confira a pergunta e os recortes do dossiê antes de analisar novamente.")
                 close()
