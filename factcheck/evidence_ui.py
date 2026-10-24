@@ -34,6 +34,7 @@ class EvidencePane:
         self.query.pack(side="left", fill="x", expand=True)
         ttk.Button(row, text="Buscar no navegador", command=self.search).pack(side="left", padx=(8, 0))
         ttk.Button(row, text="Encontrar fontes", command=self.discover).pack(side="left", padx=(8, 0))
+        ttk.Button(row, text="Coleção de fontes", command=lambda: self.work.library.open_for_case()).pack(side="left", padx=(8, 0))
         ttk.Label(self.tab, text="Consulte dados, metodologia e versões divergentes. Resultados de busca só entram como evidência após a coleta da fonte.", wraplength=950).pack(anchor="w", pady=(0, 8))
         row = ttk.Frame(self.tab)
         row.pack(fill="x", pady=4)
@@ -50,7 +51,7 @@ class EvidencePane:
         row = ttk.Frame(self.tab)
         row.pack(fill="x", pady=4)
         for label, command in (("Ler cópia extraída", self.read_document), ("Abrir fonte", self.open_document), ("Retirar fonte", self.remove_document),
-                               ("Analisar com Gemini", self.analyze), ("Cancelar pesquisa", self.cancel)):
+                               ("Salvar na coleção", self.save_to_library), ("Analisar com Gemini", self.analyze), ("Cancelar pesquisa", self.cancel)):
             ttk.Button(row, text=label, command=command).pack(side="left", padx=(0, 6))
         self.progress = ttk.Label(self.tab, text="Nenhuma pesquisa em andamento.", wraplength=950)
         self.progress.pack(anchor="w", pady=4)
@@ -82,6 +83,7 @@ class EvidencePane:
         if not claim:
             return
         self.cid = claim["id"]
+        self.work.library.clear_target()
         self.query.configure(values=search_plan(claim, self.store.snapshot(self.cid).get("plan")))
         self.query.current(0)
         self.refresh()
@@ -202,6 +204,18 @@ class EvidencePane:
         if self.store and self.cid and query:
             self.store.record_query(self.cid, query[:1000])
             webbrowser.open("https://www.google.com/search?" + urlencode({"q": query[:1000]}))
+
+    def save_to_library(self):
+        doc = self.selected_document()
+        if not doc:
+            messagebox.showinfo("Salvar na coleção", "Selecione uma fonte do dossiê para preparar sua referência.", parent=self.root)
+            return
+        claim = self.store.snapshot(self.cid)["claim"]
+        prefill = {"title": doc["title"][:300], "url": doc["url"], "institution": doc["institution"][:200],
+                   "topics": [claim["topic"]] if claim.get("topic") else [], "methodology": "", "periodicity": "", "limits": "",
+                   "notes": "Referência preparada a partir de uma cópia importada; a origem online precisa de conferência."
+                            if doc.get("acquisition") == "local_import" else ""}
+        self.work.library.edit(prefill=prefill)
 
     def collect(self):
         try:

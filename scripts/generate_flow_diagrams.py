@@ -109,7 +109,7 @@ def internal(path):
     svg.text(450, 800, "03 / PESQUISA ASSISTIDA E DECISÃO", "section")
     row3 = [
         ("Planejar checagem", ["Pergunta, recortes e lacunas", "Rascunho de IA identificado", "URLs candidatas ≠ evidências."], "amber", "PERGUNTA E CONTEXTO"),
-        ("Descobrir e coletar", ["Tavily opcional · URLs candidatas", "Coleta por URL ou PDF/HTML", "Texto, origem e localizadores."], "teal", "BUSCA / COLETA / IMPORTAÇÃO"),
+        ("Descobrir e coletar", ["Coleção local ou Tavily opcional", "Coleta por URL ou PDF/HTML", "Candidatas ≠ evidências coletadas."], "teal", "BUSCA / COLETA / IMPORTAÇÃO"),
         ("Análise preliminar", ["Gemini opcional e explícito", "Somente evidências fornecidas", "Lacunas → resultado inconclusivo."], "purple", "IA / NÃO APROVADA"),
         ("Decisão humana", ["Conferir fontes e recortes", "Confirmada / contradita /", "inconclusiva + justificativa."], "amber", "REVISOR RESPONSÁVEL")]
     for x, (title, lines, color, tag) in zip(xs, row3):
@@ -124,9 +124,11 @@ def internal(path):
     svg.path("M 1385 1010 V 1112")
     svg.path("M 605 397 V 411 H 32 V 1199 H 60")
     svg.text(42, 1090, "WAV", "small")
-    svg.text(60, 1336, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS AINDA NÃO EXECUTADAS", "section")
-    svg.card(60, 1360, 450, 118, "Pesquisa contínua", ["Mais provedores e fontes por tema.", "Reuso de checagens com contexto conferido."], "gray", planned=True)
-    svg.card(545, 1360, 450, 118, "Separação de falantes", ["Distinguir vozes e associar participantes."], "gray", planned=True)
+    svg.text(60, 1336, "COLEÇÃO ENTRE SESSÕES", "section")
+    svg.text(545, 1336, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS", "section")
+    svg.card(60, 1360, 450, 118, "Coleção de fontes", ["library/sources.sqlite3 · metadados", "Versão copiada para o caso selecionado."], "teal")
+    svg.path("M 510 1419 H 525 V 1307 H 750 V 1080 H 605 V 1010")
+    svg.card(545, 1360, 450, 118, "Pesquisa e falantes", ["Busca contínua e checagens anteriores.", "Separação automática de falantes."], "gray", planned=True)
     svg.card(1030, 1360, 510, 118, "Operação em equipe", ["Contas, permissões e sincronização.", "Distribuição entre operadores."], "gray", planned=True)
     svg.text(60, 1520, "Setas: percurso principal possível. A coleta e a exportação não exigem aprovação factual; a divulgação depende da equipe editorial.", "small")
     svg.save(path)
@@ -152,11 +154,11 @@ def user(path):
         svg.lines(x+35, y+273, outcome, spacing=25)
         svg.parts.append('</g>')
 
-    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre o debate e os participantes.", "• Reproduza o vídeo e escolha a saída de áudio.", "• Use IA local ou configure sua chave Gemini.", "• Inicie a captura e informe a minutagem do vídeo."],
+    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre o debate e prepare a coleção de fontes.", "• Reproduza o vídeo e escolha a saída de áudio.", "• Use IA local ou configure sua chave Gemini.", "• Inicie a captura e informe a minutagem do vídeo."],
           ["O aplicativo grava áudio e mostra texto provisório.", "Parágrafos concluídos podem alimentar a triagem."], "blue")
     stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Corrija a fala e atribua o participante.", "• Confira categoria, resumo e citação da extração.", "• Defina prioridade e responsável; use os filtros."],
           ["Fatos, opiniões e promessas têm estados próprios.", "A revisão da extração não aprova a afirmação."], "amber")
-    stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Encontre URLs com Tavily ou no navegador.", "• Colete a URL ou importe PDF/HTML e confira.", "• Opcional: peça análise preliminar ao Gemini."],
+    stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Use a coleção, Tavily ou o navegador.", "• Colete a URL ou importe PDF/HTML e confira.", "• Opcional: peça análise preliminar ao Gemini."],
           ["URLs candidatas ficam separadas das evidências.", "Contexto insuficiente pede nova conferência."], "purple")
     stage(60, 740, 4, "Decidir e exportar", ["• Leia as fontes e confronte dados e contexto.", "• Registre a decisão humana com justificativa:", "  confirmada, contradita ou inconclusiva.", "• Exporte o dossiê, os dados e o relatório do ensaio."],
           ["Arquivos podem conter pendências identificadas.", "A publicação permanece com a equipe editorial."], "teal")

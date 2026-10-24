@@ -570,6 +570,151 @@ class WorkbenchTests(unittest.TestCase):
         self.work.evidence.open_selected()
         return self.work.evidence, cid
 
+    def library_entry(self, **changes):
+        from tests.test_source_library import fields
+        library = self.work.library
+        self.assertTrue(library.ensure_store())
+        entry = library.store.save(fields(**changes), "Preparar referência para o ensaio.")
+        library.refresh()
+        library.tree.selection_set(entry["id"])
+        library.show_selected()
+        return library, entry
+
+    def test_library_can_be_used_without_an_open_dossier_or_api_key(self):
+        library, entry = self.library_entry()
+        self.assertIsNone(self.work.evidence.cid)
+        self.assertIsNone(library.target)
+        self.assertEqual(str(library.use_button["state"]), "disabled")
+        self.assertEqual(library.store.path, self.project / "library" / "sources.sqlite3")
+        self.assertEqual(self.work.ai_config.provider, "local")
+        self.assertIn("Metodologia informada", library.preview.get("1.0", "end"))
+
+    def test_library_editor_registers_metadata_without_starting_research(self):
+        library = self.work.library
+        library.edit()
+        window = widgets(self.root, tk.Toplevel)[0]
+        entries = widgets(window, ttk.Entry)
+        for widget, value in zip(entries, ["Indicador fictício", "https://ibge.gov.br/ensaio-ui", "Instituição fictícia", "Economia; Preços", "Mensal"]):
+            widget.insert(0, value)
+        widgets(window, tk.Text)[0].insert("1.0", "Preparar referência para o ensaio.")
+        with patch("factcheck.evidence_ui.ResearchTask") as research, patch("factcheck.workbench.TriageRunner") as triage:
+            next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar referência").invoke()
+        research.assert_not_called()
+        triage.assert_not_called()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(len(library.store.entries()), 1)
+        self.assertEqual(library.store.entries()[0]["topics"], ["Economia", "Preços"])
+        self.assertEqual(self.work.store.claims(), [])
+
+    def test_library_selection_records_a_candidate_and_only_prepares_the_url(self):
+        pane, cid = self.open_dossier()
+        library, entry = self.library_entry()
+        library.open_for_case()
+        library.tree.selection_set(entry["id"])
+        with patch("factcheck.evidence_ui.ResearchTask") as research:
+            library.use()
+        research.assert_not_called()
+        self.assertEqual(pane.url.get(), entry["url"])
+        dossier = pane.store.snapshot(cid)
+        self.assertEqual(dossier["documents"], [])
+        self.assertEqual(len(dossier["library_references"]), 1)
+        self.assertEqual(self.app.notebook.select(), str(pane.tab))
+
+    def test_old_library_target_is_rejected_after_plan_changes(self):
+        pane, cid = self.open_dossier()
+        library, entry = self.library_entry()
+        library.open_for_case()
+        pane.store.save_plan(cid, 0, {"question": "Qual o indicador nacional?", "scope": "pesquisavel", "period": "2025",
+            "territory": "Brasil", "indicator": "IPCA", "comparison": "", "notes": "", "candidate_urls": []})
+        with patch("factcheck.library_ui.messagebox.showinfo") as info:
+            library.use()
+        info.assert_called_once()
+        self.assertEqual(pane.url.get(), "")
+        self.assertEqual(pane.store.snapshot(cid)["library_references"], [])
+
+    def test_changed_or_archived_catalog_entry_cannot_be_used_from_stale_ui(self):
+        from tests.test_source_library import fields
+        pane, cid = self.open_dossier()
+        library, entry = self.library_entry()
+        library.open_for_case()
+        library.store.save(fields(notes="Nova versão do cadastro."), "Atualizar observação.", entry["id"], 1)
+        with patch("factcheck.library_ui.messagebox.showinfo") as info:
+            library.use()
+        info.assert_called_once()
+        self.assertEqual(pane.store.snapshot(cid)["library_references"], [])
+        library.store.set_archived(entry["id"], 2, True, "Fora da pauta.")
+        library.refresh()
+        self.assertEqual(library.tree.get_children(), ())
+        library.archived.set(True)
+        library.tree.selection_set(entry["id"])
+        library.show_selected()
+        self.assertEqual(str(library.use_button["state"]), "disabled")
+
+    def test_library_filters_use_loaded_data_and_keep_a_topic_after_last_item_changes(self):
+        from tests.test_source_library import fields
+        library, entry = self.library_entry(title="Estatísticas de Saúde", topics=["Saúde"])
+        with patch.object(library.store, "connection", side_effect=AssertionError("Filtro não deve reler a coleção")):
+            library.query.set("SAUDE")
+            self.assertEqual(library.tree.get_children(), (entry["id"],))
+            library.query.set("Sem correspondência")
+            self.assertEqual(library.tree.get_children(), ())
+        library.query.set("")
+        library.topic.set("Saúde")
+        library.store.save(fields(title="Outro tema", topics=["Economia"]), "Reclassificar referência.", entry["id"], 1)
+        library.refresh()
+        self.assertEqual(library.topic_options[library.topic.get()], "Saúde")
+        self.assertEqual(library.tree.get_children(), ())
+
+    def test_loading_another_session_keeps_catalog_but_clears_the_target(self):
+        pane, cid = self.open_dossier()
+        library, entry = self.library_entry()
+        library.open_for_case()
+        other = self.project / "outra-colecao"
+        other.mkdir()
+        (other / "session.json").write_text('{}', encoding="utf8")
+        self.work.load(other)
+        self.assertIsNone(library.target)
+        self.assertEqual(library.store.entries()[0]["id"], entry["id"])
+        self.assertEqual(str(library.use_button["state"]), "disabled")
+
+    def test_unsaved_library_editor_requires_confirmation_to_close(self):
+        library = self.work.library
+        library.edit()
+        window = widgets(self.root, tk.Toplevel)[0]
+        widgets(window, ttk.Entry)[0].insert(0, "Cadastro ainda não salvo")
+        with patch("factcheck.library_ui.messagebox.askyesno", return_value=False):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.library_ui.messagebox.askyesno", return_value=True):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(library.store.entries(), [])
+
+    def test_reference_from_imported_document_keeps_unconfirmed_origin_and_original_evidence(self):
+        from tests.test_evidence import document
+        pane, cid = self.open_dossier()
+        doc = {**document(), "acquisition": "local_import", "accessed_at": "", "imported_at": "2026-10-23T10:00:00+00:00", "file_name": "ensaio.html"}
+        jid = pane.store.begin(cid, "import")
+        pane.store.finish(jid, doc)
+        self.work.refresh()
+        pane.documents.selection_set(doc["id"])
+        pane.save_to_library()
+        window = widgets(self.root, tk.Toplevel)[0]
+        self.assertTrue(any("origem online precisa" in text.get("1.0", "end") for text in widgets(window, tk.Text)))
+        widgets(window, tk.Text)[0].insert("1.0", "Guardar referência para nova pesquisa.")
+        next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar referência").invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(pane.store.snapshot(cid)["documents"][0], doc)
+        self.assertEqual(len(self.work.library.store.entries()), 1)
+
+    def test_library_storage_failure_does_not_block_the_other_tabs(self):
+        with patch("factcheck.library_ui.SourceLibrary", side_effect=PermissionError("Ensaio de pasta indisponível")):
+            self.work.library.refresh()
+        self.assertIsNone(self.work.library.store)
+        self.assertIn("Não foi possível abrir", self.work.library.status.get())
+        self.assertFalse(self.work.busy())
+        self.assertIsNotNone(self.work.store)
+
     def assignment_editor(self, existing_name=None):
         pane, cid = self.open_dossier()
         if existing_name is not None:

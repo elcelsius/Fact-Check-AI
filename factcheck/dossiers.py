@@ -11,6 +11,7 @@ from .planning import ORIGINS, PLAN_FIELDS, SCOPES, validate_plan
 from .discovery import search_basis, validate_query
 from .priorities import describe_priority, priority_payload, read_priority
 from .assignments import assignment_payload, describe_assignment, read_assignment, read_assignment_history
+from .source_library import reference_snapshot, render_reference
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -27,6 +28,8 @@ class DossierStore:
                 CREATE INDEX IF NOT EXISTS evidence_claim ON evidence(claim_id);
                 CREATE TABLE IF NOT EXISTS discoveries (id TEXT PRIMARY KEY, claim_id TEXT, payload TEXT);
                 CREATE INDEX IF NOT EXISTS discoveries_claim ON discoveries(claim_id);
+                CREATE TABLE IF NOT EXISTS library_references (id TEXT PRIMARY KEY, claim_id TEXT, payload TEXT);
+                CREATE INDEX IF NOT EXISTS library_references_claim ON library_references(claim_id);
             """)
 
     @staticmethod
@@ -73,10 +76,36 @@ class DossierStore:
                 batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
             priority = priority_payload(claim, read_priority(db, cid), valid)
             assignment = assignment_payload(claim, read_assignment(db, cid), valid)
+            library_references = [{"id": rid, **json.loads(payload)} for rid, payload in
+                                  db.execute("SELECT id,payload FROM library_references WHERE claim_id=? ORDER BY rowid", (cid,))]
+            for selection in library_references:
+                selection["current"] = bool(valid and selection["basis"] == search_basis(claim, case.get("plan")))
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
                     "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
                     "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case,
-                    "priority": priority, "assignment": assignment, "assignment_history": read_assignment_history(db, cid)}
+                    "priority": priority, "assignment": assignment, "assignment_history": read_assignment_history(db, cid),
+                    "library_references": library_references}
+
+    def record_library_reference(self, cid, expected_basis, entry, query="", topic=None):
+        entry = reference_snapshot(entry)
+        if (not isinstance(query, str) or len(query) > 1000 or topic is not None
+                and (not isinstance(topic, str) or len(topic) > 100 or topic not in entry["topics"])):
+            raise ValueError("Consulta da coleção inválida.")
+        with self.review.connection() as db:
+            claim, _ = self._claim(db, cid, active=True)
+            _, case = self._case(db, cid)
+            basis = search_basis(claim, case.get("plan"))
+            if basis != expected_basis:
+                raise ValueError("A afirmação ou o plano mudou. Reabra a coleção a partir do dossiê atual.")
+            for rid, payload in db.execute("SELECT id,payload FROM library_references WHERE claim_id=?", (cid,)):
+                old = json.loads(payload)
+                if old["basis"] == basis and old["reference"]["id"] == entry["id"] and old["reference"]["revision"] == entry["revision"]:
+                    return rid
+            rid = uuid.uuid4().hex
+            payload = {"basis": basis, "selected_at": now(), "reference": entry, "query": query, "topic": topic}
+            db.execute("INSERT INTO library_references VALUES (?,?,?)", (rid, cid, json.dumps(payload, ensure_ascii=False)))
+            self.review._audit(db, "library_reference_selected", {"id": rid, "claim_id": cid, **payload})
+            return rid
 
     def save_plan(self, cid, expected_revision, plan, origin="operator_input"):
         if origin not in ORIGINS:
@@ -302,6 +331,13 @@ def render(snapshot):
             if item.get("discard_reason"):
                 lines.append("Motivo do descarte: " + item["discard_reason"])
         lines += ["Títulos e URLs são sugestões do provedor. Coleta e conferência continuam necessárias.", ""]
+    lines += ["## Referências da coleção · candidatas, não evidências", ""]
+    if not snapshot.get("library_references"):
+        lines += ["Nenhuma referência da coleção selecionada para este caso.", ""]
+    for selection in snapshot.get("library_references", []):
+        lines += ["Referência selecionada em: " + selection["selected_at"] + (" · contexto atual" if selection["current"] else " · contexto anterior"),
+                  "Consulta local: " + (selection["query"] or "Sem termos"),
+                  "Tema do filtro: " + (selection["topic"] or "Todos"), render_reference(selection["reference"]), ""]
     lines += ["## Fontes coletadas", ""]
     if not snapshot["documents"]:
         lines.append("Nenhuma fonte coletada. Não há evidências para concluir.")

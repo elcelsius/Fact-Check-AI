@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1600" height="1550" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.19.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.20.0</text>
 <text x="60" y="96" class="title">Como o sistema processa uma fala</text>
 <text x="60" y="133" class="subtitle">Filas independentes, registros versionados e decisão factual sob responsabilidade humana.</text>
 <text x="60" y="187" class="section">01 / ÁUDIO E TRANSCRIÇÃO LOCAL</text>
@@ -132,9 +132,9 @@
 <rect x="468" y="843" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
 <text x="478" y="861" class="tag" style="fill:#087F74">BUSCA / COLETA / IMPORTAÇÃO</text>
 <text x="470" y="899" class="heading">Descobrir e coletar</text>
-<text x="470" y="930" class="body">Tavily opcional · URLs candidatas</text>
+<text x="470" y="930" class="body">Coleção local ou Tavily opcional</text>
 <text x="470" y="955" class="body">Coleta por URL ou PDF/HTML</text>
-<text x="470" y="980" class="body">Texto, origem e localizadores.</text>
+<text x="470" y="980" class="body">Candidatas ≠ evidências coletadas.</text>
 </g>
 <g data-card-bounds="840,823,310,187">
 <rect x="840" y="823" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
@@ -194,19 +194,22 @@
 <path d="M 1385 1010 V 1112" class="flow"/>
 <path d="M 605 397 V 411 H 32 V 1199 H 60" class="flow"/>
 <text x="42" y="1090" class="small">WAV</text>
-<text x="60" y="1336" class="section">EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS AINDA NÃO EXECUTADAS</text>
+<text x="60" y="1336" class="section">COLEÇÃO ENTRE SESSÕES</text>
+<text x="545" y="1336" class="section">EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS</text>
 <g data-card-bounds="60,1360,450,118">
-<rect x="60" y="1360" width="450" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
-<path d="M 78 1360 H 492 Q 510 1360 510 1378 V 1370 H 60 V 1378 Q 60 1360 78 1360 Z" fill="#52637B"/>
-<text x="80" y="1399" class="heading">Pesquisa contínua</text>
-<text x="80" y="1430" class="body">Mais provedores e fontes por tema.</text>
-<text x="80" y="1455" class="body">Reuso de checagens com contexto conferido.</text>
+<rect x="60" y="1360" width="450" height="118" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
+<path d="M 78 1360 H 492 Q 510 1360 510 1378 V 1370 H 60 V 1378 Q 60 1360 78 1360 Z" fill="#087F74"/>
+<text x="80" y="1399" class="heading">Coleção de fontes</text>
+<text x="80" y="1430" class="body">library/sources.sqlite3 · metadados</text>
+<text x="80" y="1455" class="body">Versão copiada para o caso selecionado.</text>
 </g>
+<path d="M 510 1419 H 525 V 1307 H 750 V 1080 H 605 V 1010" class="flow"/>
 <g data-card-bounds="545,1360,450,118">
 <rect x="545" y="1360" width="450" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
 <path d="M 563 1360 H 977 Q 995 1360 995 1378 V 1370 H 545 V 1378 Q 545 1360 563 1360 Z" fill="#52637B"/>
-<text x="565" y="1399" class="heading">Separação de falantes</text>
-<text x="565" y="1430" class="body">Distinguir vozes e associar participantes.</text>
+<text x="565" y="1399" class="heading">Pesquisa e falantes</text>
+<text x="565" y="1430" class="body">Busca contínua e checagens anteriores.</text>
+<text x="565" y="1455" class="body">Separação automática de falantes.</text>
 </g>
 <g data-card-bounds="1030,1360,510,118">
 <rect x="1030" y="1360" width="510" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>

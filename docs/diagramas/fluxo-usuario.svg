@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1440" height="1570" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.19.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.20.0</text>
 <text x="60" y="96" class="title">Da transmissão ao dossiê revisado</text>
 <text x="60" y="133" class="subtitle">Você acompanha e decide. A IA ajuda a localizar afirmações e organizar a pesquisa.</text>
 <rect x="60" y="165" width="1320" height="57" rx="12" fill="#E6F5F2" stroke="#B5DCD4" stroke-width="1.5"/>
@@ -30,7 +30,7 @@
 <circle cx="100" cy="302" r="22" fill="#2455A4"/>
 <text x="94" y="309" class="number">1</text>
 <text x="138" y="311" class="stage">Preparar e capturar</text>
-<text x="85" y="361" class="body">• Cadastre o debate e os participantes.</text>
+<text x="85" y="361" class="body">• Cadastre o debate e prepare a coleção de fontes.</text>
 <text x="85" y="392" class="body">• Reproduza o vídeo e escolha a saída de áudio.</text>
 <text x="85" y="423" class="body">• Use IA local ou configure sua chave Gemini.</text>
 <text x="85" y="454" class="body">• Inicie a captura e informe a minutagem do vídeo.</text>
@@ -57,7 +57,7 @@
 <text x="794" y="789" class="number">3</text>
 <text x="838" y="791" class="stage">Pesquisar evidências</text>
 <text x="785" y="841" class="body">• Defina pergunta, recortes e lacunas no dossiê.</text>
-<text x="785" y="872" class="body">• Encontre URLs com Tavily ou no navegador.</text>
+<text x="785" y="872" class="body">• Use a coleção, Tavily ou o navegador.</text>
 <text x="785" y="903" class="body">• Colete a URL ou importe PDF/HTML e confira.</text>
 <text x="785" y="934" class="body">• Opcional: peça análise preliminar ao Gemini.</text>
 <rect x="780" y="984" width="580" height="75" rx="11" fill="#F0EDFF" stroke="#F0EDFF" stroke-width="1.5"/>

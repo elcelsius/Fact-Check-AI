@@ -7,6 +7,7 @@ recordings/
 logs/
 /tmp/
 /exports/
+/library/
 __pycache__/
 *.py[cod]
 .env

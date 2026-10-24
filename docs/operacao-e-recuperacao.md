@@ -1,6 +1,21 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.19.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+Procedimento do protótipo Windows, versão **0.20.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+
+## Preparar e manter a coleção de referências
+
+1. Abra **Coleção de fontes**, antes ou depois de uma captura. O catálogo é local e compartilhado entre as sessões da mesma pasta do aplicativo; não exige chave de API.
+2. Use **Nova referência** para registrar título, URL HTTPS institucional, instituição informada e de um a oito temas separados por ponto e vírgula. Nas abas **Cadastro** e **Metodologia e limites**, informe periodicidade, método, recortes, limitações e observações quando conhecidos. Registre o motivo do cadastro e salve. Campos metodológicos ausentes ficam a definir; não preencha por suposição.
+3. Combine **Buscar**, **Tema** e **Incluir arquivadas**. A busca exige todas as palavras, ignora acentos e maiúsculas e consulta os campos do cadastro. O tema é comparado exatamente. **Atualizar lista** recarrega alterações de outra janela; filtros não iniciam coleta ou chamadas externas.
+4. Para corrigir o cadastro, selecione **Editar referência** e justifique. Para retirar da lista ativa, use **Arquivar referência**; para voltar, inclua arquivadas e use **Restaurar referência**, também com motivo. Editar uma arquivada não a restaura. O histórico completo do cadastro aparece abaixo da lista. Uma URL já registrada deve ser editada ou restaurada, sem criar duplicatas.
+5. Para selecionar no caso, abra uma afirmação atual em **Dossiê e fontes** e use **Coleção de fontes**. Confira o destino exibido e use **Usar URL no dossiê**. Essa ação guarda uma cópia da versão do cadastro e preenche a URL; use **Coletar fonte** para efetivamente obter e conferir o documento. Sem destino explícito, ou com a referência arquivada, essa ação fica indisponível.
+6. Se já há documento no dossiê, **Salvar na coleção** prepara seu cadastro para revisão. O operador ainda precisa conferir campos e motivo. A origem de uma cópia importada continua sem acesso online confirmado; criar referência não modifica essa condição.
+
+Um cadastro alterado enquanto o editor está aberto é rejeitado ao salvar; uma versão antiga da lista não pode ser selecionada como atual. Alterações da fala, extração ou plano também rejeitam um destino antigo. Trocar de sessão ou abrir outra afirmação limpa o destino. O filtro de tema permanece ativo se uma edição retirar seu último resultado; limpar filtros restaura a lista padrão.
+
+Referências selecionadas ficam na seção **Referências da coleção · candidatas, não evidências** do dossiê e em `dossiers[].library_references` no JSON. Elas não habilitam análise factual sem documentos, alteram decisões ou são enviadas à análise como evidências. Metadados de acesso/publicação continuam pertencendo às fontes efetivamente coletadas. O retrato guardado no caso permanece igual se a coleção mudar depois; `current` indica contexto do caso, sem afirmar atualidade online ou correspondência com o cadastro mais recente. Consultas locais ficam registradas na seleção; buscas sem seleção são somente filtros de visualização.
+
+A coleção fica em **library/sources.sqlite3**, com histórico próprio, fora do Git e separada de `recordings`. Para backup ou transferência, feche o aplicativo e copie a pasta **library**. As sessões guardam suas próprias seleções e podem ser lidas sem a coleção original. Exportar uma sessão inclui apenas referências selecionadas nos casos do escopo; não copia toda a coleção privada. O primeiro incremento não arquiva binários nessa biblioteca nem reutiliza conclusões de checagens. A preparação e a avaliação editorial dos materiais continuam pendentes.
 
 ## Antes de um ensaio com vídeo
 
