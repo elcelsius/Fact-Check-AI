@@ -326,7 +326,7 @@ class ReviewStore:
                          "status": "precisa_contexto" if item["category"] == "fato" and item.get("context_notes") else
                                    "aguardando_pesquisa" if item["category"] == "fato" else
                                    "precisa_contexto" if item["category"] == "indefinida" else "fora_da_fila",
-                         "review_status": "automatico_nao_revisado", "engine": engine}
+                         "review_status": "automatico_nao_revisado", "claim_revision": 1, "engine": engine}
                 db.execute("INSERT INTO claims VALUES (?,?,?,?)", (claim_id, pid, revision, json.dumps(claim, ensure_ascii=False)))
             db.execute("UPDATE analyses SET status='completed',payload=? WHERE id=?",
                        (json.dumps({"ended_at": now(), "engine": engine, "items": len(items)}), analysis_id))
@@ -369,3 +369,7 @@ class ReviewStore:
             claim.update({"status": "descartada", "discard_reason": reason.strip()})
             db.execute("UPDATE claims SET payload=? WHERE id=?", (json.dumps(claim, ensure_ascii=False), claim_id))
             self._audit(db, "claim_discarded", {"id": claim_id, "reason": reason})
+
+    def revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason):
+        from .claims import revise_claim
+        return revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason)

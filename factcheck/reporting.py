@@ -151,9 +151,11 @@ def session_report(review, cancelled=None):
                              "speaker_unassigned": sum(not row["speaker"] for row in paragraphs),
                              "triage_completed": analyzed, "triage_not_completed": len(paragraphs) - analyzed},
               "claims": {"current": len(current), "by_category": dict(Counter(row["category"] for row in current)),
+                         "extraction_revised": sum(bool(row.get("extraction_review")) for row in current),
                          "planning": {"recorded": len(plans), "ai_drafts": sum(plan["origin"] == "ai_draft" for plan in plans),
                                       "needs_context": sum(plan["scope"] == "falta_contexto" for plan in plans),
-                                      "possibly_not_checkable": sum(plan["scope"] == "nao_verificavel" for plan in plans)},
+                                      "possibly_not_checkable": sum(plan["scope"] == "nao_verificavel" for plan in plans),
+                                      "needs_revision_review": sum(bool(plan.get("needs_review")) for plan in plans)},
                          "historical_or_discarded": len(data["claims"]) - len(current),
                          "detected_factual": len(factual), "factual_flow": {key: flow[key] for key in
                              ("pending_sources", "sources_only", "preliminary_pending_human", "human_decided")},
@@ -170,7 +172,7 @@ def session_report(review, cancelled=None):
               "log": log, "quality": {"human_reference": "not_provided", "precision": None, "recall": None,
                                         "transcript_word_error_rate": None},
               "limitations": ["Contagens e decisões descrevem registros salvos; não medem precisão ou cobertura das falas reais.",
-                              "A proporção de decisões usa somente afirmações factuais identificadas pela IA e ainda atuais.",
+                              "A proporção de decisões usa as extrações atuais classificadas como factuais, incluindo revisões do operador.",
                               "P95 é calculado por interpolação linear a partir de 20 observações válidas; valores ausentes ou negativos são excluídos.",
                               "Processamento e atraso dos pacotes não equivalem ao tempo para estabilizar uma palavra.",
                               "O tempo até a decisão usa o relógio civil, inclui esperas e pode ser afetado por ajustes de relógio; não mede esforço humano.",
@@ -206,12 +208,14 @@ def render_report(report):
              f"Parágrafos sem encerramento: {paragraphs['unclosed']} · origem a reconciliar: {paragraphs['needs_reconciliation']}",
              f"Participante indefinido: {paragraphs['speaker_unassigned']} · sem triagem concluída: {paragraphs['triage_not_completed']}",
              f"Afirmações atuais: {claims['current']} · históricas/descartadas: {claims['historical_or_discarded']}",
+             f"Extrações revisadas pelo operador: {claims.get('extraction_revised', 'Não registrado')}",
              f"Categorias atuais: {json.dumps(claims['by_category'], ensure_ascii=False)}",
-             f"Afirmações factuais identificadas pela IA: {claims['detected_factual']}",
+             f"Extrações atuais classificadas como factuais: {claims['detected_factual']}",
              (f"Planos registrados: {planning['recorded']} · rascunhos de IA: {planning['ai_drafts']} · "
-              f"com contexto pendente: {planning['needs_context']} · possivelmente não verificáveis: {planning['possibly_not_checkable']}"
+              f"com contexto pendente: {planning['needs_context']} · possivelmente não verificáveis: {planning['possibly_not_checkable']} · "
+              f"a conferir após revisão da extração: {planning.get('needs_revision_review', 'Não registrado')}"
               if planning is not None else "Planejamento: não registrado neste relatório antigo."),
-             f"Decisão humana nas factuais identificadas: {ratio_value['numerator']}/{ratio_value['denominator']}" +
+             f"Decisão humana nas factuais atuais: {ratio_value['numerator']}/{ratio_value['denominator']}" +
              (f" ({ratio_value['fraction']:.1%})" if ratio_value['fraction'] is not None else " (sem denominador)"),
              f"Aguardando fontes: {claims['factual_flow']['pending_sources']}",
              f"Fontes disponíveis, sem análise/decisão: {claims['factual_flow']['sources_only']}",

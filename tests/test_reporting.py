@@ -160,8 +160,10 @@ class ReportTests(unittest.TestCase):
         self.assertIsNone(statistics(list(range(19)))["p95"])
 
     def test_unchanged_report_has_stable_content_hash_and_separate_generation_time(self):
-        first = session_report(self.review)
-        second = session_report(self.review)
+        with patch("factcheck.exports.now", return_value="2026-10-23T12:00:00+00:00"):
+            first = session_report(self.review)
+        with patch("factcheck.exports.now", return_value="2026-10-23T12:01:00+00:00"):
+            second = session_report(self.review)
         self.assertEqual(first["content_sha256"], second["content_sha256"])
         self.assertNotEqual(first["generated_at"], second["generated_at"])
 

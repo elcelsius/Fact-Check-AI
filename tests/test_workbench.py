@@ -558,6 +558,71 @@ class WorkbenchTests(unittest.TestCase):
         self.work.evidence.open_selected()
         return self.work.evidence, cid
 
+    def claim_editor(self):
+        pane, cid = self.open_dossier()
+        self.work.edit_claim()
+        window = widgets(self.root, tk.Toplevel)[0]
+        texts = widgets(window, tk.Text)
+        category = widgets(window, ttk.Combobox)[0]
+        save = next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar revisão da extração")
+        return pane, cid, window, texts, category, save
+
+    def test_claim_editor_reclassifies_without_running_ai_or_approving_the_source_or_fact(self):
+        pane, cid, window, texts, category, save = self.claim_editor()
+        category.set("Opinião")
+        texts[-1].insert("1.0", "Classificação corrigida no ensaio fictício.")
+        with patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            save.invoke()
+        triage.assert_not_called()
+        research.assert_not_called()
+        current = self.work.claims[cid]
+        self.assertEqual(current["category"], "opiniao")
+        self.assertEqual(current["claim_revision"], 2)
+        self.assertEqual(current["automatic_extraction"]["category"], "fato")
+        self.assertFalse(self.work.store.source(1)["human_reviewed"])
+        self.assertIsNone(pane.store.snapshot(cid)["decision"])
+        self.assertIn("revisada pelo operador", self.work.claim_detail.get("1.0", "end"))
+        self.assertFalse(window.winfo_exists())
+
+    def test_claim_editor_invalid_quote_stays_open_and_preserves_data(self):
+        pane, cid, window, texts, category, save = self.claim_editor()
+        quote = texts[1]
+        quote.delete("1.0", "end")
+        quote.insert("1.0", "Trecho que não existe.")
+        texts[-1].insert("1.0", "Revisão fictícia.")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(self.work.store.claims()[0]["quote"], self.text)
+
+    def test_claim_editor_rejects_concurrent_revision_and_preserves_newer_version(self):
+        pane, cid, window, texts, category, save = self.claim_editor()
+        source = self.work.store.claims()[0]
+        fields = {key: source.get(key) for key in ("quote", "summary", "category", "topic")}
+        fields["category"] = "promessa"
+        self.work.store.revise_claim(cid, 1, 1, fields, "Revisão mais recente.")
+        category.set("Opinião")
+        texts[-1].insert("1.0", "Editor antigo.")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(self.work.store.claims()[0]["category"], "promessa")
+
+    def test_claim_editor_cancel_requires_confirmation_for_unsaved_changes(self):
+        pane, cid, window, texts, category, save = self.claim_editor()
+        category.set("Indefinida")
+        cancel = next(button for button in widgets(window, ttk.Button) if button["text"] == "Cancelar")
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=False):
+            cancel.invoke()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(self.work.store.claims()[0]["category"], "fato")
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=True):
+            cancel.invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.store.claims()[0]["category"], "fato")
+
     def test_plan_editor_saves_recuts_without_running_ai_or_approving_facts(self):
         pane, cid = self.open_dossier()
         pane.plan()

@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.14.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão.
+Procedimento do protótipo Windows, versão **0.15.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão.
 
 ## Antes de um ensaio com vídeo
 
@@ -68,6 +68,20 @@ Testes adicionais verificam a cópia de um WAV com cabeçalho incompleto, a excl
 
 Esse ensaio cobre encerramento de processo e persistência local. Continuam pendentes o ensaio editorial completo com vídeo representativo, qualidade da transcrição/checagem, falha elétrica, disco defeituoso ou cheio, recuperação entre máquinas e restauração de backup em outro computador. A chamada real ao Gemini e a coleta online ainda precisam ser validadas na execução normal do Windows.
 
+## Revisar a extração de uma afirmação
+
+Em **Afirmações para checagem**, use **Revisar afirmação**. Confira a citação no texto atual da fala, ajuste resumo, categoria e tema e registre o motivo. Uma frase de opinião classificada incorretamente pode ser reclassificada, sem transformar essa revisão em aprovação factual. Se houver erro no texto transcrito, use **Revisar origem** e gere a triagem da revisão atual antes de editar a nova extração.
+
+A citação salva deve ser literal e preservar negações e qualificadores. O editor rejeita alterações de texto que precisariam ser corrigidas na origem, resumos com número ausente ou negação omitida e duplicação de citação entre itens atuais do mesmo parágrafo. Esses controles limitam erros específicos; não asseguram fidelidade semântica ou veracidade.
+
+O identificador da afirmação permanece e `claim_revision` aumenta, independentemente da revisão do parágrafo. O primeiro conteúdo automático fica em `automatic_extraction`; `extraction_review` identifica a origem do operador, a data e a justificativa. A comparação aparece no detalhe e nas exportações. As revisões intermediárias completas ficam no histórico do SQLite. Registros antigos sem a nova versão são tratados como revisão 1.
+
+Uma mudança invalida a análise e a decisão atuais e rejeita resultados de triagem ou pesquisa iniciados antes dela. Fontes permanecem arquivadas, e o planejamento fica com `needs_review: true` e a revisão da extração que usou. A fila mostra **Planejamento a conferir**. Abra **Planejar checagem**, confira a pergunta e os recortes e salve para associar o plano à extração atual. Enquanto isso, a análise automática permanece inconclusiva. A decisão humana continua separada.
+
+Nova triagem iniciada depois da revisão pode substituir as extrações atuais; as anteriores ficam históricas. Salvar os mesmos dados de uma extração já revisada não cria outra revisão nem apaga decisão posterior. Editores que ficaram desatualizados são rejeitados. Cancelar ou fechar um editor alterado pede confirmação, e o fechamento do aplicativo também protege essa atividade.
+
+O JSON inclui os estados atuais e o original automático preservado. O CSV de afirmações inclui `afirmacao_revisao`, `extracao_revisada`, `categoria_automatica`, `citacao_automatica`, justificativa/data da revisão e `plano_precisa_revisao`. O relatório usa a categoria atual da extração, incluindo reclassificações do operador, e continua sem estimar precisão ou cobertura das falas reais.
+
 ## Planejar a checagem
 
 Em **Dossiê e fontes**, use **Planejar checagem** para registrar pergunta verificável, período, território, indicador ou fato a demonstrar, comparação, lacunas e URLs candidatas. Escolha a situação da pesquisa. Um pedido de explicação sem proposição explícita pode exigir descarte ou outra delimitação; essa avaliação não decorre apenas da etiqueta factual da IA.
@@ -101,7 +115,7 @@ Os rascunhos preservam citação, categoria e atribuição da extração, distin
 
 | Medida | Interpretação e limite |
 | --- | --- |
-| Decisões humanas / factuais identificadas | Usa apenas as declarações factuais detectadas pela IA, atuais e não descartadas. Não mede precisão nem recuperação das afirmações reais. Sem factuais atuais, a proporção fica indisponível. |
+| Decisões humanas / factuais atuais | Usa apenas extrações atuais e não descartadas classificadas como factuais, incluindo reclassificações do operador. Não mede precisão nem recuperação das afirmações reais. Sem factuais atuais, a proporção fica indisponível. |
 | Primeira prévia | Tempo desde o início efetivo da captura até a primeira hipótese não vazia registrada. Inclui eventual silêncio inicial; não é atraso por palavra e não mede a chegada visual na janela. |
 | Primeira entrega estabilizada | Tempo desde o início da captura até a persistência do primeiro segmento estabilizado. Não garante fidelidade ao áudio. |
 | Atraso dos segmentos | Tempo de entrega menos o fim estimado do segmento no áudio. Diferente do atraso de um pacote. Valores negativos ou inválidos são excluídos e contados. |

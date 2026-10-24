@@ -127,9 +127,12 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
             {"claim_id": cid, "revision": revision, "source_current": valid, "state": state,
              "preliminary_current": bool(valid and preliminary), "decision_current": bool(valid and decision),
              "preliminary": preliminary, "decision": decision,
-             "plan": _pick(case["plan"], (*PLAN_FIELDS, "origin", "updated_at")) if case.get("plan") else None}))
+             "plan": _pick(case["plan"], (*PLAN_FIELDS, "origin", "updated_at", "claim_revision", "needs_review")) if case.get("plan") else None}))
         claims.append(_record(session_id, "claim", cid,
             {"claim_id": cid, **_pick(claim, CLAIM_KEYS), **times(claim), "source_current": valid,
+             "claim_revision": claim.get("claim_revision", 1),
+             "automatic_extraction": _pick(claim["automatic_extraction"], CLAIM_KEYS) if claim.get("automatic_extraction") else None,
+             "extraction_review": _pick(claim["extraction_review"], ("origin", "at", "reason")) if claim.get("extraction_review") else None,
              "source_paragraph_ids": claim.get("source_paragraph_ids", [claim["paragraph_id"]]),
              "dossier_revision": revision, "factual_state": state, "engine": _engine(claim.get("engine"))}))
 
@@ -184,13 +187,14 @@ COLUMNS = {
     "paragraphs": (*COMMON, "paragrafo_id", "revisao", "ativo", "concluido", "encerramento_recuperado_em", "motivo_encerramento_recuperado", "transcricao_conferida", "precisa_reconciliar",
                    "participante", "inicio_captura_s", "fim_captura_s", "inicio_video_s", "fim_video_s", "inicio_video", "fim_video",
                    "referencia_revisao", "origens_ids", "componentes_ids", "substituido_por", "desfeito", "estado_triagem", "analise_id", "texto", "texto_reconhecido"),
-    "claims": (*COMMON, "afirmacao_id", "paragrafo_id", "revisao_fala", "origens_ids", "origem_atual", "estado_triagem", "categoria",
+    "claims": (*COMMON, "afirmacao_id", "afirmacao_revisao", "extracao_revisada", "categoria_automatica", "citacao_automatica",
+               "motivo_revisao_extracao", "revisao_extracao_em", "paragrafo_id", "revisao_fala", "origens_ids", "origem_atual", "estado_triagem", "categoria",
                "participante", "inicio_captura_s", "fim_captura_s", "inicio_video", "fim_video", "referencia_revisao", "citacao", "resumo", "motivo",
                "tema", "local", "periodo", "indicador", "comparacao", "contexto_analisado", "analise_id", "modelo", "estado_dossie", "dossie_revisao",
                "preliminar_classificacao", "preliminar_resumo", "preliminar_justificativa", "preliminar_atual", "evidencias_citadas", "decisao_humana_classificacao", "decisao_humana_responsavel",
                "decisao_humana_justificativa", "decisao_humana_em", "decisao_atual", "motivo_descarte", "fontes_urls", "fonte_ids",
                "plano_pergunta", "plano_situacao", "plano_periodo", "plano_territorio", "plano_indicador", "plano_comparacao",
-               "plano_observacoes", "plano_urls_candidatas", "plano_origem"),
+               "plano_observacoes", "plano_urls_candidatas", "plano_origem", "plano_precisa_revisao"),
     "sources": (*COMMON, "fonte_id", "afirmacao_id", "origem_afirmacao_atual", "titulo", "instituicao", "autoria", "url", "publicado_em",
                 "acessado_em", "origem", "acesso_url_confirmado", "importado_em", "sha256", "texto_sha256", "leitura_limitada", "avisos", "localizadores"),
 }
@@ -238,7 +242,11 @@ def csv_rows(data, kind):
             preliminary, decision = dossier["preliminary"] or {}, dossier["decision"] or {}
             documents = [doc for doc in data["sources"] if doc["claim_id"] == row["claim_id"]]
             plan = dossier.get("plan") or {}
+            extracted, edited = row.get("automatic_extraction") or {}, row.get("extraction_review") or {}
             record.update(afirmacao_id=row["claim_id"], revisao_fala=row["revision"], origem_atual=row["source_current"], estado_triagem=row["status"],
+                          afirmacao_revisao=row.get("claim_revision", 1), extracao_revisada=bool(edited),
+                          categoria_automatica=extracted.get("category", row["category"]), citacao_automatica=extracted.get("quote", row["quote"]),
+                          motivo_revisao_extracao=edited.get("reason"), revisao_extracao_em=edited.get("at"),
                           categoria=row["category"], citacao=row["quote"], resumo=row["summary"], motivo=row["reason"], tema=row.get("topic"),
                           local=row.get("location"), periodo=row.get("period"), indicador=row.get("indicator"), comparacao=row.get("comparison"),
                           contexto_analisado=row["context"], analise_id=row["analysis_id"], modelo=row["engine"].get("model"),
@@ -250,7 +258,8 @@ def csv_rows(data, kind):
                           motivo_descarte=row.get("discard_reason"), fontes_urls=[doc["url"] for doc in documents], fonte_ids=[doc["document_id"] for doc in documents])
             record.update(plano_pergunta=plan.get("question"), plano_situacao=plan.get("scope"), plano_periodo=plan.get("period"),
                           plano_territorio=plan.get("territory"), plano_indicador=plan.get("indicator"), plano_comparacao=plan.get("comparison"),
-                          plano_observacoes=plan.get("notes"), plano_urls_candidatas=plan.get("candidate_urls", []), plano_origem=plan.get("origin"))
+                          plano_observacoes=plan.get("notes"), plano_urls_candidatas=plan.get("candidate_urls", []), plano_origem=plan.get("origin"),
+                          plano_precisa_revisao=plan.get("needs_review", False))
         else:
             record.update(fonte_id=row["document_id"], afirmacao_id=row["claim_id"], origem_afirmacao_atual=row["claim_source_current"], titulo=row.get("title"),
                           instituicao=row.get("institution"), autoria=row.get("author"), url=row["url"], publicado_em=row.get("published_at"),

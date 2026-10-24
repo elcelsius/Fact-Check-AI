@@ -91,6 +91,7 @@ class Workbench:
         row.pack(fill="x", pady=8)
         ttk.Button(row, text="Ouvir fala", command=self.play_claim).pack(side="left")
         ttk.Button(row, text="Revisar origem", command=self.edit_claim_source).pack(side="left", padx=8)
+        ttk.Button(row, text="Revisar afirmação", command=self.edit_claim).pack(side="left", padx=(0, 8))
         ttk.Button(row, text="Descartar com justificativa", command=self.discard).pack(side="left")
         ttk.Button(row, text="Abrir dossiê", command=lambda: self.evidence.open_selected()).pack(side="left", padx=8)
         ttk.Button(row, text="Exportar sessão", command=self.configure_export).pack(side="left")
@@ -834,6 +835,81 @@ class Workbench:
         selected = self.claim_tree.selection()
         return self.claims.get(selected[0]) if selected else None
 
+    def edit_claim(self):
+        claim = self.selected_claim()
+        if not claim:
+            return
+        source = self.store.source(claim["paragraph_id"])
+        if (claim.get("source_outdated") or claim["status"] in {"descartada", "analise_desatualizada"}
+                or source["needs_rebase"] or not active(source) or claim["revision"] != source["revision"]):
+            messagebox.showinfo("Revisar afirmação", "Selecione uma afirmação da revisão atual e não descartada.", parent=self.root)
+            return
+        store = self.store
+        window, close = self.dialog("Revisar afirmação · extração e classificação")
+        window.geometry("900x820")
+        frame = ttk.Frame(window, padding=18)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Esta revisão corrige a extração; não valida a transcrição nem conclui sobre a veracidade.", wraplength=850).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frame, text="Texto atual da fala · copie um intervalo literal, preservando negações e qualificadores").pack(anchor="w")
+        original = ScrolledText(frame, height=4, wrap="word", font=("Segoe UI", 10))
+        original.insert("1.0", source["text"])
+        original.configure(state="disabled")
+        original.pack(fill="both", expand=True, pady=5)
+        ttk.Label(frame, text="Citação da afirmação").pack(anchor="w")
+        quote = ScrolledText(frame, height=3, wrap="word", font=("Segoe UI", 10))
+        quote.insert("1.0", claim["quote"])
+        quote.pack(fill="x", pady=5)
+        ttk.Label(frame, text="Resumo fiel ao trecho").pack(anchor="w")
+        summary = ScrolledText(frame, height=2, wrap="word", font=("Segoe UI", 10))
+        summary.insert("1.0", claim["summary"])
+        summary.pack(fill="x", pady=5)
+        row = ttk.Frame(frame)
+        row.pack(fill="x", pady=5)
+        ttk.Label(row, text="Categoria").pack(side="left")
+        category = ttk.Combobox(row, state="readonly", values=list(CATEGORIES.values()), width=18)
+        category.set(CATEGORIES[claim["category"]])
+        category.pack(side="left", padx=8)
+        ttk.Label(row, text="Tema").pack(side="left", padx=(10, 0))
+        topic = ttk.Entry(row)
+        topic.insert(0, claim.get("topic") or "")
+        topic.pack(side="left", fill="x", expand=True, padx=8)
+        ttk.Label(frame, text="Justificativa da revisão da extração").pack(anchor="w")
+        reason = ScrolledText(frame, height=3, wrap="word", font=("Segoe UI", 10))
+        reason.insert("1.0", claim.get("extraction_review", {}).get("reason", ""))
+        reason.pack(fill="x", pady=5)
+        ttk.Label(frame, text="Salvar preserva a extração automática e o histórico, invalida análise e decisão dependentes e pede conferir "
+                  "o planejamento novamente. Uma nova triagem poderá substituir as extrações atuais, mantendo as versões no histórico.", wraplength=850).pack(anchor="w", pady=8)
+
+        def values():
+            return {"quote": quote.get("1.0", "end-1c"), "summary": summary.get("1.0", "end-1c"),
+                    "category": next(key for key, label in CATEGORIES.items() if label == category.get()),
+                    "topic": topic.get().strip() or None}, reason.get("1.0", "end-1c")
+        initial = values()
+
+        def save():
+            try:
+                if self.store is not store:
+                    raise ValueError("A sessão mudou. Reabra a revisão.")
+                fields, justification = values()
+                store.revise_claim(claim["id"], claim.get("claim_revision", 1), source["revision"], fields, justification)
+                self.refresh()
+                self.claim_tree.selection_set(claim["id"])
+                self.show_claim()
+                self.progress.configure(text="Extração revisada. Confira a pergunta e os recortes do dossiê antes de analisar novamente.")
+                close()
+            except ValueError as exc:
+                messagebox.showerror("Revisar afirmação", str(exc), parent=window)
+
+        def cancel():
+            if values() == initial or messagebox.askyesno("Descartar revisão da extração?", "Há alterações ainda não salvas. Deseja descartá-las?",
+                                                         default=messagebox.NO, parent=window):
+                close()
+        row = ttk.Frame(frame)
+        row.pack(fill="x", pady=8)
+        ttk.Button(row, text="Salvar revisão da extração", command=save).pack(side="left")
+        ttk.Button(row, text="Cancelar", command=cancel).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", cancel)
+
     def show_claim(self):
         claim = self.selected_claim()
         text = "Selecione uma afirmação para conferir a fala e o contexto."
@@ -846,15 +922,21 @@ class Workbench:
             fields = "\n".join(f"{label}: {claim.get(key) or 'Não definido'}" for key, label in
                 [("topic", "Tema"), ("location", "Local"), ("period", "Período"), ("indicator", "Indicador"), ("comparison", "Comparação")])
             text = (f"{LABELS[claim['status']]} · {CATEGORIES[claim['category']]} · {claim['speaker'] or 'Não identificado'}\n"
+                    f"Extração: revisão {claim.get('claim_revision', 1)} · " +
+                    ("revisada pelo operador; decisão factual separada\n" if claim.get("extraction_review") else "automática, sem revisão da extração\n") +
                     f"Horário aproximado do parágrafo: {self.time(claim)} · parágrafo {claim['paragraph_id']} · revisão {claim['revision']}\n\n"
                     + ("Parágrafos de origem da combinação: " + ", ".join(map(str, claim["source_paragraph_ids"])) + "\n\n"
                        if len(claim.get("source_paragraph_ids", [])) > 1 else "") +
                     f"FALA LITERAL\n{claim['quote']}\n\nRESUMO\n{claim['summary']}\n\n{fields}\n\n"
-                    f"CRITÉRIO DA TRIAGEM\n{claim['reason']}\n\n"
-                    f"MOTOR UTILIZADO\n{provenance}\n\n"
+                    f"CRITÉRIO DA EXTRAÇÃO\n{claim['reason']}\n\n"
+                    f"MOTOR DA EXTRAÇÃO AUTOMÁTICA\n{provenance}\n\n"
                     f"VALIDAÇÃO AUTOMÁTICA\n{' '.join(claim.get('validation_notes', [])) or 'Citação localizada no texto.'}\n\n"
                     f"REFERÊNCIAS A ESCLARECER\n{', '.join(claim.get('context_notes', [])) or 'Nenhuma referência marcada por estas regras.'}\n\n"
                     f"CONTEXTO DA VERSÃO ANALISADA\n{claim['context']}")
+            if claim.get("automatic_extraction"):
+                original = claim["automatic_extraction"]
+                text += (f"\n\nEXTRAÇÃO AUTOMÁTICA PRESERVADA\n{CATEGORIES[original['category']]}\n{original['quote']}\n\n"
+                         f"CRITÉRIO AUTOMÁTICO ORIGINAL\n{original['reason']}")
         self.claim_detail.configure(state="normal")
         self.claim_detail.delete("1.0", "end")
         self.claim_detail.insert("1.0", text)

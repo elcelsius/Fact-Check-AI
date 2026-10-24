@@ -97,6 +97,8 @@ class EvidencePane:
         ttk.Label(frame, text="Planejamento não confirma fatos nem confere a transcrição. A citação original será preservada.",
                   wraplength=780).pack(anchor="w", pady=(0, 8))
         ttk.Label(frame, text=ORIGINS[saved["origin"]] if saved else "Plano ainda não registrado.", wraplength=780).pack(anchor="w", pady=(0, 8))
+        if saved.get("needs_review"):
+            ttk.Label(frame, text="A afirmação mudou. Confira a pergunta e os recortes antes de salvar este plano.", wraplength=780).pack(anchor="w", pady=(0, 8))
         ttk.Label(frame, text="Pergunta verificável").pack(anchor="w")
         question = ScrolledText(frame, height=2, wrap="word")
         question.pack(fill="x", pady=5)

@@ -71,14 +71,16 @@ class DossierStore:
             raise ValueError("Origem do plano inválida.")
         plan = {**validate_plan(plan), "origin": origin}
         with self.review.connection() as db:
-            self._claim(db, cid, active=True)
+            claim, _ = self._claim(db, cid, active=True)
             revision, case = self._case(db, cid)
             if revision != expected_revision:
                 raise ValueError("O dossiê mudou. Reabra o planejamento antes de salvar.")
             previous = case.get("plan") or {}
-            if {key: previous.get(key) for key in (*PLAN_FIELDS, "origin")} == plan:
+            same = {key: previous.get(key) for key in (*PLAN_FIELDS, "origin")} == plan
+            if same and not previous.get("needs_review") and previous.get("claim_revision", 1) == claim.get("claim_revision", 1):
                 return False
-            case = {**case, "plan": {**plan, "updated_at": now()}, "preliminary": None, "decision": None}
+            case = {**case, "plan": {**plan, "updated_at": now(), "claim_revision": claim.get("claim_revision", 1),
+                                    "needs_review": False}, "preliminary": None, "decision": None}
             self._save(db, cid, revision + 1, case, "check_plan_changed")
             return True
 
@@ -169,7 +171,10 @@ class DossierStore:
             with_sources = {row[0] for row in db.execute("SELECT DISTINCT claim_id FROM evidence")}
             for cid, payload in db.execute("SELECT claim_id,payload FROM cases"):
                 case = json.loads(payload)
+                if not any((case["decision"], case["preliminary"], case.get("plan"), cid in with_sources)):
+                    continue
                 states[cid] = ("Revisão humana registrada" if case["decision"] else "Análise preliminar pronta" if case["preliminary"] else
+                               "Planejamento a conferir" if (case.get("plan") or {}).get("needs_review") else
                                "Fontes coletadas" if cid in with_sources else "Planejamento salvo" if case.get("plan") else "Aguardando pesquisa")
             return states
 
@@ -212,7 +217,7 @@ def render(snapshot):
     state = "DESATUALIZADO — decisões abaixo são históricas" if not snapshot["valid"] else "REVISADO POR PESSOA" if decision else "PENDENTE DE REVISÃO HUMANA"
     lines = ["# Dossiê de checagem · uso interno", "", state, "", "Sem divulgação automática.", "",
              f"Evento: {snapshot['debate']['title']} · {snapshot['debate']['event_date']}",
-             f"Afirmação: {claim['id']} · revisão da fala {claim['revision']} · dossiê {snapshot['revision']}",
+             f"Afirmação: {claim['id']} · revisão da extração {claim.get('claim_revision', 1)} · revisão da fala {claim['revision']} · dossiê {snapshot['revision']}",
              f"Participante: {claim['speaker'] or 'Não identificado'} · parágrafo {claim['paragraph_id']} · {describe_time(claim, offset)}",
              (f"Referência manual atual: vídeo em {timestamp(offset)} no início da captura · revisão {reference['revision']}."
               if offset is not None else "Referência do vídeo não definida; horários relativos à captura."), "",
@@ -220,8 +225,14 @@ def render(snapshot):
                if len(claim.get("source_paragraph_ids", [])) > 1 else []),
              "## Fala literal", "", claim["quote"], "", "## Contexto", "", claim["context"], ""]
     plan = snapshot.get("plan")
+    if claim.get("extraction_review"):
+        lines += ["Extração revisada pelo operador; isso não corresponde a decisão factual.",
+                  f"Justificativa da revisão: {claim['extraction_review']['reason']}",
+                  f"Categoria automática original: {claim.get('automatic_extraction', {}).get('category', 'Não registrada')}", ""]
     lines += ["## Planejamento da checagem", ""]
     if plan:
+        if plan.get("needs_review"):
+            lines += ["AFIRMAÇÃO REVISADA: confira novamente a pergunta e os recortes deste plano.", ""]
         lines += [ORIGINS[plan["origin"]], SCOPES[plan["scope"]], f"Pergunta: {plan['question'] or 'Não definida'}",
                   f"Período: {plan['period'] or 'A definir'}", f"Território: {plan['territory'] or 'A definir'}",
                   f"Indicador: {plan['indicator'] or 'A definir'}", f"Comparação: {plan['comparison'] or 'A definir'}",

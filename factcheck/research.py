@@ -112,9 +112,9 @@ def analyze(snapshot, config, cancelled):
     model = GeminiModel(config)
     result = validate_preliminary(model.generate(SYSTEM, json.dumps(material, ensure_ascii=False), SCHEMA, cancelled), blocks)
     plan = snapshot.get("plan")
-    if plan and (plan["scope"] != "pesquisavel" or plan["origin"] == "ai_draft"):
+    if plan and (plan["scope"] != "pesquisavel" or plan["origin"] == "ai_draft" or plan.get("needs_review")):
         result["verdict"] = "inconclusiva"
-        result["gaps"].append("O plano indica falta de contexto, possível extração não verificável ou rascunho de IA ainda sem conferência.")
+        result["gaps"].append("O plano indica contexto pendente, possível extração não verificável, rascunho de IA sem conferência ou afirmação revisada após o planejamento.")
     result["gaps"].append("Conferir independência das fontes e se as informações já estavam disponíveis na data do debate.")
     result["gaps"].append("Análise limitada aos trechos selecionados; conferir também o restante dos documentos e suas tabelas.")
     if any(doc["published_at"] and doc["published_at"][:10] > snapshot["debate"]["event_date"] for doc in documents):
