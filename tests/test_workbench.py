@@ -570,6 +570,95 @@ class WorkbenchTests(unittest.TestCase):
         self.work.evidence.open_selected()
         return self.work.evidence, cid
 
+    def priority_editor(self, existing=False):
+        pane, cid = self.open_dossier()
+        if existing:
+            self.work.priority_store.save(cid, 0, 1, 1, "high", "Dado relevante e com fonte disponível.")
+            self.work.refresh()
+            self.work.claim_tree.selection_set(cid)
+        self.work.edit_priority()
+        window = widgets(self.root, tk.Toplevel)[0]
+        return window, widgets(window, ttk.Combobox)[0], widgets(window, tk.Text)[-1], cid
+
+    def test_priority_editor_saves_manual_reason_without_revising_claim_or_case(self):
+        window, level, reason, cid = self.priority_editor()
+        level.set("Alta")
+        reason.insert("1.0", "Indicador central na pauta do ensaio.")
+        next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar prioridade").invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.claim_tree.set(cid, "priority"), "Alta")
+        self.assertEqual(self.work.claims[cid]["priority"]["reason"], "Indicador central na pauta do ensaio.")
+        self.assertEqual(self.work.claims[cid].get("claim_revision", 1), 1)
+        self.assertEqual(self.work.evidence.store.snapshot(cid)["revision"], 0)
+        self.assertIn("Indicador central", self.work.claim_detail.get("1.0", "end"))
+
+    def test_priority_change_under_filter_saves_and_clears_hidden_selection(self):
+        window, level, reason, cid = self.priority_editor(True)
+        self.work.filter_values["priority"].set("Alta")
+        level.set("Baixa")
+        reason.delete("1.0", "end")
+        reason.insert("1.0", "A pauta foi reorganizada.")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar prioridade").invoke()
+        error.assert_not_called()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+        self.assertIsNone(self.work.selected_claim())
+        self.work.reset_filters()
+        self.assertEqual(self.work.claim_tree.set(cid, "priority"), "Baixa")
+
+    def test_old_priority_editor_is_rejected_after_an_extraction_change(self):
+        window, level, reason, cid = self.priority_editor(True)
+        claim = self.work.claims[cid]
+        fields = {key: claim.get(key) for key in ("quote", "summary", "category", "topic")}
+        fields["topic"] = "Indicadores"
+        self.work.store.revise_claim(cid, 1, 1, fields, "Tema corrigido.")
+        self.work.refresh()
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar prioridade").invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertTrue(self.work.claims[cid]["priority"]["needs_review"])
+        self.assertEqual(self.work.claims[cid]["priority"]["revision"], 1)
+
+    def test_unsaved_priority_close_requires_confirmation(self):
+        window, level, reason, cid = self.priority_editor()
+        level.set("Alta")
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=False):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=True):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.priority_store.all(), {})
+
+    def test_priority_filter_and_sort_use_cached_data_without_database_or_model_calls(self):
+        pane, cid = self.open_dossier()
+        self.work.priority_store.save(cid, 0, 1, 1, "high", "Dado central na pauta.")
+        self.work.refresh()
+        with patch.object(self.work.store, "connection", side_effect=AssertionError("Consulta indevida")), \
+                patch.object(self.work.priority_store, "all", side_effect=AssertionError("Consulta indevida")), \
+                patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            self.work.filter_values["priority"].set("Alta")
+            self.work.claim_order.set("Prioridade")
+            self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+            self.work.filter_values["priority"].set("Não definida")
+            self.assertEqual(self.work.claim_tree.get_children(), ())
+        triage.assert_not_called()
+        research.assert_not_called()
+
+    def test_opening_another_session_resets_priority_filter_and_order(self):
+        pane, cid = self.open_dossier()
+        self.work.filter_values["priority"].set("Alta")
+        self.work.claim_order.set("Prioridade")
+        other = self.project / "outra-fila"
+        other.mkdir()
+        (other / "session.json").write_text('{}', encoding="utf8")
+        self.work.load(other)
+        self.assertEqual(self.work.filter_values["priority"].get(), "Todos")
+        self.assertEqual(self.work.claim_order.get(), "Mais recentes")
+        self.assertEqual(self.work.priority_store.all(), {})
+
     def open_discovery(self, with_results=True):
         pane, cid = self.open_dossier()
         if with_results:

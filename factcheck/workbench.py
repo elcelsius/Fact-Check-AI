@@ -21,13 +21,15 @@ from .exports import ExportTask, FORMATS, SUFFIXES
 from .recovery import (AudioRecoveryTask, SAFE_STATES, STATE_NAMES, capture_state,
                        describe, inspect_session, playback_path)
 from .queue_filters import (CATEGORIES, LABELS, SCOPES, STATES, QueueFilters, display_state,
-                            field_choices, filter_claims, is_current)
+                            field_choices, filter_claims, is_current, sort_claims)
+from .priorities import FILTERS as PRIORITY_FILTERS, LEVELS, ORDERINGS, PriorityStore, describe_priority, priority_label, priority_payload
 
 
 class Workbench:
     def __init__(self, app, notebook):
         self.app, self.root = app, app.root
         self.store = None
+        self.priority_store = None
         self.runner = None
         self.connection_test = None
         self.export_task = None
@@ -87,13 +89,14 @@ class Workbench:
                   wraplength=950).pack(side="bottom", anchor="w", pady=8)
         self.build_filters()
         self.claim_tree = self.tree(self.claim_tab,
-            [("state", "Estado", 180), ("category", "Tipo", 90), ("speaker", "Participante", 140), ("text", "Afirmação", 600)], height=6)
+            [("priority", "Prioridade", 145), ("state", "Estado", 180), ("category", "Tipo", 90), ("speaker", "Participante", 140), ("text", "Afirmação", 600)], height=6)
         self.claim_tree.bind("<<TreeviewSelect>>", lambda _: self.show_claim())
         row = ttk.Frame(self.claim_tab)
         row.pack(fill="x", pady=8)
         ttk.Button(row, text="Ouvir fala", command=self.play_claim).pack(side="left")
         ttk.Button(row, text="Revisar origem", command=self.edit_claim_source).pack(side="left", padx=8)
         ttk.Button(row, text="Revisar afirmação", command=self.edit_claim).pack(side="left", padx=(0, 8))
+        ttk.Button(row, text="Definir prioridade", command=self.edit_priority).pack(side="left", padx=(0, 8))
         ttk.Button(row, text="Descartar com justificativa", command=self.discard).pack(side="left")
         ttk.Button(row, text="Abrir dossiê", command=lambda: self.evidence.open_selected()).pack(side="left", padx=8)
         ttk.Button(row, text="Exportar sessão", command=self.configure_export).pack(side="left")
@@ -114,17 +117,21 @@ class Workbench:
         ttk.Label(row, text="Escopo").pack(side="left")
         self.claim_scope = tk.StringVar(value=SCOPES["all"])
         ttk.Combobox(row, textvariable=self.claim_scope, values=list(SCOPES.values()), state="readonly", width=22).pack(side="left", padx=8)
+        ttk.Label(row, text="Ordenar").pack(side="left")
+        self.claim_order = tk.StringVar(value=ORDERINGS["recent"])
+        ttk.Combobox(row, textvariable=self.claim_order, values=list(ORDERINGS.values()), state="readonly", width=15).pack(side="left", padx=8)
         ttk.Button(row, text="Limpar filtros", command=self.reset_filters).pack(side="right")
         self.filter_options = {
             "category": {"Todos": None, **{label: key for key, label in CATEGORIES.items()}},
             "state": {"Todos": None, **{label: label for label in STATES}},
+            "priority": {"Todos": None, **{label: key for key, label in PRIORITY_FILTERS.items()}},
             "speaker": field_choices([], "Não identificado"), "topic": field_choices([], "Sem tema")}
         self.filter_values, self.filter_boxes = {}, {}
         facets = ttk.Frame(frame)
         facets.pack(fill="x", pady=(5, 0))
         for column, (key, label) in enumerate((("category", "Categoria"), ("state", "Estado"),
-                                               ("speaker", "Participante"), ("topic", "Tema"))):
-            cell = ttk.Frame(facets, padding=(0, 0, 8 if column < 3 else 0, 0))
+                                               ("speaker", "Participante"), ("topic", "Tema"), ("priority", "Prioridade"))):
+            cell = ttk.Frame(facets, padding=(0, 0, 8 if column < 4 else 0, 0))
             cell.grid(row=0, column=column, sticky="ew")
             facets.columnconfigure(column, weight=1, uniform="facets")
             ttk.Label(cell, text=label).pack(anchor="w")
@@ -134,12 +141,13 @@ class Workbench:
             self.filter_values[key], self.filter_boxes[key] = variable, box
         self.claim_count = tk.StringVar(value="Nenhuma sessão carregada.")
         ttk.Label(self.claim_tab, textvariable=self.claim_count, wraplength=950).pack(anchor="w", pady=(0, 5))
-        for variable in (self.claim_query, self.claim_scope, *self.filter_values.values()):
+        for variable in (self.claim_query, self.claim_scope, self.claim_order, *self.filter_values.values()):
             variable.trace_add("write", lambda *_: self.apply_filters())
 
     def reset_filters(self):
         self.claim_query.set("")
         self.claim_scope.set(SCOPES["all"])
+        self.claim_order.set(ORDERINGS["recent"])
         for variable in self.filter_values.values():
             variable.set("Todos")
 
@@ -150,8 +158,10 @@ class Workbench:
         scope = next((key for key, label in SCOPES.items() if label == self.claim_scope.get()), "all")
         filters = QueueFilters(query=self.claim_query.get(), scope=scope, **selected)
         rows = filter_claims(self.claims.values(), self.sources, self.case_states, filters)
+        order = next((key for key, label in ORDERINGS.items() if label == self.claim_order.get()), "recent")
+        rows = sort_claims(rows, self.sources, order)
         self.visible_claims = {claim["id"]: claim for claim in rows}
-        self._rows(self.claim_tree, {claim["id"]: (display_state(claim, self.sources, self.case_states), CATEGORIES[claim["category"]],
+        self._rows(self.claim_tree, {claim["id"]: (priority_label(claim.get("priority")), display_state(claim, self.sources, self.case_states), CATEGORIES[claim["category"]],
                    claim["speaker"] or "Não identificado", claim["summary"]) for claim in rows})
         current = sum(is_current(claim, self.sources) for claim in self.claims.values())
         self.claim_count.set(f"Exibindo {len(rows)} de {len(self.claims)} itens · {current} atuais · {len(self.claims) - current} históricos/descartados. Filtros afetam a visualização.")
@@ -603,6 +613,7 @@ class Workbench:
             warnings = store.import_paragraphs()
             store.recover_interrupted()
         self.store = store
+        self.priority_store = PriorityStore(store)
         self.import_warnings = warnings
         self.runner = None
         self.evidence.load(store)
@@ -653,7 +664,9 @@ class Workbench:
         if previous_offset != offset:
             self.app.render_paragraphs()
         self.sources = {source["paragraph_id"]: source for source in self.store.sources()}
-        self.claims = {claim["id"]: claim for claim in self.store.claims()}
+        priorities = self.priority_store.all()
+        self.claims = {claim["id"]: {**claim, "priority": priority_payload(claim, priorities.get(claim["id"]), is_current(claim, self.sources))}
+                       for claim in self.store.claims()}
         states = self.store.analysis_states()
         state_names = {"running": "Em análise", "completed": "Triagem pronta", "failed": "Triagem falhou",
                        "cancelled": "Cancelada", "interrupted": "Interrompida", "stale": "Desatualizada"}
@@ -982,6 +995,60 @@ class Workbench:
         ttk.Button(row, text="Cancelar", command=cancel).pack(side="right")
         window.protocol("WM_DELETE_WINDOW", cancel)
 
+    def edit_priority(self):
+        claim = self.selected_claim()
+        if not claim:
+            return
+        if not is_current(claim, self.sources):
+            messagebox.showinfo("Definir prioridade", "Selecione uma afirmação atual e não descartada.", parent=self.root)
+            return
+        store = self.priority_store
+        metadata = claim["priority"]
+        window, close = self.dialog("Definir prioridade · organização da revisão")
+        window.geometry("760x540")
+        window.minsize(700, 500)
+        frame = ttk.Frame(window, padding=18)
+        frame.pack(fill="both", expand=True)
+        summary = ScrolledText(frame, height=3, wrap="word", font=("Segoe UI", 10))
+        summary.insert("1.0", claim["summary"])
+        summary.configure(state="disabled")
+        summary.pack(fill="x", pady=(0, 12))
+        ttk.Label(frame, text="Considere relevância pública, urgência e possibilidade de conferir com fontes. "
+                  "Aplique os mesmos critérios a todos os participantes. A decisão factual é separada.", wraplength=650).pack(anchor="w", pady=(0, 12))
+        if metadata["needs_review"]:
+            ttk.Label(frame, text="A extração mudou. Confira o nível e a justificativa antes de confirmar a prioridade.", wraplength=650).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frame, text="Prioridade de revisão").pack(anchor="w")
+        level = ttk.Combobox(frame, state="readonly", values=list(LEVELS.values()))
+        level.set(LEVELS[metadata["level"]])
+        level.pack(fill="x", pady=6)
+        ttk.Label(frame, text="Justificativa obrigatória · inclusive para remover a prioridade").pack(anchor="w", pady=(8, 0))
+        reason = ScrolledText(frame, height=6, wrap="word", font=("Segoe UI", 10))
+        reason.insert("1.0", metadata["reason"])
+        reason.pack(fill="both", expand=True, pady=6)
+        def value():
+            return next(key for key, label in LEVELS.items() if label == level.get()), reason.get("1.0", "end-1c")
+        initial = value()
+        def save():
+            try:
+                selected_level, explanation = value()
+                store.save(claim["id"], metadata["revision"], claim.get("claim_revision", 1), claim["revision"], selected_level, explanation)
+                self.refresh()
+                if self.claim_tree.exists(claim["id"]):
+                    self.claim_tree.selection_set(claim["id"])
+                self.show_claim()
+                close()
+            except ValueError as exc:
+                messagebox.showerror("Definir prioridade", str(exc), parent=window)
+        def cancel():
+            if value() == initial or messagebox.askyesno("Descartar prioridade?", "Há alterações ainda não salvas. Deseja descartá-las?",
+                                                        default=messagebox.NO, parent=window):
+                close()
+        row = ttk.Frame(frame)
+        row.pack(fill="x", pady=8)
+        ttk.Button(row, text="Salvar prioridade", command=save).pack(side="left")
+        ttk.Button(row, text="Cancelar", command=cancel).pack(side="right")
+        window.protocol("WM_DELETE_WINDOW", cancel)
+
     def show_claim(self):
         claim = self.selected_claim()
         text = "Selecione uma afirmação para conferir a fala e o contexto."
@@ -999,6 +1066,7 @@ class Workbench:
                     f"Horário aproximado do parágrafo: {self.time(claim)} · parágrafo {claim['paragraph_id']} · revisão {claim['revision']}\n\n"
                     + ("Parágrafos de origem da combinação: " + ", ".join(map(str, claim["source_paragraph_ids"])) + "\n\n"
                        if len(claim.get("source_paragraph_ids", [])) > 1 else "") +
+                    f"{describe_priority(claim.get('priority'))}\n\n"
                     f"FALA LITERAL\n{claim['quote']}\n\nRESUMO\n{claim['summary']}\n\n{fields}\n\n"
                     f"CRITÉRIO DA EXTRAÇÃO\n{claim['reason']}\n\n"
                     f"MOTOR DA EXTRAÇÃO AUTOMÁTICA\n{provenance}\n\n"

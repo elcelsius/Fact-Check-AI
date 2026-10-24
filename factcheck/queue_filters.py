@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import unicodedata
 
 from .grouping import active
+from .priorities import FILTERS, ORDERINGS, filter_key
 
 
 LABELS = {"aguardando_pesquisa": "Aguardando pesquisa", "precisa_contexto": "Precisa de contexto",
@@ -22,6 +23,7 @@ class QueueFilters:
     state: str | None = None
     speaker: str | None = None
     topic: str | None = None
+    priority: str | None = None
 
 
 def normalize(value):
@@ -45,6 +47,8 @@ def display_state(claim, sources, case_states):
 def filter_claims(claims, sources, case_states, filters):
     if filters.scope not in SCOPES:
         raise ValueError("Escopo da fila inválido.")
+    if filters.priority is not None and filters.priority not in FILTERS:
+        raise ValueError("Prioridade da fila inválida.")
     words = normalize(filters.query).split()
     result = []
     for claim in claims:
@@ -59,11 +63,29 @@ def filter_claims(claims, sources, case_states, filters):
             continue
         if filters.topic is not None and (claim.get("topic") or "") != filters.topic:
             continue
+        if filters.priority is not None and filter_key(claim.get("priority")) != filters.priority:
+            continue
         text = normalize(" ".join(str(claim.get(key) or "") for key in
                                   ("quote", "summary", "context", "reason", "topic", "speaker", "location", "period", "indicator", "comparison")))
         if all(word in text for word in words):
             result.append(claim)
     return result
+
+
+def sort_claims(claims, sources, order="recent"):
+    if order not in ORDERINGS:
+        raise ValueError("Ordenação da fila inválida.")
+    if order == "recent":
+        return list(claims)
+    def key(claim):
+        chronological = (claim["start"], claim["end"], claim["id"])
+        if order == "chronological":
+            return chronological
+        current = is_current(claim, sources)
+        metadata = claim.get("priority") or {}
+        rank = {"high": 0, "normal": 1, "low": 2}.get(metadata.get("level"), 3) if current and metadata.get("current") else 3
+        return (not current, rank, *chronological)
+    return sorted(claims, key=key)
 
 
 def field_choices(values, empty_label):

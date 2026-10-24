@@ -8,6 +8,7 @@ import math
 from statistics import median
 
 from . import __version__
+from .priorities import FILTERS as PRIORITY_FILTERS, filter_key
 from .exports import _check, build_snapshot, read_session
 from .recovery import STATE_NAMES, capture_state, inspect_audio
 
@@ -90,6 +91,7 @@ def session_report(review, cancelled=None):
         notices.append(f"Log parcial: {log['invalid_lines']} linha(s) inválida(s), a partir da linha {log['first_invalid_line']}.")
     paragraphs = [row for row in data["paragraphs"] if row["active"]]
     current = [row for row in data["claims"] if row["source_current"]]
+    priorities = Counter(filter_key(row["priority"]) for row in current)
     factual = [row for row in current if row["category"] == "fato"]
     dossiers = {row["claim_id"]: row for row in data["dossiers"]}
     with_sources = {row["claim_id"] for row in data["sources"] if row["claim_source_current"]}
@@ -151,6 +153,7 @@ def session_report(review, cancelled=None):
                              "speaker_unassigned": sum(not row["speaker"] for row in paragraphs),
                              "triage_completed": analyzed, "triage_not_completed": len(paragraphs) - analyzed},
               "claims": {"current": len(current), "by_category": dict(Counter(row["category"] for row in current)),
+                         "priorities": {key: priorities[key] for key in PRIORITY_FILTERS},
                          "extraction_revised": sum(bool(row.get("extraction_review")) for row in current),
                          "planning": {"recorded": len(plans), "ai_drafts": sum(plan["origin"] == "ai_draft" for plan in plans),
                                       "needs_context": sum(plan["scope"] == "falta_contexto" for plan in plans),
@@ -218,6 +221,7 @@ def render_report(report):
              f"Decisão humana nas factuais atuais: {ratio_value['numerator']}/{ratio_value['denominator']}" +
              (f" ({ratio_value['fraction']:.1%})" if ratio_value['fraction'] is not None else " (sem denominador)"),
              f"Aguardando fontes: {claims['factual_flow']['pending_sources']}",
+             "Prioridades das extrações atuais: " + "; ".join(f"{label}: {claims['priorities'][key]}" for key, label in PRIORITY_FILTERS.items()),
              f"Fontes disponíveis, sem análise/decisão: {claims['factual_flow']['sources_only']}",
              f"Análise preliminar, sem decisão humana: {claims['factual_flow']['preliminary_pending_human']}", "",
              f"Primeira prévia desde o início da captura: {number(timing['first_partial'], ' s')}",

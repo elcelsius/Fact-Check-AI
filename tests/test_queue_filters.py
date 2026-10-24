@@ -1,7 +1,8 @@
 from copy import deepcopy
 import unittest
 
-from factcheck.queue_filters import QueueFilters, display_state, field_choices, filter_claims, is_current
+from factcheck.queue_filters import QueueFilters, display_state, field_choices, filter_claims, is_current, sort_claims
+from factcheck.priorities import priority_payload
 
 
 class QueueFilterTests(unittest.TestCase):
@@ -69,6 +70,37 @@ class QueueFilterTests(unittest.TestCase):
     def test_invalid_scope_is_rejected(self):
         with self.assertRaises(ValueError):
             self.ids(scope="desconhecido")
+
+    def test_priority_filter_combines_with_existing_facets_and_defaults(self):
+        self.claims[0]["priority"] = priority_payload(self.claims[0], {"revision": 1, "level": "high", "claim_revision": 1, "source_revision": 1})
+        self.assertEqual(self.ids(priority="high", category="fato", scope="current"), ["a"])
+        self.assertEqual(self.ids(priority="unset"), ["b", "c"])
+        self.claims[0]["priority"]["needs_review"] = True
+        self.claims[0]["priority"]["current"] = False
+        self.assertEqual(self.ids(priority="high"), [])
+        self.assertEqual(self.ids(priority="needs_review"), ["a"])
+        with self.assertRaises(ValueError):
+            self.ids(priority="unknown")
+
+    def test_priority_order_keeps_old_priorities_after_current_claims_and_ties_by_time(self):
+        for index, claim in enumerate(self.claims):
+            claim.update(start=3-index, end=4-index)
+        self.claims[1]["priority"] = priority_payload(self.claims[1], {"revision": 1, "level": "high", "claim_revision": 1, "source_revision": 1})
+        self.claims[2]["priority"] = priority_payload(self.claims[2], {"revision": 1, "level": "high", "claim_revision": 1, "source_revision": 1}, False)
+        original = deepcopy(self.claims)
+        self.assertEqual([row["id"] for row in sort_claims(self.claims, self.sources, "priority")], ["b", "a", "c"])
+        self.assertEqual([row["id"] for row in sort_claims(self.claims, self.sources, "chronological")], ["c", "b", "a"])
+        self.assertEqual(sort_claims(self.claims, self.sources), self.claims)
+        self.assertEqual(self.claims, original)
+        with self.assertRaises(ValueError):
+            sort_claims(self.claims, self.sources, "unknown")
+
+    def test_priority_needing_review_does_not_outrank_a_current_normal_priority(self):
+        for index, claim in enumerate(self.claims):
+            claim.update(start=index, end=index+1)
+        self.claims[0]["priority"] = priority_payload(self.claims[0], {"revision": 1, "level": "high", "claim_revision": 0, "source_revision": 1})
+        self.claims[1]["priority"] = priority_payload(self.claims[1], {"revision": 1, "level": "normal", "claim_revision": 1, "source_revision": 1})
+        self.assertEqual([row["id"] for row in sort_claims(self.claims, self.sources, "priority")], ["b", "a", "c"])
 
 
 if __name__ == "__main__":

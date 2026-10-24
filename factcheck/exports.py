@@ -15,6 +15,7 @@ from .review import now
 from .timeline import timestamp
 from .planning import PLAN_FIELDS
 from .discovery import search_basis
+from .priorities import priority_payload
 
 
 SCHEMA_VERSION = 1
@@ -72,6 +73,7 @@ def read_session(review, cancelled=None):
             "evidence": "SELECT id,claim_id,payload FROM evidence ORDER BY id",
             "research_jobs": "SELECT status,payload FROM research_jobs ORDER BY rowid",
             "discoveries": "SELECT id,claim_id,payload FROM discoveries ORDER BY rowid",
+            "claim_priorities": "SELECT claim_id,payload FROM claim_priorities ORDER BY claim_id",
         }.items()}
         captured_at = now()
     return {"event_raw": event_raw, "session_id": session_id, "reference_revision": reference_revision,
@@ -89,6 +91,7 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
     _check(cancelled)
     paragraphs = {data["paragraph_id"]: data for (payload,) in raw["paragraphs"] for data in [json.loads(payload)]}
     cases = {cid: (revision, json.loads(payload)) for cid, revision, payload in raw["cases"]}
+    priorities = {cid: json.loads(payload) for cid, payload in raw.get("claim_priorities", [])}
     analyses = {}
     for aid, pid, revision, state, payload in raw["analyses"]:
         _check(cancelled)
@@ -126,16 +129,17 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
         state = ("historical" if not valid else "human_decision_recorded" if decision else "preliminary" if preliminary
                  else "sources_collected" if cid in evidence_claims else "pending")
         discoveries = [{"id": sid, **json.loads(payload)} for sid, owner, payload in raw.get("discoveries", []) if owner == cid]
+        priority = priority_payload(claim, priorities.get(cid), valid)
         for batch in discoveries:
             batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
         dossiers.append(_record(session_id, "dossier", cid,
             {"claim_id": cid, "revision": revision, "source_current": valid, "state": state,
              "preliminary_current": bool(valid and preliminary), "decision_current": bool(valid and decision),
-             "preliminary": preliminary, "decision": decision, "discoveries": discoveries,
+             "preliminary": preliminary, "decision": decision, "discoveries": discoveries, "priority": priority,
              "plan": _pick(case["plan"], (*PLAN_FIELDS, "origin", "updated_at", "claim_revision", "needs_review")) if case.get("plan") else None}))
         claims.append(_record(session_id, "claim", cid,
             {"claim_id": cid, **_pick(claim, CLAIM_KEYS), **times(claim), "source_current": valid,
-             "claim_revision": claim.get("claim_revision", 1),
+             "claim_revision": claim.get("claim_revision", 1), "priority": priority,
              "automatic_extraction": _pick(claim["automatic_extraction"], CLAIM_KEYS) if claim.get("automatic_extraction") else None,
              "extraction_review": _pick(claim["extraction_review"], ("origin", "at", "reason")) if claim.get("extraction_review") else None,
              "source_paragraph_ids": claim.get("source_paragraph_ids", [claim["paragraph_id"]]),
@@ -199,7 +203,8 @@ COLUMNS = {
                "preliminar_classificacao", "preliminar_resumo", "preliminar_justificativa", "preliminar_atual", "evidencias_citadas", "decisao_humana_classificacao", "decisao_humana_responsavel",
                "decisao_humana_justificativa", "decisao_humana_em", "decisao_atual", "motivo_descarte", "fontes_urls", "fonte_ids",
                "plano_pergunta", "plano_situacao", "plano_periodo", "plano_territorio", "plano_indicador", "plano_comparacao",
-               "plano_observacoes", "plano_urls_candidatas", "plano_origem", "plano_precisa_revisao"),
+               "plano_observacoes", "plano_urls_candidatas", "plano_origem", "plano_precisa_revisao",
+               "prioridade", "prioridade_revisao", "prioridade_atual", "prioridade_precisa_conferencia", "prioridade_justificativa", "prioridade_em"),
     "sources": (*COMMON, "fonte_id", "afirmacao_id", "origem_afirmacao_atual", "titulo", "instituicao", "autoria", "url", "publicado_em",
                 "acessado_em", "origem", "acesso_url_confirmado", "importado_em", "sha256", "texto_sha256", "leitura_limitada", "avisos", "localizadores"),
 }
@@ -248,6 +253,9 @@ def csv_rows(data, kind):
             documents = [doc for doc in data["sources"] if doc["claim_id"] == row["claim_id"]]
             plan = dossier.get("plan") or {}
             extracted, edited = row.get("automatic_extraction") or {}, row.get("extraction_review") or {}
+            priority = row["priority"]
+            record.update(prioridade=priority["level"], prioridade_revisao=priority["revision"], prioridade_atual=priority["current"],
+                          prioridade_precisa_conferencia=priority["needs_review"], prioridade_justificativa=priority["reason"], prioridade_em=priority["updated_at"])
             record.update(afirmacao_id=row["claim_id"], revisao_fala=row["revision"], origem_atual=row["source_current"], estado_triagem=row["status"],
                           afirmacao_revisao=row.get("claim_revision", 1), extracao_revisada=bool(edited),
                           categoria_automatica=extracted.get("category", row["category"]), citacao_automatica=extracted.get("quote", row["quote"]),

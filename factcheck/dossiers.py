@@ -9,6 +9,7 @@ from .timeline import describe_time, timestamp
 from .grouping import active as active_source
 from .planning import ORIGINS, PLAN_FIELDS, SCOPES, validate_plan
 from .discovery import search_basis, validate_query
+from .priorities import describe_priority, priority_payload, read_priority
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -69,9 +70,10 @@ class DossierStore:
                            db.execute("SELECT id,payload FROM discoveries WHERE claim_id=? ORDER BY rowid", (cid,))]
             for batch in discoveries:
                 batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
+            priority = priority_payload(claim, read_priority(db, cid), valid)
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
                     "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
-                    "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case}
+                    "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case, "priority": priority}
 
     def save_plan(self, cid, expected_revision, plan, origin="operator_input"):
         if origin not in ORIGINS:
@@ -265,6 +267,7 @@ def render(snapshot):
         lines += ["Extração revisada pelo operador; isso não corresponde a decisão factual.",
                   f"Justificativa da revisão: {claim['extraction_review']['reason']}",
                   f"Categoria automática original: {claim.get('automatic_extraction', {}).get('category', 'Não registrada')}", ""]
+    lines += ["## Prioridade de revisão", "", describe_priority(snapshot.get("priority")), ""]
     lines += ["## Planejamento da checagem", ""]
     if plan:
         if plan.get("needs_review"):

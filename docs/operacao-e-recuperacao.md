@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.17.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+Procedimento do protótipo Windows, versão **0.18.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
 
 ## Antes de um ensaio com vídeo
 
@@ -75,6 +75,18 @@ Em **Afirmações para checagem**, use os filtros acima da lista. Por exemplo, e
 **Buscar** exige todas as palavras digitadas, ignora maiúsculas e acentos e consulta citação, resumo, contexto e campos extraídos. Os seletores usam valores exatos, para não unir participantes ou temas distintos. O estado exibido prioriza descarte e desatualização; uma decisão antiga não aparece como revisão humana atual. O contador de atuais e históricos considera a sessão inteira, enquanto **Exibindo** conta os resultados visíveis.
 
 Os filtros só mudam a visualização, sem ler novamente o banco, enviar falas ou iniciar análises. A exportação mantém seu próprio escopo. Se uma revisão mudar a categoria, o tema ou outro campo usado no filtro, a linha pode sair da lista e sua seleção é limpa. Um filtro selecionado continua ativo mesmo se perder o último resultado. Use **Limpar filtros** para voltar a todos os itens; abrir outra sessão também limpa os filtros. A aba **Dossiê e fontes** mantém seu próprio seletor.
+
+## Priorizar a revisão
+
+Em **Afirmações para checagem**, selecione um item atual e use **Definir prioridade**. Escolha Alta, Normal, Baixa ou Não definida e registre a justificativa, inclusive ao remover o nível. O editor sugere critérios gerais; a definição editorial precisa ser aplicada de forma consistente entre participantes e temas. Essa ação não confere a fala, não reclassifica a extração e não decide a veracidade.
+
+Para concentrar a revisão, combine **Escopo → Somente atuais**, **Prioridade → Alta** e **Ordenar → Prioridade**. A ordenação coloca atuais antes de históricos, prioriza Alta, Normal e Baixa e deixa sem prioridade e a conferir depois. O desempate usa intervalo da fala e identificador. Mais recentes significa a ordem de entrada das extrações; a alteração da prioridade não muda essa data. Limpar filtros ou abrir outra sessão restaura a lista completa e a ordem Mais recentes.
+
+Uma extração alterada deixa a prioridade atribuída **A conferir**. O nível anterior permanece no histórico e não promove o item na ordenação. Reabra o editor, confira justificativa e nível e salve para confirmar a extração atual. Uma nova triagem não transfere o nível para outras extrações; descarte e substituição preservam a prioridade histórica. Os filtros de nível também encontram esses registros quando o escopo inclui históricos, com identificação explícita.
+
+O registro usa revisão própria e rejeita editores concorrentes ou anteriores a uma mudança da extração. Fontes, plano, análise preliminar, decisão humana e trabalhos já iniciados permanecem independentes. Editar somente plano ou fontes não altera a prioridade. A mudança não dispara chamadas externas nem reorganiza a fila de execução dos motores. Fechar ou cancelar um editor alterado pede confirmação; salvar pode fazer o item desaparecer do filtro ativo, limpando a seleção.
+
+O SQLite mantém níveis e justificativas anteriores. JSON e dossiê incluem a atribuição e seu estado; o CSV de afirmações acrescenta `prioridade`, `prioridade_revisao`, `prioridade_atual`, `prioridade_precisa_conferencia`, `prioridade_justificativa` e `prioridade_em`. O relatório resume os níveis das extrações atuais de todas as categorias e mantém o denominador factual separado. Sem prioridade antiga registrada, os campos começam em `unset`, revisão 0, sem uma data inventada.
 
 ## Revisar a extração de uma afirmação
 
