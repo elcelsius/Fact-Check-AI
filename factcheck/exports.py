@@ -78,6 +78,7 @@ def read_session(review, cancelled=None):
             "claim_assignments": "SELECT claim_id,payload FROM claim_assignments ORDER BY claim_id",
             "history": "SELECT at,payload FROM history WHERE kind='claim_assignment_changed' ORDER BY id",
             "library_references": "SELECT id,claim_id,payload FROM library_references ORDER BY rowid",
+            "previous_checks": "SELECT id,claim_id,payload FROM previous_checks ORDER BY rowid",
         }.items()}
         captured_at = now()
     return {"event_raw": event_raw, "session_id": session_id, "reference_revision": reference_revision,
@@ -143,6 +144,9 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
         library_references = [{"id": rid, **json.loads(payload)} for rid, owner, payload in raw.get("library_references", []) if owner == cid]
         for selection in library_references:
             selection["current"] = bool(valid and selection["basis"] == search_basis(claim, case.get("plan")))
+        previous_checks = [{"id": rid, **json.loads(payload)} for rid, owner, payload in raw.get("previous_checks", []) if owner == cid]
+        for selection in previous_checks:
+            selection["current"] = bool(valid and selection["basis"] == search_basis(claim, case.get("plan")))
         for batch in discoveries:
             batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
         dossiers.append(_record(session_id, "dossier", cid,
@@ -151,6 +155,7 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
              "preliminary": preliminary, "decision": decision, "discoveries": discoveries, "priority": priority, "assignment": assignment,
              "assignment_history": assignment_history.get(cid, []),
              "library_references": library_references,
+             "previous_checks": previous_checks,
              "plan": _pick(case["plan"], (*PLAN_FIELDS, "origin", "updated_at", "claim_revision", "needs_review")) if case.get("plan") else None}))
         claims.append(_record(session_id, "claim", cid,
             {"claim_id": cid, **_pick(claim, CLAIM_KEYS), **times(claim), "source_current": valid,

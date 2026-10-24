@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1440" height="1570" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.20.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.21.0</text>
 <text x="60" y="96" class="title">Da transmissão ao dossiê revisado</text>
 <text x="60" y="133" class="subtitle">Você acompanha e decide. A IA ajuda a localizar afirmações e organizar a pesquisa.</text>
 <rect x="60" y="165" width="1320" height="57" rx="12" fill="#E6F5F2" stroke="#B5DCD4" stroke-width="1.5"/>
@@ -57,12 +57,12 @@
 <text x="794" y="789" class="number">3</text>
 <text x="838" y="791" class="stage">Pesquisar evidências</text>
 <text x="785" y="841" class="body">• Defina pergunta, recortes e lacunas no dossiê.</text>
-<text x="785" y="872" class="body">• Use a coleção, Tavily ou o navegador.</text>
-<text x="785" y="903" class="body">• Colete a URL ou importe PDF/HTML e confira.</text>
+<text x="785" y="872" class="body">• Consulte a coleção e checagens anteriores.</text>
+<text x="785" y="903" class="body">• Use Tavily, colete URL ou importe PDF/HTML.</text>
 <text x="785" y="934" class="body">• Opcional: peça análise preliminar ao Gemini.</text>
 <rect x="780" y="984" width="580" height="75" rx="11" fill="#F0EDFF" stroke="#F0EDFF" stroke-width="1.5"/>
-<text x="795" y="1013" class="body">URLs candidatas ficam separadas das evidências.</text>
-<text x="795" y="1038" class="body">Contexto insuficiente pede nova conferência.</text>
+<text x="795" y="1013" class="body">Compare recortes antes de usar antecedentes.</text>
+<text x="795" y="1038" class="body">URLs candidatas ficam separadas das evidências.</text>
 </g>
 <g data-card-bounds="60,740,620,340">
 <rect x="60" y="740" width="620" height="340" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
@@ -112,7 +112,7 @@
 <rect x="988" y="1186" width="374" height="26" rx="7" fill="#F0F3F8" stroke="#F0F3F8" stroke-width="1.5"/>
 <text x="998" y="1204" class="tag" style="fill:#52637B">EVOLUÇÃO DO PROTÓTIPO</text>
 <text x="990" y="1242" class="heading">Ainda planejado</text>
-<text x="990" y="1273" class="body">Pesquisa contínua e checagens anteriores</text>
+<text x="990" y="1273" class="body">Pesquisa contínua e outros provedores</text>
 <text x="990" y="1298" class="body">Separação automática de falantes</text>
 <text x="990" y="1323" class="body">Contas e operação em equipe</text>
 </g>

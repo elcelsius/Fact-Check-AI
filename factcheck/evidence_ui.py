@@ -35,6 +35,7 @@ class EvidencePane:
         ttk.Button(row, text="Buscar no navegador", command=self.search).pack(side="left", padx=(8, 0))
         ttk.Button(row, text="Encontrar fontes", command=self.discover).pack(side="left", padx=(8, 0))
         ttk.Button(row, text="Coleção de fontes", command=lambda: self.work.library.open_for_case()).pack(side="left", padx=(8, 0))
+        ttk.Button(row, text="Checagens anteriores", command=lambda: self.work.previous_checks.open_for_case()).pack(side="left", padx=(8, 0))
         ttk.Label(self.tab, text="Consulte dados, metodologia e versões divergentes. Resultados de busca só entram como evidência após a coleta da fonte.", wraplength=950).pack(anchor="w", pady=(0, 8))
         row = ttk.Frame(self.tab)
         row.pack(fill="x", pady=4)
@@ -84,6 +85,7 @@ class EvidencePane:
             return
         self.cid = claim["id"]
         self.work.library.clear_target()
+        self.work.previous_checks.clear_target()
         self.query.configure(values=search_plan(claim, self.store.snapshot(self.cid).get("plan")))
         self.query.current(0)
         self.refresh()

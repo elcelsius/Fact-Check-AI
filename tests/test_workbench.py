@@ -715,6 +715,159 @@ class WorkbenchTests(unittest.TestCase):
         self.assertFalse(self.work.busy())
         self.assertIsNotNone(self.work.store)
 
+    def previous_entry(self):
+        from tests.test_previous_checks import session
+        from factcheck.previous_checks import scan_checked_cases
+        review, store, cid = session(self.project / "recordings" / "anterior")
+        pane = self.work.previous_checks
+        pane.entries = {entry["key"]: entry for entry in scan_checked_cases(self.project / "recordings")["entries"]}
+        pane.apply_filters()
+        key = next(iter(pane.entries))
+        pane.tree.selection_set(key)
+        pane.show_selected()
+        return pane, review, store, cid, key
+
+    def previous_comparison(self):
+        dossier, cid = self.open_dossier()
+        pane, review, store, old_cid, key = self.previous_entry()
+        pane.open_for_case()
+        pane.compare()
+        window = widgets(self.root, tk.Toplevel)[0]
+        notes = [widget for widget in widgets(window, tk.Text) if str(widget["state"]) == "normal"]
+        for widget in notes:
+            widget.insert("1.0", "Conferência pendente no ensaio fictício.")
+        save = next(button for button in widgets(window, ttk.Button) if button["text"] == "Registrar antecedente consultado")
+        return pane, dossier, cid, window, save, store, old_cid
+
+    def test_previous_checks_are_available_without_an_open_dossier_or_api_key(self):
+        pane, _, _, _, key = self.previous_entry()
+        self.assertIsNone(self.work.evidence.cid)
+        self.assertIsNone(pane.target)
+        self.assertEqual(str(pane.compare_button["state"]), "disabled")
+        self.assertIn("Revisor fictício", pane.preview.get("1.0", "end"))
+        self.assertEqual(pane.tree.get_children(), (key,))
+
+    def test_previous_filters_are_local_and_hiding_selection_disables_comparison(self):
+        from factcheck.previous_checks import read_checked_cases
+        dossier, cid = self.open_dossier()
+        pane, _, _, _, key = self.previous_entry()
+        pane.open_for_case()
+        self.assertEqual(str(pane.compare_button["state"]), "normal")
+        with patch("factcheck.previous_checks.sqlite3.connect", side_effect=AssertionError("Não reler o banco")):
+            pane.query.set("INFLACAO 2025")
+            self.assertEqual(pane.tree.get_children(), (key,))
+            pane.query.set("Sem correspondência")
+            self.assertFalse(pane.tree.selection())
+            self.assertEqual(str(pane.compare_button["state"]), "disabled")
+            self.assertNotIn("Revisor fictício", pane.preview.get("1.0", "end"))
+
+    def test_previous_scan_runs_as_activity_and_result_arrives_through_app_events(self):
+        pane, _, _, _, key = self.previous_entry()
+        from factcheck.previous_checks import scan_checked_cases
+        with patch("factcheck.previous_checks_ui.PreviousChecksTask.start") as start:
+            pane.refresh()
+        start.assert_called_once()
+        self.assertIn(pane.task.token, self.app.activities)
+        self.assertEqual(str(pane.cancel_button["state"]), "normal")
+        pane.task.pending = 0
+        pane.task.emit("previous_checks_done", {"token": pane.task.token, "success": True, **scan_checked_cases(Path(pane.folder.get()))})
+        self.app.poll()
+        self.assertNotIn(pane.task.token, self.app.activities)
+        self.assertEqual(len(pane.entries), 1)
+        self.assertIn("1 sessões lidas", pane.status.get())
+
+    def test_previous_cancel_requires_confirmation_and_ignores_late_success(self):
+        pane, _, _, _, key = self.previous_entry()
+        with patch("factcheck.previous_checks_ui.PreviousChecksTask.start"):
+            pane.refresh()
+        with patch("factcheck.previous_checks_ui.messagebox.askyesno", return_value=False):
+            pane.cancel()
+        self.assertFalse(pane.task.cancelled.is_set())
+        with patch("factcheck.previous_checks_ui.messagebox.askyesno", return_value=True):
+            pane.cancel()
+        self.assertTrue(pane.task.cancelled.is_set())
+        pane.task.pending = 0
+        pane.done({"token": pane.task.token, "success": True, "entries": [], "warnings": [], "sessions": 0})
+        self.assertIn(key, pane.entries)
+        self.assertIn("cancelada", pane.status.get())
+
+    def test_previous_comparison_registers_reference_without_research_or_verdict_transfer(self):
+        pane, dossier, cid, window, save, _, _ = self.previous_comparison()
+        with patch("factcheck.evidence_ui.ResearchTask") as research, patch("factcheck.workbench.TriageRunner") as triage:
+            save.invoke()
+        research.assert_not_called()
+        triage.assert_not_called()
+        self.assertFalse(window.winfo_exists())
+        data = dossier.store.snapshot(cid)
+        self.assertEqual(len(data["previous_checks"]), 1)
+        self.assertEqual(data["documents"], [])
+        self.assertIsNone(data["decision"])
+        self.assertIsNone(data["preliminary"])
+        self.assertEqual(self.app.notebook.select(), str(dossier.tab))
+
+    def test_previous_comparison_rechecks_origin_at_save(self):
+        pane, dossier, cid, window, save, store, old_cid = self.previous_comparison()
+        store.decide(old_cid, 1, "inconclusiva", "Revisor posterior", "Origem alterada durante a comparação.")
+        with patch("factcheck.previous_checks_ui.messagebox.showinfo") as info:
+            save.invoke()
+        info.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(dossier.store.snapshot(cid)["previous_checks"], [])
+
+    def test_previous_comparison_rechecks_destination_plan_at_save(self):
+        pane, dossier, cid, window, save, _, _ = self.previous_comparison()
+        dossier.store.save_plan(cid, 0, {"question": "Qual indicador?", "scope": "pesquisavel", "period": "2025", "territory": "Brasil",
+            "indicator": "IPCA", "comparison": "", "notes": "", "candidate_urls": []})
+        with patch("factcheck.previous_checks_ui.messagebox.showinfo") as info:
+            save.invoke()
+        info.assert_called_once()
+        self.assertEqual(dossier.store.snapshot(cid)["previous_checks"], [])
+
+    def test_previous_comparison_missing_notes_stays_open(self):
+        pane, dossier, cid, window, save, _, _ = self.previous_comparison()
+        editable = next(widget for widget in widgets(window, tk.Text) if str(widget["state"]) == "normal")
+        editable.delete("1.0", "end")
+        with patch("factcheck.previous_checks_ui.messagebox.showinfo") as info:
+            save.invoke()
+        info.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(dossier.store.snapshot(cid)["previous_checks"], [])
+
+    def test_previous_comparison_unsaved_close_requires_confirmation(self):
+        pane, dossier, cid, window, save, _, _ = self.previous_comparison()
+        with patch("factcheck.previous_checks_ui.messagebox.askyesno", return_value=False):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.previous_checks_ui.messagebox.askyesno", return_value=True):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(dossier.store.snapshot(cid)["previous_checks"], [])
+
+    def test_previous_target_clears_on_session_change_but_results_remain(self):
+        dossier, cid = self.open_dossier()
+        pane, _, _, _, key = self.previous_entry()
+        pane.open_for_case()
+        other = self.project / "outra-sessao-anterior"
+        other.mkdir()
+        (other / "session.json").write_text('{}', encoding="utf8")
+        self.work.load(other)
+        self.assertIsNone(pane.target)
+        self.assertIn(key, pane.entries)
+        self.assertEqual(str(pane.compare_button["state"]), "disabled")
+
+    def test_close_during_previous_scan_confirms_and_waits_for_cancellation(self):
+        pane = self.work.previous_checks
+        with patch("factcheck.previous_checks_ui.PreviousChecksTask.start"):
+            pane.refresh()
+        with patch("factcheck.ui.messagebox.askyesno", return_value=True), patch.object(self.root, "destroy") as destroy:
+            self.app.close()
+            self.assertTrue(pane.task.cancelled.is_set())
+            destroy.assert_not_called()
+            pane.task.pending = 0
+            pane.task.emit("previous_checks_done", {"token": pane.task.token, "success": False, "message": "Consulta cancelada."})
+            self.app.poll()
+            destroy.assert_called_once()
+
     def assignment_editor(self, existing_name=None):
         pane, cid = self.open_dossier()
         if existing_name is not None:

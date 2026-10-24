@@ -124,11 +124,11 @@ def internal(path):
     svg.path("M 1385 1010 V 1112")
     svg.path("M 605 397 V 411 H 32 V 1199 H 60")
     svg.text(42, 1090, "WAV", "small")
-    svg.text(60, 1336, "COLEÇÃO ENTRE SESSÕES", "section")
+    svg.text(60, 1336, "REFERÊNCIAS ENTRE SESSÕES", "section")
     svg.text(545, 1336, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS", "section")
-    svg.card(60, 1360, 450, 118, "Coleção de fontes", ["library/sources.sqlite3 · metadados", "Versão copiada para o caso selecionado."], "teal")
+    svg.card(60, 1360, 450, 118, "Coleção e checagens anteriores", ["Metadados da coleção + decisões locais.", "Versões e comparação de recortes no caso."], "teal")
     svg.path("M 510 1419 H 525 V 1307 H 750 V 1080 H 605 V 1010")
-    svg.card(545, 1360, 450, 118, "Pesquisa e falantes", ["Busca contínua e checagens anteriores.", "Separação automática de falantes."], "gray", planned=True)
+    svg.card(545, 1360, 450, 118, "Pesquisa e falantes", ["Busca contínua e outros provedores.", "Separação automática de falantes."], "gray", planned=True)
     svg.card(1030, 1360, 510, 118, "Operação em equipe", ["Contas, permissões e sincronização.", "Distribuição entre operadores."], "gray", planned=True)
     svg.text(60, 1520, "Setas: percurso principal possível. A coleta e a exportação não exigem aprovação factual; a divulgação depende da equipe editorial.", "small")
     svg.save(path)
@@ -158,8 +158,8 @@ def user(path):
           ["O aplicativo grava áudio e mostra texto provisório.", "Parágrafos concluídos podem alimentar a triagem."], "blue")
     stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Corrija a fala e atribua o participante.", "• Confira categoria, resumo e citação da extração.", "• Defina prioridade e responsável; use os filtros."],
           ["Fatos, opiniões e promessas têm estados próprios.", "A revisão da extração não aprova a afirmação."], "amber")
-    stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Use a coleção, Tavily ou o navegador.", "• Colete a URL ou importe PDF/HTML e confira.", "• Opcional: peça análise preliminar ao Gemini."],
-          ["URLs candidatas ficam separadas das evidências.", "Contexto insuficiente pede nova conferência."], "purple")
+    stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Consulte a coleção e checagens anteriores.", "• Use Tavily, colete URL ou importe PDF/HTML.", "• Opcional: peça análise preliminar ao Gemini."],
+          ["Compare recortes antes de usar antecedentes.", "URLs candidatas ficam separadas das evidências."], "purple")
     stage(60, 740, 4, "Decidir e exportar", ["• Leia as fontes e confronte dados e contexto.", "• Registre a decisão humana com justificativa:", "  confirmada, contradita ou inconclusiva.", "• Exporte o dossiê, os dados e o relatório do ensaio."],
           ["Arquivos podem conter pendências identificadas.", "A publicação permanece com a equipe editorial."], "teal")
     svg.path("M 680 430 H 760")
@@ -170,7 +170,7 @@ def user(path):
     svg.text(60, 1140, "AÇÕES DE APOIO DURANTE O TRABALHO", "section")
     svg.card(60, 1166, 410, 210, "Se houver uma correção", ["O histórico permanece disponível.", "Resultados anteriores são invalidados.", "O plano pode pedir nova conferência.", "Uma tarefa antiga não substitui a edição."], "amber", "REVISÕES PROTEGIDAS")
     svg.card(515, 1166, 410, 210, "Ao cancelar ou fechar", ["Uma atividade em andamento pede", "confirmação de cancelamento.", "Dados já salvos são preservados.", "Texto provisório pode ser perdido."], "blue", "ENCERRAMENTO E RECUPERAÇÃO")
-    svg.card(970, 1166, 410, 210, "Ainda planejado", ["Pesquisa contínua e checagens anteriores", "Separação automática de falantes", "Contas e operação em equipe"], "gray", "EVOLUÇÃO DO PROTÓTIPO", planned=True)
+    svg.card(970, 1166, 410, 210, "Ainda planejado", ["Pesquisa contínua e outros provedores", "Separação automática de falantes", "Contas e operação em equipe"], "gray", "EVOLUÇÃO DO PROTÓTIPO", planned=True)
     svg.rect(60, 1420, 1320, 80, "#EAF1FF", "#CEDCF5", 12)
     svg.lines(83, 1452, ["Para começar: faça um ensaio curto e confira um caso completo antes de acompanhar um evento ao vivo.",
                        "A análise da IA é preliminar. A validação e qualquer divulgação continuam sob responsabilidade humana."], spacing=25)

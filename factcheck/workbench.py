@@ -25,6 +25,7 @@ from .queue_filters import (CATEGORIES, LABELS, SCOPES, STATES, QueueFilters, di
 from .priorities import FILTERS as PRIORITY_FILTERS, LEVELS, ORDERINGS, PriorityStore, describe_priority, priority_label, priority_payload
 from .assignments import AssignmentStore, assignment_label, assignment_payload, describe_assignment
 from .library_ui import LibraryPane
+from .previous_checks_ui import PreviousChecksPane
 
 
 class Workbench:
@@ -111,6 +112,7 @@ class Workbench:
         self.claim_detail.configure(state="disabled")
         self.evidence = EvidencePane(self, notebook)
         self.library = LibraryPane(self, notebook)
+        self.previous_checks = PreviousChecksPane(self, notebook)
 
     def build_filters(self):
         frame = ttk.LabelFrame(self.claim_tab, text="Filtrar afirmações", padding=8)
@@ -627,6 +629,7 @@ class Workbench:
         self.priority_store = PriorityStore(store)
         self.assignment_store = AssignmentStore(store)
         self.library.clear_target()
+        self.previous_checks.clear_target()
         self.import_warnings = warnings
         self.runner = None
         self.evidence.load(store)

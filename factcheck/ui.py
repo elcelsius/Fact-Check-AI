@@ -373,6 +373,8 @@ class CaptureApp:
                 self.workbench.triage_update(data)
             elif kind == "research_done":
                 self.workbench.evidence.done(data)
+            elif kind == "previous_checks_done":
+                self.workbench.previous_checks.done(data)
             elif kind == "export_done":
                 self.workbench.export_done(data)
             elif kind == "recovery_done":

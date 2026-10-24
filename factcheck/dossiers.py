@@ -12,6 +12,7 @@ from .discovery import search_basis, validate_query
 from .priorities import describe_priority, priority_payload, read_priority
 from .assignments import assignment_payload, describe_assignment, read_assignment, read_assignment_history
 from .source_library import reference_snapshot, render_reference
+from .previous_checks import previous_snapshot, render_previous, COMPARISONS, COMPARISON_FIELDS
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -30,6 +31,8 @@ class DossierStore:
                 CREATE INDEX IF NOT EXISTS discoveries_claim ON discoveries(claim_id);
                 CREATE TABLE IF NOT EXISTS library_references (id TEXT PRIMARY KEY, claim_id TEXT, payload TEXT);
                 CREATE INDEX IF NOT EXISTS library_references_claim ON library_references(claim_id);
+                CREATE TABLE IF NOT EXISTS previous_checks (id TEXT PRIMARY KEY, claim_id TEXT, payload TEXT);
+                CREATE INDEX IF NOT EXISTS previous_checks_claim ON previous_checks(claim_id);
             """)
 
     @staticmethod
@@ -80,11 +83,43 @@ class DossierStore:
                                   db.execute("SELECT id,payload FROM library_references WHERE claim_id=? ORDER BY rowid", (cid,))]
             for selection in library_references:
                 selection["current"] = bool(valid and selection["basis"] == search_basis(claim, case.get("plan")))
+            previous_checks = [{"id": rid, **json.loads(payload)} for rid, payload in
+                               db.execute("SELECT id,payload FROM previous_checks WHERE claim_id=? ORDER BY rowid", (cid,))]
+            for selection in previous_checks:
+                selection["current"] = bool(valid and selection["basis"] == search_basis(claim, case.get("plan")))
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
                     "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
                     "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case,
                     "priority": priority, "assignment": assignment, "assignment_history": read_assignment_history(db, cid),
-                    "library_references": library_references}
+                    "library_references": library_references, "previous_checks": previous_checks}
+
+    def record_previous_check(self, cid, expected_basis, origin, comparison, query=""):
+        origin = previous_snapshot(origin)
+        if (not isinstance(comparison, dict) or set(comparison) != {"outcome", *COMPARISON_FIELDS}
+                or not isinstance(comparison["outcome"], str) or comparison["outcome"] not in COMPARISONS
+                or any(not isinstance(comparison[key], str) or not comparison[key].strip() or len(comparison[key]) > 2000
+                       for key in COMPARISON_FIELDS)
+                or not isinstance(query, str) or len(query) > 1000):
+            raise ValueError("Informe a comparação da afirmação, período, território, indicador e método; dúvidas podem ser registradas como pendentes.")
+        comparison = {key: value.strip() for key, value in comparison.items()}
+        with self.review.connection() as db:
+            claim, _ = self._claim(db, cid, active=True)
+            _, case = self._case(db, cid)
+            basis = search_basis(claim, case.get("plan"))
+            if basis != expected_basis:
+                raise ValueError("A afirmação ou o plano mudou. Reabra a consulta a partir do dossiê atual.")
+            sid = db.execute("SELECT session_id FROM session_identity WHERE id=1").fetchone()[0]
+            if sid == origin["session_id"] and cid == origin["claim"]["id"]:
+                raise ValueError("O próprio caso não pode ser registrado como checagem anterior.")
+            for rid, payload in db.execute("SELECT id,payload FROM previous_checks WHERE claim_id=?", (cid,)):
+                old = json.loads(payload)
+                if old["basis"] == basis and old["origin"]["fingerprint"] == origin["fingerprint"] and old["comparison"] == comparison:
+                    return rid
+            rid = uuid.uuid4().hex
+            payload = {"basis": basis, "consulted_at": now(), "origin": origin, "comparison": comparison, "query": query}
+            db.execute("INSERT INTO previous_checks VALUES (?,?,?)", (rid, cid, json.dumps(payload, ensure_ascii=False)))
+            self.review._audit(db, "previous_check_consulted", {"id": rid, "claim_id": cid, **payload})
+            return rid
 
     def record_library_reference(self, cid, expected_basis, entry, query="", topic=None):
         entry = reference_snapshot(entry)
@@ -318,6 +353,15 @@ def render(snapshot):
                   "URLs candidatas para pesquisa; não são evidências coletadas:", *plan["candidate_urls"], ""]
     else:
         lines += ["Pergunta e recortes ainda não registrados.", ""]
+    lines += ["## Checagens anteriores consultadas · referências para pesquisa", ""]
+    if not snapshot.get("previous_checks"):
+        lines += ["Nenhuma checagem anterior registrada.", ""]
+    for selection in snapshot.get("previous_checks", []):
+        lines += [f"Consultada em {selection['consulted_at']} · " + ("recortes atuais deste caso" if selection["current"] else "recortes anteriores deste caso"),
+                  f"Consulta: {selection['query'] or 'Sem texto de busca'}", COMPARISONS[selection["comparison"]["outcome"]]]
+        for key, label in COMPARISON_FIELDS.items():
+            lines.append(f"{label}: {selection['comparison'][key]}")
+        lines += ["", render_previous(selection["origin"]), ""]
     lines += ["## Descoberta de fontes · candidatas, não evidências", ""]
     if not snapshot.get("discoveries"):
         lines += ["Nenhuma busca automática registrada.", ""]
