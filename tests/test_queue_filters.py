@@ -102,6 +102,19 @@ class QueueFilterTests(unittest.TestCase):
         self.claims[1]["priority"] = priority_payload(self.claims[1], {"revision": 1, "level": "normal", "claim_revision": 1, "source_revision": 1})
         self.assertEqual([row["id"] for row in sort_claims(self.claims, self.sources, "priority")], ["b", "a", "c"])
 
+    def test_assignee_filter_combines_with_existing_fields_and_matches_exact_names(self):
+        self.claims[0]["assignment"] = {"name": "Ana Silva", "needs_review": True}
+        self.assertEqual(self.ids(assignee="Ana Silva", category="fato", scope="current"), ["a"])
+        self.assertEqual(self.ids(assignee="ana silva"), [])
+        self.assertEqual(self.ids(assignee=""), ["b", "c"])
+        self.assertEqual(self.ids(assignee=None), ["a", "b", "c"])
+
+    def test_assignee_named_like_a_filter_marker_is_not_confused_with_unassigned(self):
+        self.claims[0]["assignment"] = {"name": "Sem responsável"}
+        options = field_choices(["Sem responsável", "Todos"], "Sem responsável")
+        self.assertEqual(self.ids(assignee=options["Sem responsável"]), ["b", "c"])
+        self.assertEqual(self.ids(assignee=options["Sem responsável (cadastrado)"]), ["a"])
+
 
 if __name__ == "__main__":
     unittest.main()

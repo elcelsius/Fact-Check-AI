@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.18.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+Procedimento do protótipo Windows, versão **0.19.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
 
 ## Antes de um ensaio com vídeo
 
@@ -87,6 +87,18 @@ Uma extração alterada deixa a prioridade atribuída **A conferir**. O nível a
 O registro usa revisão própria e rejeita editores concorrentes ou anteriores a uma mudança da extração. Fontes, plano, análise preliminar, decisão humana e trabalhos já iniciados permanecem independentes. Editar somente plano ou fontes não altera a prioridade. A mudança não dispara chamadas externas nem reorganiza a fila de execução dos motores. Fechar ou cancelar um editor alterado pede confirmação; salvar pode fazer o item desaparecer do filtro ativo, limpando a seleção.
 
 O SQLite mantém níveis e justificativas anteriores. JSON e dossiê incluem a atribuição e seu estado; o CSV de afirmações acrescenta `prioridade`, `prioridade_revisao`, `prioridade_atual`, `prioridade_precisa_conferencia`, `prioridade_justificativa` e `prioridade_em`. O relatório resume os níveis das extrações atuais de todas as categorias e mantém o denominador factual separado. Sem prioridade antiga registrada, os campos começam em `unset`, revisão 0, sem uma data inventada.
+
+## Atribuir e redistribuir casos
+
+1. Em **Afirmações para checagem**, escolha um item atual e use **Atribuir responsável**. Digite ou selecione um nome da sessão, com até 100 caracteres, e informe o motivo. Esse nome não identifica o participante que falou.
+2. Use **Salvar atribuição**. Para trocar a pessoa, altere o nome e explique a redistribuição. Para liberar, use **Limpar nome** e justifique a retirada. As versões anteriores continuam disponíveis no dossiê e no JSON completo.
+3. Combine **Responsável** com **Somente atuais** para acompanhar os casos de uma pessoa. **Sem responsável** também inclui casos liberados. O nome selecionado permanece como filtro após perder seu último resultado, evitando ampliar a lista silenciosamente; limpar filtros ou abrir outra sessão restaura Todos.
+4. Se aparecer **a conferir**, a extração mudou. Confira o vínculo e salve para associá-lo à nova versão. O filtro pelo nome continua encontrando essa pendência. Uma nova triagem não transfere a atribuição para outra extração; casos antigos são identificados como históricos.
+5. Confira as mudanças em **Dossiê e fontes**, na seção **Responsável pelo caso**. O histórico lista nome anterior e novo, motivo, horário e versões da extração e da fala usados. Abrir esse histórico não reativa uma atribuição antiga.
+
+A atribuição é um registro local por nome. Ela não autentica pessoas, restringe edição, envia notificações nem substitui o responsável que assina uma decisão factual. Revisões concorrentes do vínculo ou abertas antes de uma alteração da extração são rejeitadas. Cancelar ou fechar um editor alterado pede confirmação. Mudanças de responsável não invalidam prioridade, fontes, plano, análise ou decisão; alterar só esses campos também não muda o vínculo.
+
+O JSON guarda a atribuição atual e `dossiers[].assignment_history`. O CSV distingue `responsavel_caso` e `atribuicao_*` de `decisao_humana_responsavel`. O relatório apresenta atribuições atuais, a conferir, sem responsável e contagens por nome nas extrações atuais de todas as categorias. Esses números não medem a produtividade ou a identidade de uma pessoa. Contas, permissões, aceite autenticado e operação simultânea em máquinas distintas continuam pendentes.
 
 ## Revisar a extração de uma afirmação
 

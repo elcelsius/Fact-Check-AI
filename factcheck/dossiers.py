@@ -10,6 +10,7 @@ from .grouping import active as active_source
 from .planning import ORIGINS, PLAN_FIELDS, SCOPES, validate_plan
 from .discovery import search_basis, validate_query
 from .priorities import describe_priority, priority_payload, read_priority
+from .assignments import assignment_payload, describe_assignment, read_assignment, read_assignment_history
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -71,9 +72,11 @@ class DossierStore:
             for batch in discoveries:
                 batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
             priority = priority_payload(claim, read_priority(db, cid), valid)
+            assignment = assignment_payload(claim, read_assignment(db, cid), valid)
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
                     "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
-                    "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case, "priority": priority}
+                    "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case,
+                    "priority": priority, "assignment": assignment, "assignment_history": read_assignment_history(db, cid)}
 
     def save_plan(self, cid, expected_revision, plan, origin="operator_input"):
         if origin not in ORIGINS:
@@ -268,6 +271,13 @@ def render(snapshot):
                   f"Justificativa da revisão: {claim['extraction_review']['reason']}",
                   f"Categoria automática original: {claim.get('automatic_extraction', {}).get('category', 'Não registrada')}", ""]
     lines += ["## Prioridade de revisão", "", describe_priority(snapshot.get("priority")), ""]
+    lines += ["## Responsável pelo caso", "", describe_assignment(snapshot.get("assignment")), ""]
+    for change in snapshot.get("assignment_history", []):
+        previous = (change["previous"] or {}).get("name") or "Sem responsável"
+        current = change["current"]
+        lines += [f"Histórico · {change['at']} · atribuição {current['revision']}: {previous} → {current['name'] or 'Sem responsável'}",
+                  f"Motivo: {current['reason']}",
+                  f"Extração {current['claim_revision']} · fala {current['source_revision']}", ""]
     lines += ["## Planejamento da checagem", ""]
     if plan:
         if plan.get("needs_review"):

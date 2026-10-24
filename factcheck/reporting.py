@@ -92,6 +92,13 @@ def session_report(review, cancelled=None):
     paragraphs = [row for row in data["paragraphs"] if row["active"]]
     current = [row for row in data["claims"] if row["source_current"]]
     priorities = Counter(filter_key(row["priority"]) for row in current)
+    assignments = [row["assignment"] for row in current if row["assignment"]["name"]]
+    assignees = sorted({value["name"] for value in assignments}, key=lambda name: (name.casefold(), name))
+    assignment_summary = {"assigned_current": sum(value["current"] for value in assignments),
+                          "needs_review": sum(value["needs_review"] for value in assignments),
+                          "unassigned": len(current) - len(assignments),
+                          "by_name": [{"name": name, "current_cases": sum(value["name"] == name and value["current"] for value in assignments),
+                                       "needs_review_cases": sum(value["name"] == name and value["needs_review"] for value in assignments)} for name in assignees]}
     factual = [row for row in current if row["category"] == "fato"]
     dossiers = {row["claim_id"]: row for row in data["dossiers"]}
     with_sources = {row["claim_id"] for row in data["sources"] if row["claim_source_current"]}
@@ -154,6 +161,7 @@ def session_report(review, cancelled=None):
                              "triage_completed": analyzed, "triage_not_completed": len(paragraphs) - analyzed},
               "claims": {"current": len(current), "by_category": dict(Counter(row["category"] for row in current)),
                          "priorities": {key: priorities[key] for key in PRIORITY_FILTERS},
+                         "assignments": assignment_summary,
                          "extraction_revised": sum(bool(row.get("extraction_review")) for row in current),
                          "planning": {"recorded": len(plans), "ai_drafts": sum(plan["origin"] == "ai_draft" for plan in plans),
                                       "needs_context": sum(plan["scope"] == "falta_contexto" for plan in plans),
@@ -222,6 +230,10 @@ def render_report(report):
              (f" ({ratio_value['fraction']:.1%})" if ratio_value['fraction'] is not None else " (sem denominador)"),
              f"Aguardando fontes: {claims['factual_flow']['pending_sources']}",
              "Prioridades das extrações atuais: " + "; ".join(f"{label}: {claims['priorities'][key]}" for key, label in PRIORITY_FILTERS.items()),
+             (f"Responsáveis nos casos atuais: {claims['assignments']['assigned_current']} atribuições atuais; "
+              f"{claims['assignments']['needs_review']} a conferir; {claims['assignments']['unassigned']} sem responsável."),
+             "Casos por responsável: " + ("; ".join(f"{item['name']}: {item['current_cases']} atuais, {item['needs_review_cases']} a conferir"
+                                                    for item in claims["assignments"]["by_name"]) or "Nenhum caso atual com nome atribuído."),
              f"Fontes disponíveis, sem análise/decisão: {claims['factual_flow']['sources_only']}",
              f"Análise preliminar, sem decisão humana: {claims['factual_flow']['preliminary_pending_human']}", "",
              f"Primeira prévia desde o início da captura: {number(timing['first_partial'], ' s')}",

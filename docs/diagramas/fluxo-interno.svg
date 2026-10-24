@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1600" height="1550" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.18.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.19.0</text>
 <text x="60" y="96" class="title">Como o sistema processa uma fala</text>
 <text x="60" y="133" class="subtitle">Filas independentes, registros versionados e decisão factual sob responsabilidade humana.</text>
 <text x="60" y="187" class="section">01 / ÁUDIO E TRANSCRIÇÃO LOCAL</text>
@@ -86,7 +86,7 @@
 <text x="478" y="553" class="tag" style="fill:#087F74">INTERFACE</text>
 <text x="470" y="591" class="heading">Fila de afirmações</text>
 <text x="470" y="622" class="body">Fatos, opiniões e promessas</text>
-<text x="470" y="647" class="body">Prioridade manual e filtros locais</text>
+<text x="470" y="647" class="body">Prioridade, responsável e filtros</text>
 <text x="470" y="672" class="body">Estados atuais e históricos.</text>
 </g>
 <g data-card-bounds="840,515,310,187">
@@ -211,8 +211,9 @@
 <g data-card-bounds="1030,1360,510,118">
 <rect x="1030" y="1360" width="510" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
 <path d="M 1048 1360 H 1522 Q 1540 1360 1540 1378 V 1370 H 1030 V 1378 Q 1030 1360 1048 1360 Z" fill="#52637B"/>
-<text x="1050" y="1399" class="heading">Distribuição de casos</text>
-<text x="1050" y="1430" class="body">Responsáveis e coordenação ampliada.</text>
+<text x="1050" y="1399" class="heading">Operação em equipe</text>
+<text x="1050" y="1430" class="body">Contas, permissões e sincronização.</text>
+<text x="1050" y="1455" class="body">Distribuição entre operadores.</text>
 </g>
 <text x="60" y="1520" class="small">Setas: percurso principal possível. A coleta e a exportação não exigem aprovação factual; a divulgação depende da equipe editorial.</text>
 </svg>

@@ -24,6 +24,7 @@ class QueueFilters:
     speaker: str | None = None
     topic: str | None = None
     priority: str | None = None
+    assignee: str | None = None
 
 
 def normalize(value):
@@ -64,6 +65,8 @@ def filter_claims(claims, sources, case_states, filters):
         if filters.topic is not None and (claim.get("topic") or "") != filters.topic:
             continue
         if filters.priority is not None and filter_key(claim.get("priority")) != filters.priority:
+            continue
+        if filters.assignee is not None and (claim.get("assignment") or {}).get("name", "") != filters.assignee:
             continue
         text = normalize(" ".join(str(claim.get(key) or "") for key in
                                   ("quote", "summary", "context", "reason", "topic", "speaker", "location", "period", "indicator", "comparison")))

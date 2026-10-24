@@ -570,6 +570,118 @@ class WorkbenchTests(unittest.TestCase):
         self.work.evidence.open_selected()
         return self.work.evidence, cid
 
+    def assignment_editor(self, existing_name=None):
+        pane, cid = self.open_dossier()
+        if existing_name is not None:
+            self.work.assignment_store.save(cid, 0, 1, 1, existing_name, "Distribuir o acompanhamento do caso.")
+            self.work.refresh()
+            self.work.claim_tree.selection_set(cid)
+        self.work.edit_assignment()
+        window = widgets(self.root, tk.Toplevel)[0]
+        return window, widgets(window, ttk.Combobox)[0], widgets(window, tk.Text)[-1], cid
+
+    def test_assignment_editor_saves_case_owner_without_changing_the_decision(self):
+        window, name, reason, cid = self.assignment_editor()
+        name.set("Ana")
+        reason.insert("1.0", "Acompanhar as fontes do indicador.")
+        next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar atribuição").invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.claim_tree.set(cid, "assignee"), "Ana")
+        self.assertEqual(self.work.claims[cid]["assignment"]["revision"], 1)
+        self.assertIsNone(self.work.evidence.store.snapshot(cid)["decision"])
+        self.assertEqual(self.work.evidence.store.snapshot(cid)["revision"], 0)
+        self.assertIn("Responsável pelo caso: Ana", self.work.claim_detail.get("1.0", "end"))
+
+    def test_reassignment_under_filter_clears_selection_and_keeps_the_selected_filter(self):
+        window, name, reason, cid = self.assignment_editor("Ana")
+        self.work.filter_values["assignee"].set("Ana")
+        name.set("Bruna")
+        reason.delete("1.0", "end")
+        reason.insert("1.0", "Redistribuição da pauta.")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar atribuição").invoke()
+        error.assert_not_called()
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+        self.assertIsNone(self.work.selected_claim())
+        self.assertEqual(self.work.filter_options["assignee"][self.work.filter_values["assignee"].get()], "Ana")
+        self.work.reset_filters()
+        self.assertEqual(self.work.claim_tree.set(cid, "assignee"), "Bruna")
+
+    def test_clear_assignee_returns_case_to_unassigned_and_handles_reserved_names(self):
+        window, name, reason, cid = self.assignment_editor("Todos")
+        self.work.filter_values["assignee"].set("Todos (cadastrado)")
+        self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+        next(b for b in widgets(window, ttk.Button) if b["text"] == "Limpar nome").invoke()
+        reason.delete("1.0", "end")
+        reason.insert("1.0", "Liberado para distribuição.")
+        next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar atribuição").invoke()
+        self.assertEqual(self.work.claim_tree.get_children(), ())
+        self.work.filter_values["assignee"].set("Sem responsável")
+        self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+        self.assertEqual(self.work.claims[cid]["assignment"]["name"], "")
+
+    def test_assignment_editor_requires_a_reason_and_stays_open_after_validation_error(self):
+        window, name, reason, cid = self.assignment_editor()
+        name.set("Ana")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar atribuição").invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(self.work.assignment_store.all(), {})
+
+    def test_old_assignment_editor_cannot_save_after_extraction_changes(self):
+        window, name, reason, cid = self.assignment_editor("Ana")
+        claim = self.work.claims[cid]
+        fields = {key: claim.get(key) for key in ("quote", "summary", "category", "topic")}
+        fields["topic"] = "Indicadores"
+        self.work.store.revise_claim(cid, 1, 1, fields, "Tema corrigido.")
+        self.work.refresh()
+        name.set("Bruna")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            next(b for b in widgets(window, ttk.Button) if b["text"] == "Salvar atribuição").invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertTrue(self.work.claims[cid]["assignment"]["needs_review"])
+        self.assertEqual(self.work.claims[cid]["assignment"]["name"], "Ana")
+
+    def test_unsaved_assignment_close_requires_confirmation(self):
+        window, name, reason, cid = self.assignment_editor()
+        name.set("Ana")
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=False):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.workbench.messagebox.askyesno", return_value=True):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(self.work.assignment_store.all(), {})
+
+    def test_assignee_filter_uses_cache_without_database_reads_or_external_calls(self):
+        pane, cid = self.open_dossier()
+        self.work.assignment_store.save(cid, 0, 1, 1, "Ana", "Acompanhar as fontes do indicador.")
+        self.work.refresh()
+        with patch.object(self.work.store, "connection", side_effect=AssertionError("Consulta indevida")), \
+                patch.object(self.work.assignment_store, "all", side_effect=AssertionError("Consulta indevida")), \
+                patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            self.work.filter_values["assignee"].set("Ana")
+            self.assertEqual(self.work.claim_tree.get_children(), (cid,))
+            self.work.filter_values["assignee"].set("Sem responsável")
+            self.assertEqual(self.work.claim_tree.get_children(), ())
+        triage.assert_not_called()
+        research.assert_not_called()
+
+    def test_another_session_resets_assignee_filter_and_assignment_data(self):
+        pane, cid = self.open_dossier()
+        self.work.assignment_store.save(cid, 0, 1, 1, "Ana", "Acompanhar as fontes do indicador.")
+        self.work.refresh()
+        self.work.filter_values["assignee"].set("Ana")
+        other = self.project / "outra-atribuicao"
+        other.mkdir()
+        (other / "session.json").write_text('{}', encoding="utf8")
+        self.work.load(other)
+        self.assertEqual(self.work.filter_values["assignee"].get(), "Todos")
+        self.assertEqual(self.work.assignment_store.all(), {})
+        self.assertNotIn("Ana", self.work.filter_options["assignee"])
+
     def priority_editor(self, existing=False):
         pane, cid = self.open_dossier()
         if existing:

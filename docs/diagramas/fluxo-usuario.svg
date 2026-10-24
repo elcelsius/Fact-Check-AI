@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1440" height="1570" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.18.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.19.0</text>
 <text x="60" y="96" class="title">Da transmissão ao dossiê revisado</text>
 <text x="60" y="133" class="subtitle">Você acompanha e decide. A IA ajuda a localizar afirmações e organizar a pesquisa.</text>
 <rect x="60" y="165" width="1320" height="57" rx="12" fill="#E6F5F2" stroke="#B5DCD4" stroke-width="1.5"/>
@@ -46,7 +46,7 @@
 <text x="785" y="361" class="body">• Encerre e salve para ouvir os trechos gravados.</text>
 <text x="785" y="392" class="body">• Corrija a fala e atribua o participante.</text>
 <text x="785" y="423" class="body">• Confira categoria, resumo e citação da extração.</text>
-<text x="785" y="454" class="body">• Use filtros e defina prioridade com justificativa.</text>
+<text x="785" y="454" class="body">• Defina prioridade e responsável; use os filtros.</text>
 <rect x="780" y="504" width="580" height="75" rx="11" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
 <text x="795" y="533" class="body">Fatos, opiniões e promessas têm estados próprios.</text>
 <text x="795" y="558" class="body">A revisão da extração não aprova a afirmação.</text>
@@ -114,7 +114,7 @@
 <text x="990" y="1242" class="heading">Ainda planejado</text>
 <text x="990" y="1273" class="body">Pesquisa contínua e checagens anteriores</text>
 <text x="990" y="1298" class="body">Separação automática de falantes</text>
-<text x="990" y="1323" class="body">Responsáveis e distribuição de casos</text>
+<text x="990" y="1323" class="body">Contas e operação em equipe</text>
 </g>
 <rect x="60" y="1420" width="1320" height="80" rx="12" fill="#EAF1FF" stroke="#CEDCF5" stroke-width="1.5"/>
 <text x="83" y="1452" class="body">Para começar: faça um ensaio curto e confira um caso completo antes de acompanhar um evento ao vivo.</text>
