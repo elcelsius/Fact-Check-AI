@@ -19,7 +19,7 @@ Esta entrega encerra a implementação desse primeiro escopo para ensaios intern
 | Revisão | Correção da fala e da extração, evidências e decisão humana | Conferência textual, atribuição de voz, análise preliminar e veredito são estados distintos. |
 | Saída | JSON, CSV, dossiê Markdown e relatório JSON/TXT | Escrita atômica, cancelamento e exportação de pendências identificadas; nenhum envio automático. |
 | Continuidade | Reabrir, diagnosticar e recuperar sessão interrompida | Ensaio com queda de subprocesso preservou áudio, revisão e decisão já confirmada, sem retomar APIs. |
-| Manutenção | Suíte Windows, validação de links/versões/SVGs e construção do pacote | Workflow versionado em [tests.yml](../.github/workflows/tests.yml); execução remota deve ser conferida no GitHub. |
+| Manutenção | Suíte Windows, validação de links/versões/SVGs e construção do pacote | [Workflow](../.github/workflows/tests.yml) aprovado em [execução Windows limpa](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40135380140), com 510 testes, documentos, SVGs e recursos do pacote. |
 
 ## Como experimentar
 
@@ -48,7 +48,7 @@ Referências técnicas: [diarização sherpa-onnx](https://k2-fsa.github.io/sher
 - A inspeção visual cobriu captura e aba de falantes em 1120×860 e 1000×760, confirmação de associação em 820×700 e 740×640 e cadastro da transmissão em 850×660 e 800×640. Foram usados dados fictícios.
 - O ensaio de queda preservou aproximadamente 2,6 s de PCM, revisões e decisão já salva; transação incompleta foi revertida. Os materiais privados, modelos e saídas de verificação permanecem ignorados pelo Git.
 
-A suíte automatizada e o resultado remoto são registrados no [README](../README.md#diagnóstico-e-testes) e no histórico do GitHub. Os testes com APIs usam transporte simulado; nenhum token real ou gravação privada integra o repositório.
+A suíte passou localmente com **510 testes em 167,011 s** e no [GitHub Actions](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40135380140) com **510 testes em 318,217 s**, em Windows 2022/Python 3.12 sobre o código `105aded`. A execução remota também aprovou sintaxe, documentação, SVGs reproduzíveis e construção do pacote com o auxiliar PowerShell. Os testes com APIs usam transporte simulado; nenhum token real ou gravação privada integra o repositório.
 
 ## Condições de uso e evolução
 
