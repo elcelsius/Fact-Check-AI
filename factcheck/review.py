@@ -293,7 +293,9 @@ class ReviewStore:
             self._audit(db, "human_revision", source)
             return source
 
-    def begin_analysis(self, pid: int, force: bool = False) -> tuple[str, dict] | None:
+    def begin_analysis(self, pid: int, force: bool = False, topic_vocabulary=None) -> tuple[str, dict] | None:
+        from .topics import checked_snapshot, identity
+        provenance = {"topic_vocabulary": identity(checked_snapshot(topic_vocabulary))} if topic_vocabulary is not None else {}
         with self.connection() as db:
             source = json.loads(db.execute("SELECT payload FROM paragraphs WHERE id=?", (pid,)).fetchone()[0])
             if not active(source):
@@ -306,16 +308,21 @@ class ReviewStore:
                           (pid, source["revision"], *states)).fetchone():
                 return None
             analysis_id = uuid.uuid4().hex
-            db.execute("INSERT INTO analyses VALUES (?,?,?,?,?)", (analysis_id, pid, source["revision"], "running", json.dumps({"started_at": now(), "owner_pid": os.getpid()})))
+            db.execute("INSERT INTO analyses VALUES (?,?,?,?,?)", (analysis_id, pid, source["revision"], "running", json.dumps({"started_at": now(), "owner_pid": os.getpid(), **provenance})))
             return analysis_id, source
 
-    def finish_analysis(self, analysis_id: str, items: list[dict], engine: dict) -> bool:
+    def finish_analysis(self, analysis_id: str, items: list[dict], engine: dict, topic_vocabulary=None) -> bool:
         with self.connection() as db:
             pid, revision, state = db.execute("SELECT paragraph_id,revision,status FROM analyses WHERE id=?", (analysis_id,)).fetchone()
             source = json.loads(db.execute("SELECT payload FROM paragraphs WHERE id=?", (pid,)).fetchone()[0])
             if state != "running" or not active(source) or source["revision"] != revision or source["needs_rebase"]:
                 db.execute("UPDATE analyses SET status='stale' WHERE id=?", (analysis_id,))
                 return False
+            if topic_vocabulary is not None:
+                from .topics import annotate, checked_snapshot, identity
+                vocabulary = checked_snapshot(topic_vocabulary)
+                items = [annotate(item, vocabulary) for item in items]
+                engine = {**engine, "topic_vocabulary": identity(vocabulary)}
             self._invalidate(db, pid)
             for item in items:
                 claim_id = uuid.uuid4().hex
@@ -370,6 +377,6 @@ class ReviewStore:
             db.execute("UPDATE claims SET payload=? WHERE id=?", (json.dumps(claim, ensure_ascii=False), claim_id))
             self._audit(db, "claim_discarded", {"id": claim_id, "reason": reason})
 
-    def revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason):
+    def revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason, topic_vocabulary=None):
         from .claims import revise_claim
-        return revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason)
+        return revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason, topic_vocabulary)

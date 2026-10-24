@@ -715,6 +715,124 @@ class WorkbenchTests(unittest.TestCase):
         self.assertFalse(self.work.busy())
         self.assertIsNotNone(self.work.store)
 
+    def topic_entry(self, **changes):
+        from tests.test_topics import fields
+        pane = self.work.topics
+        self.assertTrue(pane.ensure_store())
+        entry = pane.store.save(fields(**changes), "Preparar temas fictícios.")
+        pane.refresh()
+        pane.tree.selection_set(entry["id"])
+        pane.show_selected()
+        return pane, entry
+
+    def test_topics_manager_registers_without_dossier_or_api_and_shows_history(self):
+        pane, entry = self.topic_entry()
+        self.assertIsNone(self.work.evidence.cid)
+        self.assertEqual(self.work.store.claims(), [])
+        self.assertIn("Cadastro", pane.preview.get("1.0", "end"))
+        self.assertEqual(pane.tree.get_children(), (entry["id"],))
+        self.assertEqual(self.work.ai_config.provider, "local")
+
+    def test_topic_editor_saves_definition_without_starting_triage_or_research(self):
+        pane = self.work.topics
+        pane.edit()
+        window = widgets(self.root, tk.Toplevel)[0]
+        name, aliases = widgets(window, ttk.Entry)
+        name.insert(0, "Saúde pública")
+        aliases.insert(0, "SUS; Saúde coletiva")
+        description, reason = widgets(window, tk.Text)
+        description.insert("1.0", "Definição fictícia para revisão.")
+        reason.insert("1.0", "Preparar vocabulário de ensaio.")
+        with patch("factcheck.workbench.TriageRunner") as triage, patch("factcheck.evidence_ui.ResearchTask") as research:
+            next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar tema").invoke()
+        triage.assert_not_called()
+        research.assert_not_called()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(pane.store.entries()[0]["name"], "Saúde pública")
+        self.assertEqual(pane.store.entries()[0]["aliases"], ["SUS", "Saúde coletiva"])
+
+    def test_topic_editor_requires_reason_and_confirms_unsaved_close(self):
+        pane = self.work.topics
+        pane.edit()
+        window = widgets(self.root, tk.Toplevel)[0]
+        widgets(window, ttk.Entry)[0].insert(0, "Tema ainda não salvo")
+        with patch("factcheck.topics_ui.messagebox.showerror") as error:
+            next(button for button in widgets(window, ttk.Button) if button["text"] == "Salvar tema").invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.topics_ui.messagebox.askyesno", return_value=False):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.topics_ui.messagebox.askyesno", return_value=True):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(pane.store.entries(), [])
+
+    def test_topic_filters_use_cache_and_archive_restore_preserve_existing_claims(self):
+        pane, entry = self.topic_entry(name="Saúde pública", aliases=["SUS"])
+        with patch.object(pane.store, "connection", side_effect=AssertionError("Não reler temas para filtrar")):
+            pane.query.set("SAUDE SUS")
+            self.assertEqual(pane.tree.get_children(), (entry["id"],))
+            pane.query.set("Sem correspondência")
+            self.assertFalse(pane.tree.selection())
+        pane.reset_filters()
+        pane.tree.selection_set(entry["id"])
+        with patch("factcheck.topics_ui.simpledialog.askstring", return_value="Arquivar no ensaio."):
+            pane.archive()
+        self.assertEqual(pane.tree.get_children(), ())
+        pane.archived.set(True)
+        pane.tree.selection_set(entry["id"])
+        with patch("factcheck.topics_ui.simpledialog.askstring", return_value="Restaurar no ensaio."):
+            pane.archive()
+        self.assertFalse(pane.store.entries()[0]["archived"])
+        self.assertEqual(len(pane.store.history(entry["id"])), 3)
+
+    def test_claim_topic_suggestions_normalize_registered_alias_and_keep_original_automatic_value(self):
+        self.topic_entry()
+        pane, cid, window, texts, category, save = self.claim_editor()
+        topic = widgets(window, ttk.Combobox)[1]
+        self.assertIn("Economia", topic["values"])
+        topic.set("INDICE DE PRECOS")
+        texts[-1].insert("1.0", "Padronizar tema no ensaio.")
+        save.invoke()
+        self.assertFalse(window.winfo_exists())
+        claim = self.work.claims[cid]
+        self.assertEqual(claim["topic"], "Economia")
+        self.assertEqual(claim["topic_annotation"]["original"], "INDICE DE PRECOS")
+        self.assertEqual(claim["topic_annotation"]["origin"], "operator")
+        self.assertEqual(claim["automatic_extraction"]["topic"], "Economia")
+        self.assertIsNone(pane.store.snapshot(cid)["decision"])
+
+    def test_claim_topic_editor_preserves_unknown_term_for_review(self):
+        self.topic_entry()
+        pane, cid, window, texts, category, save = self.claim_editor()
+        widgets(window, ttk.Combobox)[1].set("Tema ainda não cadastrado")
+        texts[-1].insert("1.0", "Manter tema livre para posterior organização.")
+        save.invoke()
+        claim = self.work.claims[cid]
+        self.assertEqual(claim["topic"], "Tema ainda não cadastrado")
+        self.assertEqual(claim["topic_annotation"]["status"], "unmapped")
+        self.assertIn("Fora do vocabulário", self.work.claim_detail.get("1.0", "end"))
+
+    def test_claim_topic_editor_rejects_changed_vocabulary_before_saving(self):
+        from tests.test_topics import fields
+        topics, entry = self.topic_entry()
+        pane, cid, window, texts, category, save = self.claim_editor()
+        topics.store.save(fields(name="Indicadores econômicos"), "Alterar durante a revisão.", entry["id"], 1)
+        texts[-1].insert("1.0", "Editor aberto antes da mudança.")
+        with patch("factcheck.workbench.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        self.assertTrue(window.winfo_exists())
+        self.assertEqual(self.work.store.claims()[0]["claim_revision"], 1)
+
+    def test_topic_storage_failure_does_not_block_capture_or_other_tabs(self):
+        with patch("factcheck.topics_ui.TopicStore", side_effect=PermissionError("Pasta fictícia indisponível")):
+            self.work.topics.refresh()
+        self.assertIsNone(self.work.topics.store)
+        self.assertIn("captura pode continuar", self.work.topics.status.get())
+        self.assertFalse(self.work.busy())
+
     def previous_entry(self):
         from tests.test_previous_checks import session
         from factcheck.previous_checks import scan_checked_cases

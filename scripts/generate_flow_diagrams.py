@@ -97,7 +97,7 @@ def internal(path):
     row2 = [
         ("Revisão do operador", ["Conferir fala e participante", "Editar / reclassificar extração", "Combinar trechos com histórico."], "amber", "AÇÃO HUMANA"),
         ("Fila de afirmações", ["Fatos, opiniões e promessas", "Prioridade, responsável e filtros", "Estados atuais e históricos."], "teal", "INTERFACE"),
-        ("Validar extrações", ["Citação ligada ao texto", "Controles de número e negação", "Resposta inválida é rejeitada."], "teal", "CONTROLES"),
+        ("Validar extrações", ["Citação, números e negações", "Tema: correspondência textual", "Resposta inválida é rejeitada."], "teal", "CONTROLES"),
         ("Triagem de afirmações", ["Qwen local OU Gemini opcional", "Tarefa em processo separado", "Não decide a veracidade."], "purple", "IA / FILA DE TAREFAS")]
     for x, (title, lines, color, tag) in zip(xs, row2):
         svg.card(x, 515, width, 187, title, lines, color, tag)
@@ -119,14 +119,14 @@ def internal(path):
         svg.path(f"M {x+width} 917 H {x+390}")
     svg.text(845, 1048, "Sem API: leitura e decisão humanas continuam disponíveis.", "small")
     svg.card(60, 1112, 680, 174, "Persistência por sessão", ["audio.wav + transcrição / parágrafos JSONL e TXT", "SQLite: revisões, buscas, fontes e dossiês", "Originais e histórico preservados; recuperação após interrupção."], "blue", "ARQUIVOS + BANCO LOCAL")
-    svg.card(770, 1112, 350, 174, "Controle transversal", ["Versões e resultados antigos", "Cancelamento com confirmação", "Chaves de API só na memória."], "gray", "COORDENADORES E FILAS")
+    svg.card(770, 1112, 350, 174, "Controle transversal", ["Versões de falas e vocabulário", "Cancelamento com confirmação", "Chaves de API só na memória."], "gray", "COORDENADORES E FILAS")
     svg.card(1230, 1112, 310, 174, "Exportação interna", ["Sessão JSON / tabelas CSV", "Dossiê e relatório do ensaio", "Pendências acompanham o arquivo."], "teal", "SEM PUBLICAÇÃO AUTOMÁTICA")
     svg.path("M 1385 1010 V 1112")
     svg.path("M 605 397 V 411 H 32 V 1199 H 60")
     svg.text(42, 1090, "WAV", "small")
     svg.text(60, 1336, "REFERÊNCIAS ENTRE SESSÕES", "section")
     svg.text(545, 1336, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS", "section")
-    svg.card(60, 1360, 450, 118, "Coleção e checagens anteriores", ["Metadados da coleção + decisões locais.", "Versões e comparação de recortes no caso."], "teal")
+    svg.card(60, 1360, 450, 118, "Temas e referências locais", ["Vocabulário + fontes + checagens antigas.", "Versões preservadas nos casos e tarefas."], "teal")
     svg.path("M 510 1419 H 525 V 1307 H 750 V 1080 H 605 V 1010")
     svg.card(545, 1360, 450, 118, "Pesquisa e falantes", ["Busca contínua e outros provedores.", "Separação automática de falantes."], "gray", planned=True)
     svg.card(1030, 1360, 510, 118, "Operação em equipe", ["Contas, permissões e sincronização.", "Distribuição entre operadores."], "gray", planned=True)
@@ -154,9 +154,9 @@ def user(path):
         svg.lines(x+35, y+273, outcome, spacing=25)
         svg.parts.append('</g>')
 
-    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre o debate e prepare a coleção de fontes.", "• Reproduza o vídeo e escolha a saída de áudio.", "• Use IA local ou configure sua chave Gemini.", "• Inicie a captura e informe a minutagem do vídeo."],
+    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre debate, temas e fontes de pesquisa.", "• Reproduza o vídeo e escolha a saída de áudio.", "• Use IA local ou configure sua chave Gemini.", "• Inicie a captura e informe a minutagem do vídeo."],
           ["O aplicativo grava áudio e mostra texto provisório.", "Parágrafos concluídos podem alimentar a triagem."], "blue")
-    stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Corrija a fala e atribua o participante.", "• Confira categoria, resumo e citação da extração.", "• Defina prioridade e responsável; use os filtros."],
+    stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Corrija a fala e atribua o participante.", "• Confira citação, resumo, categoria e tema.", "• Defina prioridade e responsável; use os filtros."],
           ["Fatos, opiniões e promessas têm estados próprios.", "A revisão da extração não aprova a afirmação."], "amber")
     stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Consulte a coleção e checagens anteriores.", "• Use Tavily, colete URL ou importe PDF/HTML.", "• Opcional: peça análise preliminar ao Gemini."],
           ["Compare recortes antes de usar antecedentes.", "URLs candidatas ficam separadas das evidências."], "purple")

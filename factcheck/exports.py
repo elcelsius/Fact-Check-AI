@@ -27,7 +27,7 @@ SUFFIXES = {"json": ".json", "paragraphs": ".csv", "claims": ".csv", "sources": 
 ENGINE_KEYS = ("name", "provider", "model", "revision", "quantization", "compute", "prompt_version", "seconds")
 CLAIM_KEYS = ("analysis_id", "paragraph_id", "revision", "speaker", "start", "end", "quote", "summary", "reason",
               "category", "topic", "location", "period", "indicator", "comparison", "context", "status",
-              "review_status", "created_at", "discard_reason", "validation_notes", "context_notes")
+              "review_status", "created_at", "discard_reason", "validation_notes", "context_notes", "topic_annotation")
 SOURCE_KEYS = ("url", "requested_url", "title", "institution", "author", "published_at", "accessed_at", "acquisition",
                "imported_at", "sha256", "text_sha256", "content_type", "extractor", "extractor_version", "truncated", "warnings")
 
@@ -47,6 +47,8 @@ def _record(session_id, kind, local_id, data):
 
 def _engine(data):
     result = _pick(data or {}, ENGINE_KEYS)
+    if isinstance((data or {}).get("topic_vocabulary"), dict):
+        result["topic_vocabulary"] = _pick(data["topic_vocabulary"], ("configured", "id", "revision", "sha256"))
     usage = (data or {}).get("usage", {})
     result["usage"] = {key: usage[key] for key in ("promptTokenCount", "candidatesTokenCount", "totalTokenCount",
                        "cachedContentTokenCount", "thoughtsTokenCount") if isinstance(usage.get(key), (int, float))}
@@ -225,7 +227,8 @@ COLUMNS = {
                "plano_pergunta", "plano_situacao", "plano_periodo", "plano_territorio", "plano_indicador", "plano_comparacao",
                "plano_observacoes", "plano_urls_candidatas", "plano_origem", "plano_precisa_revisao",
                "prioridade", "prioridade_revisao", "prioridade_atual", "prioridade_precisa_conferencia", "prioridade_justificativa", "prioridade_em",
-               "responsavel_caso", "atribuicao_revisao", "atribuicao_atual", "atribuicao_precisa_conferencia", "atribuicao_justificativa", "atribuicao_em"),
+               "responsavel_caso", "atribuicao_revisao", "atribuicao_atual", "atribuicao_precisa_conferencia", "atribuicao_justificativa", "atribuicao_em",
+               "tema_estado", "tema_termo_original", "tema_origem", "tema_id", "tema_revisao", "vocabulario_id", "vocabulario_revisao"),
     "sources": (*COMMON, "fonte_id", "afirmacao_id", "origem_afirmacao_atual", "titulo", "instituicao", "autoria", "url", "publicado_em",
                 "acessado_em", "origem", "acesso_url_confirmado", "importado_em", "sha256", "texto_sha256", "leitura_limitada", "avisos", "localizadores"),
 }
@@ -297,6 +300,11 @@ def csv_rows(data, kind):
                           plano_territorio=plan.get("territory"), plano_indicador=plan.get("indicator"), plano_comparacao=plan.get("comparison"),
                           plano_observacoes=plan.get("notes"), plano_urls_candidatas=plan.get("candidate_urls", []), plano_origem=plan.get("origin"),
                           plano_precisa_revisao=plan.get("needs_review", False))
+            annotation = row.get("topic_annotation") or {}
+            definition, vocabulary = annotation.get("definition") or {}, annotation.get("vocabulary") or {}
+            record.update(tema_estado=annotation.get("status"), tema_termo_original=annotation.get("original"), tema_origem=annotation.get("origin"),
+                          tema_id=definition.get("id"), tema_revisao=definition.get("revision"), vocabulario_id=vocabulary.get("id"),
+                          vocabulario_revisao=vocabulary.get("revision"))
         else:
             record.update(fonte_id=row["document_id"], afirmacao_id=row["claim_id"], origem_afirmacao_atual=row["claim_source_current"], titulo=row.get("title"),
                           instituicao=row.get("institution"), autoria=row.get("author"), url=row["url"], publicado_em=row.get("published_at"),

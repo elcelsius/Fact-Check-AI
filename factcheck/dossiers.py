@@ -13,6 +13,7 @@ from .priorities import describe_priority, priority_payload, read_priority
 from .assignments import assignment_payload, describe_assignment, read_assignment, read_assignment_history
 from .source_library import reference_snapshot, render_reference
 from .previous_checks import previous_snapshot, render_previous, COMPARISONS, COMPARISON_FIELDS
+from .topics import describe_topic
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -334,6 +335,7 @@ def render(snapshot):
         lines += ["Extração revisada pelo operador; isso não corresponde a decisão factual.",
                   f"Justificativa da revisão: {claim['extraction_review']['reason']}",
                   f"Categoria automática original: {claim.get('automatic_extraction', {}).get('category', 'Não registrada')}", ""]
+    lines += ["## Organização por tema", "", describe_topic(claim.get("topic_annotation")), ""]
     lines += ["## Prioridade de revisão", "", describe_priority(snapshot.get("priority")), ""]
     lines += ["## Responsável pelo caso", "", describe_assignment(snapshot.get("assignment")), ""]
     for change in snapshot.get("assignment_history", []):

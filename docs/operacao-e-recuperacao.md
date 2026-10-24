@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.21.0**, de 24/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+Procedimento do protótipo Windows, versão **0.22.0**, de 24/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
 
 ## Preparar e manter a coleção de referências
 
@@ -29,6 +29,18 @@ A coleção fica em **library/sources.sqlite3**, com histórico próprio, fora d
 Cópias idênticas da mesma sessão são deduplicadas na lista. Quando cópias da mesma identidade e caso têm conteúdo divergente, o caso é omitido com aviso; confira as cópias antes de consultar. A varredura não pesquisa subpastas profundas, arquivos JSON exportados ou acervos externos. Filtros não releem os bancos; atualize após alterações. Cancelar pede confirmação e preserva a lista anterior, mesmo que a resposta termine depois do pedido.
 
 O JSON exporta apenas `dossiers[].previous_checks` dos casos selecionados, sem caminhos locais, texto dos documentos ou o restante do acervo. Os documentos do antecedente continuam separados de `sources`; importados não passam a ter acesso online confirmado. `current` descreve o contexto do destino, não uma reconferência da origem ou de sua validade online. As sessões guardam suas próprias cópias consultadas, mas o exame completo das evidências requer preservar a pasta da sessão anterior.
+
+## Preparar e manter o vocabulário de temas
+
+1. Abra **Temas → Novo tema**. Informe nome, até doze variações separadas por ponto e vírgula, descrição opcional e motivo. Nomes/variações têm até 100 caracteres, descrição até 1.500 e motivo até 2.000. O aplicativo começa sem temas editoriais predefinidos; cadastre os agrupamentos apropriados ao ensaio.
+2. Use **Buscar**, **Editar tema**, **Arquivar tema** e **Restaurar tema** para manter o cadastro. Busca local ignora caixa e acentos. Nomes e variações pertencem a um único cadastro, inclusive arquivados; edite explicitamente um termo para liberá-lo. Arquivar retira das próximas correspondências e editar não restaura. O histórico permite conferir versões e motivos.
+3. Cada entrada na fila de triagem captura o vocabulário ativo. A resposta da IA passa por normalização textual completa de nome/variação; texto, contexto, categoria e conclusão não são inferidos pelo vocabulário. Termo desconhecido permanece livre e identificado. Descrições e lista de temas não são enviadas à API; a requisição da triagem continua apenas com seu conteúdo habitual.
+4. Confira **Organização por tema** no detalhe da afirmação ou no dossiê. São mostrados termo original, origem IA/operador, definição usada e versões. Alterar o cadastro vale para as próximas entradas, preservando tarefas enfileiradas e casos existentes. Uma nova triagem deve ser solicitada explicitamente para aplicar outros temas a trechos já analisados.
+5. Na revisão da afirmação, escolha um nome sugerido ou escreva texto livre e justifique. Um vocabulário alterado durante a edição exige reabrir o editor. Salvar segue os controles existentes de revisão da extração, preserva o automático e invalida conclusões dependentes quando aplicável. Cadastrar ou arquivar temas, isoladamente, não altera decisões, prioridades, responsáveis ou fontes.
+
+O cadastro e seu histórico ficam em `library/topics.sqlite3`, fora do Git e compartilhados entre sessões da mesma pasta do aplicativo. Feche o aplicativo antes de copiar `library` para backup ou transferência. A ausência do arquivo permite temas livres; arquivo presente mas inválido/indisponível bloqueia novas entradas na triagem até conferência, sem interromper a captura. Preserve uma cópia e investigue o cadastro; a triagem não tenta repará-lo ou apagá-lo automaticamente.
+
+JSON e dossiê guardam apenas a definição temática usada, além de identidade/revisão/impressão digital do vocabulário e termo original. O CSV acrescenta esses identificadores, estado e origem. Os demais temas privados não acompanham a exportação. Sessões antigas e termos da coleção de fontes/antecedentes mantêm seus valores até revisão explícita; não há renomeação em lote ou migração automática dos temas.
 
 ## Antes de um ensaio com vídeo
 

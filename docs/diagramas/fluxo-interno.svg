@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1600" height="1550" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.21.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.22.0</text>
 <text x="60" y="96" class="title">Como o sistema processa uma fala</text>
 <text x="60" y="133" class="subtitle">Filas independentes, registros versionados e decisão factual sob responsabilidade humana.</text>
 <text x="60" y="187" class="section">01 / ÁUDIO E TRANSCRIÇÃO LOCAL</text>
@@ -95,8 +95,8 @@
 <rect x="858" y="535" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
 <text x="868" y="553" class="tag" style="fill:#087F74">CONTROLES</text>
 <text x="860" y="591" class="heading">Validar extrações</text>
-<text x="860" y="622" class="body">Citação ligada ao texto</text>
-<text x="860" y="647" class="body">Controles de número e negação</text>
+<text x="860" y="622" class="body">Citação, números e negações</text>
+<text x="860" y="647" class="body">Tema: correspondência textual</text>
 <text x="860" y="672" class="body">Resposta inválida é rejeitada.</text>
 </g>
 <g data-card-bounds="1230,515,310,187">
@@ -177,7 +177,7 @@
 <rect x="788" y="1132" width="314" height="26" rx="7" fill="#F0F3F8" stroke="#F0F3F8" stroke-width="1.5"/>
 <text x="798" y="1150" class="tag" style="fill:#52637B">COORDENADORES E FILAS</text>
 <text x="790" y="1188" class="heading">Controle transversal</text>
-<text x="790" y="1219" class="body">Versões e resultados antigos</text>
+<text x="790" y="1219" class="body">Versões de falas e vocabulário</text>
 <text x="790" y="1244" class="body">Cancelamento com confirmação</text>
 <text x="790" y="1269" class="body">Chaves de API só na memória.</text>
 </g>
@@ -199,9 +199,9 @@
 <g data-card-bounds="60,1360,450,118">
 <rect x="60" y="1360" width="450" height="118" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
 <path d="M 78 1360 H 492 Q 510 1360 510 1378 V 1370 H 60 V 1378 Q 60 1360 78 1360 Z" fill="#087F74"/>
-<text x="80" y="1399" class="heading">Coleção e checagens anteriores</text>
-<text x="80" y="1430" class="body">Metadados da coleção + decisões locais.</text>
-<text x="80" y="1455" class="body">Versões e comparação de recortes no caso.</text>
+<text x="80" y="1399" class="heading">Temas e referências locais</text>
+<text x="80" y="1430" class="body">Vocabulário + fontes + checagens antigas.</text>
+<text x="80" y="1455" class="body">Versões preservadas nos casos e tarefas.</text>
 </g>
 <path d="M 510 1419 H 525 V 1307 H 750 V 1080 H 605 V 1010" class="flow"/>
 <g data-card-bounds="545,1360,450,118">

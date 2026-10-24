@@ -26,6 +26,8 @@ from .priorities import FILTERS as PRIORITY_FILTERS, LEVELS, ORDERINGS, Priority
 from .assignments import AssignmentStore, assignment_label, assignment_payload, describe_assignment
 from .library_ui import LibraryPane
 from .previous_checks_ui import PreviousChecksPane
+from .topics_ui import TopicsPane
+from .topics import describe_topic, load_snapshot
 
 
 class Workbench:
@@ -113,6 +115,7 @@ class Workbench:
         self.evidence = EvidencePane(self, notebook)
         self.library = LibraryPane(self, notebook)
         self.previous_checks = PreviousChecksPane(self, notebook)
+        self.topics = TopicsPane(self, notebook)
 
     def build_filters(self):
         frame = ttk.LabelFrame(self.claim_tab, text="Filtrar afirmações", padding=8)
@@ -950,6 +953,11 @@ class Workbench:
             messagebox.showinfo("Revisar afirmação", "Selecione uma afirmação da revisão atual e não descartada.", parent=self.root)
             return
         store = self.store
+        try:
+            vocabulary = load_snapshot(self.app.project_root)
+        except ValueError as exc:
+            messagebox.showinfo("Revisar afirmação", str(exc), parent=self.root)
+            return
         window, close = self.dialog("Revisar afirmação · extração e classificação")
         window.geometry("900x820")
         frame = ttk.Frame(window, padding=18)
@@ -975,9 +983,11 @@ class Workbench:
         category.set(CATEGORIES[claim["category"]])
         category.pack(side="left", padx=8)
         ttk.Label(row, text="Tema").pack(side="left", padx=(10, 0))
-        topic = ttk.Entry(row)
-        topic.insert(0, claim.get("topic") or "")
+        topic = ttk.Combobox(row, values=sorted((entry["name"] for entry in vocabulary["topics"]), key=str.casefold))
+        topic.set(claim.get("topic") or "")
         topic.pack(side="left", fill="x", expand=True, padx=8)
+        ttk.Label(frame, text="Escolha um tema cadastrado ou escreva um tema livre. Variações conhecidas serão padronizadas; "
+                  "outros termos ficam visíveis como fora do vocabulário.", wraplength=850).pack(anchor="w", pady=4)
         ttk.Label(frame, text="Justificativa da revisão da extração").pack(anchor="w")
         reason = ScrolledText(frame, height=3, wrap="word", font=("Segoe UI", 10))
         reason.insert("1.0", claim.get("extraction_review", {}).get("reason", ""))
@@ -995,8 +1005,10 @@ class Workbench:
             try:
                 if self.store is not store:
                     raise ValueError("A sessão mudou. Reabra a revisão.")
+                if load_snapshot(self.app.project_root)["sha256"] != vocabulary["sha256"]:
+                    raise ValueError("Os temas mudaram. Reabra a revisão para conferir o vocabulário atual.")
                 fields, justification = values()
-                store.revise_claim(claim["id"], claim.get("claim_revision", 1), source["revision"], fields, justification)
+                store.revise_claim(claim["id"], claim.get("claim_revision", 1), source["revision"], fields, justification, topic_vocabulary=vocabulary)
                 self.refresh()
                 if self.claim_tree.exists(claim["id"]):
                     self.claim_tree.selection_set(claim["id"])
@@ -1149,6 +1161,7 @@ class Workbench:
                     f"{describe_priority(claim.get('priority'))}\n\n"
                     f"{describe_assignment(claim.get('assignment'))}\n\n"
                     f"FALA LITERAL\n{claim['quote']}\n\nRESUMO\n{claim['summary']}\n\n{fields}\n\n"
+                    f"ORGANIZAÇÃO POR TEMA\n{describe_topic(claim.get('topic_annotation'))}\n\n"
                     f"CRITÉRIO DA EXTRAÇÃO\n{claim['reason']}\n\n"
                     f"MOTOR DA EXTRAÇÃO AUTOMÁTICA\n{provenance}\n\n"
                     f"VALIDAÇÃO AUTOMÁTICA\n{' '.join(claim.get('validation_notes', [])) or 'Citação localizada no texto.'}\n\n"

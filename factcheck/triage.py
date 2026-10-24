@@ -13,6 +13,7 @@ import time
 import uuid
 
 from .review import ReviewStore
+from .topics import load_snapshot
 
 
 MODEL_REPO = "Qwen/Qwen3-4B-GGUF"
@@ -252,11 +253,12 @@ class TriageRunner:
                 raise ValueError(self.blocked_reason)
             if self.pending >= 30:
                 raise ValueError("A fila de triagem chegou a 30 trechos. Aguarde e tente novamente.")
-            job = self.store.begin_analysis(pid, force)
+            vocabulary = load_snapshot(self.root)
+            job = self.store.begin_analysis(pid, force, topic_vocabulary=vocabulary)
             if job is None:
                 return False
             self.pending += 1
-            self.jobs.put(job)
+            self.jobs.put((*job, vocabulary))
             return True
 
     def cancel(self):
@@ -275,7 +277,7 @@ class TriageRunner:
                         self.process.terminate()
                         self.process.join(2)
                 return
-            job_id, source = job
+            job_id, source, vocabulary = job
             began = time.perf_counter()
             try:
                 if self.cancelled.is_set():
@@ -310,7 +312,8 @@ class TriageRunner:
                     with self.lock:
                         if self.cancelled.is_set():
                             raise InterruptedError("Triagem cancelada.")
-                        accepted = self.store.finish_analysis(job_id, items, {**engine, "seconds": round(time.perf_counter() - began, 3)})
+                        accepted = self.store.finish_analysis(job_id, items, {**engine, "seconds": round(time.perf_counter() - began, 3)},
+                                                              topic_vocabulary=vocabulary)
                     if not accepted:
                         self.emit("triage_notice", {"message": "A fala mudou durante a análise. Confira a revisão atual e analise novamente.", "token": self.token})
                     break

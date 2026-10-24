@@ -5,16 +5,17 @@ import json
 from .grouping import active
 from .review import now
 from .triage import FIELDS, validate_items
+from .topics import annotate, checked_snapshot
 
 
 EDITABLE = ("quote", "summary", "category", "topic")
 ITEM_KEYS = (*EDITABLE, "reason", *[key for key in FIELDS if key != "topic"],
-             "quote_start", "quote_end", "validation_notes", "context_notes")
+             "quote_start", "quote_end", "validation_notes", "context_notes", "topic_annotation")
 CONTENT_KEYS = (*EDITABLE, "reason", *[key for key in FIELDS if key != "topic"])
 REVIEWED = "extracao_revisada_pelo_operador"
 
 
-def revise_claim(store, cid, expected_revision, expected_source_revision, fields, reason):
+def revise_claim(store, cid, expected_revision, expected_source_revision, fields, reason, topic_vocabulary=None):
     if not isinstance(fields, dict) or set(fields) != set(EDITABLE):
         raise ValueError("Informe citação, resumo, categoria e tema da afirmação.")
     if not isinstance(fields["category"], str):
@@ -43,18 +44,24 @@ def revise_claim(store, cid, expected_revision, expected_source_revision, fields
             raise ValueError("Copie uma citação literal do texto atual, incluindo negações e qualificadores. Corrija a transcrição em Revisar origem.")
         if checked["summary"] != fields["summary"]:
             raise ValueError("Confira o resumo: preserve as negações e não acrescente números ausentes da fala.")
+        if topic_vocabulary is not None:
+            checked = annotate(checked, checked_snapshot(topic_vocabulary), "operator")
+        elif fields["topic"] == old.get("topic") and old.get("topic_annotation"):
+            checked["topic_annotation"] = old["topic_annotation"]
         for other_id, payload in db.execute("SELECT id,payload FROM claims WHERE paragraph_id=? AND revision=?",
                                             (old["paragraph_id"], old["revision"])):
             other = json.loads(payload)
             if (other_id != cid and not other.get("source_outdated") and other["status"] not in {"descartada", "analise_desatualizada"}
                     and other["quote"] == checked["quote"]):
                 raise ValueError("Já existe outra afirmação atual com esta citação. Confira a duplicação antes de salvar.")
-        if old.get("review_status") == REVIEWED and all(old.get(key) == checked.get(key) for key in CONTENT_KEYS):
+        if old.get("review_status") == REVIEWED and all(old.get(key) == checked.get(key) for key in (*CONTENT_KEYS, "topic_annotation")):
             return old
         updated = {**old, **checked, "claim_revision": old.get("claim_revision", 1) + 1,
                    "review_status": REVIEWED,
                    "automatic_extraction": old.get("automatic_extraction") or {key: old[key] for key in ITEM_KEYS if key in old},
                    "extraction_review": {"origin": "operator_input", "at": now(), "reason": reason}}
+        if "topic_annotation" not in checked:
+            updated.pop("topic_annotation", None)
         updated["status"] = ("precisa_contexto" if updated["category"] == "indefinida" or
                              updated["category"] == "fato" and updated.get("context_notes") else
                              "aguardando_pesquisa" if updated["category"] == "fato" else "fora_da_fila")
