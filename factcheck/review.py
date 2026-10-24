@@ -15,6 +15,9 @@ from .timeline import validate_video_position
 from .grouping import active, combine, uncombine
 from .persistence import paragraph_log
 
+EVENT_KINDS = {"nao_informado": "Não informado", "debate_politico": "Debate político", "propaganda_politica": "Propaganda política",
+               "noticiario": "Noticiário", "entrevista": "Entrevista", "outro": "Outro conteúdo"}
+
 
 def process_alive(pid: int) -> bool:
     if os.name != "nt":
@@ -43,13 +46,16 @@ def now() -> str:
 
 @dataclass
 class Debate:
-    title: str = "Debate sem título"
+    title: str = "Transmissão sem título"
     event_date: str = field(default_factory=lambda: date.today().isoformat())
     source_url: str = ""
     participants: list[str] = field(default_factory=list)
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    event_kind: str = "nao_informado"
 
     def validate(self):
+        if not isinstance(self.event_kind, str) or self.event_kind not in EVENT_KINDS:
+            raise ValueError("Escolha o tipo de conteúdo da transmissão.")
         try:
             self.event_id = uuid.UUID(self.event_id).hex
         except (ValueError, AttributeError, TypeError):
@@ -203,6 +209,7 @@ class ReviewStore:
                           "human_reviewed": False, "needs_rebase": False}
             elif changed:
                 source["revision"] += 1
+                source.pop("speaker_assignment", None)
                 source["human_reviewed"] = False
                 if source["edited"]:
                     source["needs_rebase"] = True
@@ -288,6 +295,7 @@ class ReviewStore:
             source.update({"revision": source["revision"] + 1, "text": text.strip(),
                            "speaker": speaker, "human_reviewed": reviewed, "needs_rebase": False,
                            "edited": not use_original})
+            source.pop("speaker_assignment", None)
             self._invalidate(db, pid)
             self._save(db, source)
             self._audit(db, "human_revision", source)
@@ -326,6 +334,8 @@ class ReviewStore:
             self._invalidate(db, pid)
             for item in items:
                 claim_id = uuid.uuid4().hex
+                from .speakers import assignment_provenance
+                attribution = assignment_provenance(source)
                 claim = {**item, "id": claim_id, "analysis_id": analysis_id, "paragraph_id": pid,
                          "revision": revision, "speaker": source["speaker"], "start": source["start"],
                          "end": source["end"], "context": source["text"], "created_at": now(),
@@ -333,7 +343,8 @@ class ReviewStore:
                          "status": "precisa_contexto" if item["category"] == "fato" and item.get("context_notes") else
                                    "aguardando_pesquisa" if item["category"] == "fato" else
                                    "precisa_contexto" if item["category"] == "indefinida" else "fora_da_fila",
-                         "review_status": "automatico_nao_revisado", "claim_revision": 1, "engine": engine}
+                         "review_status": "automatico_nao_revisado", "claim_revision": 1, "engine": engine,
+                         **({"speaker_assignment": attribution} if attribution and attribution["current"] else {})}
                 db.execute("INSERT INTO claims VALUES (?,?,?,?)", (claim_id, pid, revision, json.dumps(claim, ensure_ascii=False)))
             db.execute("UPDATE analyses SET status='completed',payload=? WHERE id=?",
                        (json.dumps({"ended_at": now(), "engine": engine, "items": len(items)}), analysis_id))

@@ -30,7 +30,7 @@ class CaptureSession:
                  emit: Callable[[str, dict], None] | None = None,
                  transcribe: bool = True, model_name: str = "small",
                  engine_name: str = "streaming", paragraph_config: ParagraphConfig | None = None,
-                 debate: Debate | None = None):
+                 debate: Debate | None = None, replay_path: Path | None = None):
         if engine_name not in {"streaming", "whisper"}:
             raise ValueError("Motor de transcrição desconhecido.")
         self.device = device
@@ -41,6 +41,7 @@ class CaptureSession:
         self.engine_name = engine_name
         self.paragraph_config = paragraph_config or ParagraphConfig()
         self.debate = (debate or Debate()).validate()
+        self.replay_path = Path(replay_path).resolve() if replay_path is not None else None
         self.result_lock = threading.RLock()
         self.stop_event = threading.Event()
         self.cancel_event = threading.Event()
@@ -83,7 +84,13 @@ class CaptureSession:
 
     def _record(self, engine: LocalTranscriber | StreamingTranscriber | None,
                 seconds: float | None) -> bool:
-        import pyaudiowpatch as pa
+        if self.replay_path is not None:
+            from .replay import WaveBackend
+            pa = WaveBackend(self.replay_path, self.stop)
+            if (pa.info["sample_rate"],pa.info["channels"]) != (self.device.sample_rate,self.device.channels):
+                raise ValueError("O formato do WAV mudou antes do ensaio. Selecione o arquivo novamente.")
+        else:
+            import pyaudiowpatch as pa
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.folder = self.root / "recordings" / f"{stamp}_{uuid.uuid4().hex[:8]}"
@@ -91,6 +98,8 @@ class CaptureSession:
         streaming = self.engine_name == "streaming"
         self.metadata = {
             "schema_version": 5, "app_version": __version__, "owner_pid": os.getpid(),
+            "input_kind": "wav_replay" if self.replay_path else "system_loopback",
+            **({"replay": pa.info} if self.replay_path else {}),
             "session_id": self.folder.name, "started_at": utc_now(),
             "status": "recording", "device": asdict(self.device),
             "debate": asdict(self.debate),
@@ -337,7 +346,8 @@ class CaptureSession:
                             self.metadata["capture_started_at"] = utc_now()
                             stream.start_stream()
                             event("started", {"folder": str(self.folder), "device": self.device.name,
-                                              "capture_started_at": self.metadata["capture_started_at"]})
+                                              "capture_started_at": self.metadata["capture_started_at"],
+                                              "input_kind": self.metadata["input_kind"]})
                             while not self.stop_event.is_set():
                                 if seconds is not None and time.perf_counter() - capture_started >= seconds:
                                     self.stop()
@@ -347,8 +357,8 @@ class CaptureSession:
                                 try:
                                     consume(packets.get(timeout=0.10))
                                 except queue.Empty:
-                                    if not stream.is_active():
-                                        raise RuntimeError("A saída de áudio foi desconectada ou interrompida.")
+                                    if not self.stop_event.is_set() and not stream.is_active():
+                                        raise RuntimeError(getattr(stream,"error",None) or "A saída de áudio foi desconectada ou interrompida.")
                                     if time.perf_counter() - last_meter > 0.5:
                                         self.emit("level", {"dbfs": -120, "peak": 0,
                                                            "audio_seconds": frames / self.device.sample_rate,
@@ -358,7 +368,7 @@ class CaptureSession:
                                 consume(packets.get_nowait())
                     elapsed = (self.stop_requested_at or time.perf_counter()) - capture_started
                     remaining = round(elapsed * self.device.sample_rate) - frames
-                    if remaining > self.device.sample_rate * 0.10:
+                    if not self.replay_path and remaining > self.device.sample_rate * 0.10:
                         silence(remaining)
             except KeyboardInterrupt:
                 self.stop()

@@ -20,7 +20,7 @@ MODEL_REPO = "Qwen/Qwen3-4B-GGUF"
 MODEL_REVISION = "bc640142c66e1fdd12af0bd68f40445458f3869b"
 MODEL_FILE = "Qwen3-4B-Q4_K_M.gguf"
 ENGINE = {"name": "llama-cpp-python", "model": MODEL_REPO, "revision": MODEL_REVISION,
-          "quantization": "Q4_K_M", "prompt_version": 3, "compute": "auto"}
+          "quantization": "Q4_K_M", "prompt_version": 4, "compute": "auto"}
 FIELDS = ("topic", "location", "period", "indicator", "comparison")
 SCHEMA = {"type": "object", "properties": {"items": {"type": "array", "maxItems": 12,
     "items": {"type": "object", "properties": {
@@ -50,6 +50,8 @@ summary deve ser fiel à fala; não acrescente números, locais, datas, pessoas 
 topic pode ser um tema curto. location, period, indicator, comparison devem ser trechos literais
 presentes no texto, ou null. Não resolva 'aqui', 'nosso governo' e 'ano passado' por suposição.
 Não deduza quem falou pelo uso de 'eu' ou 'nós'. Se faltar definição, explique em reason.
+Em noticiários, entrevistas e propaganda, preserve qualificadores como 'segundo', 'afirmou' e 'disse'.
+Distinga a alegação citada do relato do apresentador; nomes mencionados não identificam quem está falando.
 Retorne apenas JSON com items. No máximo 12 itens. Saudação e falas sem conteúdo podem ter items vazio.
 """
 
@@ -140,6 +142,8 @@ def validate_items(items, text: str) -> list[dict]:
         seen.add(quote)
         context_notes = [phrase for phrase in ("aqui", "nosso governo", "no estado", "no país", "ano passado", "próximo ano")
                          if re.search(r"\b" + phrase + r"\b", quote, re.I)]
+        if re.search(r"\b(segundo|afirmou|declarou|disse)\b", text, re.I):
+            context_notes.append("Possível fala reportada: conferir autoria da alegação e qualificadores no contexto.")
         result.append({**item, "validation_notes": notes, "context_notes": context_notes,
                        "quote_start": text.index(quote), "quote_end": text.index(quote) + len(quote)})
     return result

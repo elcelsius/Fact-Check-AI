@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1440" height="1570" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.22.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA 0.23.0</text>
 <text x="60" y="96" class="title">Da transmissão ao dossiê revisado</text>
 <text x="60" y="133" class="subtitle">Você acompanha e decide. A IA ajuda a localizar afirmações e organizar a pesquisa.</text>
 <rect x="60" y="165" width="1320" height="57" rx="12" fill="#E6F5F2" stroke="#B5DCD4" stroke-width="1.5"/>
@@ -30,10 +30,10 @@
 <circle cx="100" cy="302" r="22" fill="#2455A4"/>
 <text x="94" y="309" class="number">1</text>
 <text x="138" y="311" class="stage">Preparar e capturar</text>
-<text x="85" y="361" class="body">• Cadastre debate, temas e fontes de pesquisa.</text>
-<text x="85" y="392" class="body">• Reproduza o vídeo e escolha a saída de áudio.</text>
+<text x="85" y="361" class="body">• Cadastre tipo, data, participantes e temas.</text>
+<text x="85" y="392" class="body">• Escolha saída de áudio ou ensaio com WAV.</text>
 <text x="85" y="423" class="body">• Use IA local ou configure sua chave Gemini.</text>
-<text x="85" y="454" class="body">• Inicie a captura e informe a minutagem do vídeo.</text>
+<text x="85" y="454" class="body">• Inicie a entrada e informe a minutagem do vídeo.</text>
 <rect x="80" y="504" width="580" height="75" rx="11" fill="#EAF1FF" stroke="#EAF1FF" stroke-width="1.5"/>
 <text x="95" y="533" class="body">O aplicativo grava áudio e mostra texto provisório.</text>
 <text x="95" y="558" class="body">Parágrafos concluídos podem alimentar a triagem.</text>
@@ -44,8 +44,8 @@
 <text x="794" y="309" class="number">2</text>
 <text x="838" y="311" class="stage">Conferir e organizar</text>
 <text x="785" y="361" class="body">• Encerre e salve para ouvir os trechos gravados.</text>
-<text x="785" y="392" class="body">• Corrija a fala e atribua o participante.</text>
-<text x="785" y="423" class="body">• Confira citação, resumo, categoria e tema.</text>
+<text x="785" y="392" class="body">• Analise vozes locais e confirme participantes.</text>
+<text x="785" y="423" class="body">• Corrija fala, citação, resumo, categoria e tema.</text>
 <text x="785" y="454" class="body">• Defina prioridade e responsável; use os filtros.</text>
 <rect x="780" y="504" width="580" height="75" rx="11" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
 <text x="795" y="533" class="body">Fatos, opiniões e promessas têm estados próprios.</text>
@@ -110,10 +110,10 @@
 <rect x="970" y="1166" width="410" height="210" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
 <path d="M 988 1166 H 1362 Q 1380 1166 1380 1184 V 1176 H 970 V 1184 Q 970 1166 988 1166 Z" fill="#52637B"/>
 <rect x="988" y="1186" width="374" height="26" rx="7" fill="#F0F3F8" stroke="#F0F3F8" stroke-width="1.5"/>
-<text x="998" y="1204" class="tag" style="fill:#52637B">EVOLUÇÃO DO PROTÓTIPO</text>
-<text x="990" y="1242" class="heading">Ainda planejado</text>
+<text x="998" y="1204" class="tag" style="fill:#52637B">EVOLUÇÃO PLANEJADA</text>
+<text x="990" y="1242" class="heading">Além do escopo local</text>
 <text x="990" y="1273" class="body">Pesquisa contínua e outros provedores</text>
-<text x="990" y="1298" class="body">Separação automática de falantes</text>
+<text x="990" y="1298" class="body">Separação de vozes durante a captura</text>
 <text x="990" y="1323" class="body">Contas e operação em equipe</text>
 </g>
 <rect x="60" y="1420" width="1320" height="80" rx="12" fill="#EAF1FF" stroke="#CEDCF5" stroke-width="1.5"/>

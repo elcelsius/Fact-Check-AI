@@ -4,7 +4,7 @@ import json
 import os
 import uuid
 
-from .review import now, process_alive
+from .review import now, process_alive, EVENT_KINDS
 from .timeline import describe_time, timestamp
 from .grouping import active as active_source
 from .planning import ORIGINS, PLAN_FIELDS, SCOPES, validate_plan
@@ -323,6 +323,7 @@ def render(snapshot):
     state = "DESATUALIZADO — decisões abaixo são históricas" if not snapshot["valid"] else "REVISADO POR PESSOA" if decision else "PENDENTE DE REVISÃO HUMANA"
     lines = ["# Dossiê de checagem · uso interno", "", state, "", "Sem divulgação automática.", "",
              f"Evento: {snapshot['debate']['title']} · {snapshot['debate']['event_date']}",
+             "Tipo de conteúdo: " + EVENT_KINDS.get(snapshot["debate"].get("event_kind"), "Não informado"),
              f"Afirmação: {claim['id']} · revisão da extração {claim.get('claim_revision', 1)} · revisão da fala {claim['revision']} · dossiê {snapshot['revision']}",
              f"Participante: {claim['speaker'] or 'Não identificado'} · parágrafo {claim['paragraph_id']} · {describe_time(claim, offset)}",
              (f"Referência manual atual: vídeo em {timestamp(offset)} no início da captura · revisão {reference['revision']}."
@@ -336,6 +337,13 @@ def render(snapshot):
                   f"Justificativa da revisão: {claim['extraction_review']['reason']}",
                   f"Categoria automática original: {claim.get('automatic_extraction', {}).get('category', 'Não registrada')}", ""]
     lines += ["## Organização por tema", "", describe_topic(claim.get("topic_annotation")), ""]
+    attribution = claim.get("speaker_assignment")
+    if attribution:
+        lines += ["## Atribuição assistida do participante", "",
+                  "Atribuição confirmada por pessoa na origem; não equivale à conferência da transcrição ou dos fatos.",
+                  "Origem atual." if snapshot["valid"] and attribution.get("current") else "Atribuição de uma versão anterior da fala.",
+                  f"Análise {attribution['run_id']} · voz anônima {attribution['voice']+1} · {attribution['assigned_at']}",
+                  f"Participante confirmado: {attribution['participant']} · motivo: {attribution['reason']}", ""]
     lines += ["## Prioridade de revisão", "", describe_priority(snapshot.get("priority")), ""]
     lines += ["## Responsável pelo caso", "", describe_assignment(snapshot.get("assignment")), ""]
     for change in snapshot.get("assignment_history", []):

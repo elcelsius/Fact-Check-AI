@@ -1,10 +1,10 @@
 # Fact-Check AI
 
-Checagem assistida por IA em debates políticos ao vivo.
+Checagem assistida por IA para debates, propaganda política e noticiários.
 
-Projeto de um assistente de pesquisa para equipes humanas de checagem. Durante um debate, o sistema deverá transcrever falas, identificar afirmações verificáveis, pesquisar evidências e preparar análises preliminares para revisão editorial.
+Aplicativo Windows que transcreve falas, identifica afirmações verificáveis e organiza evidências e análises preliminares para revisão humana. Funciona com áudio da saída do computador ou ensaio silencioso de um WAV salvo.
 
-**Status:** protótipo com captura e transcrição locais, minutagem do vídeo, combinação reversível, revisão das extrações, vocabulário configurável de temas, filtros, prioridade e responsáveis locais pelos casos, coleção de referências entre sessões, consulta de checagens anteriores com comparação de contextos, exportação, relatório do ensaio, recuperação após interrupções, triagem local ou Gemini e dossiês com planejamento, busca opcional Tavily, coleta e importação de fontes institucionais, versão 0.22, de 24 de outubro de 2026. A identificação dos participantes e a seleção dos documentos para coleta são manuais. A busca é solicitada pelo operador; pesquisa contínua, correspondência semântica entre afirmações, contas de usuários, operação simultânea em equipe e avaliação editorial do piloto permanecem pendentes.
+**Status:** MVP local 0.23.0, de 24 de outubro de 2026, com revisão humana e exportação. Inclui captura, transcrição, ensaio com WAV, vozes anônimas após a gravação, associação humana de participantes, triagem local ou Gemini opcional, dossiês, pesquisa sob demanda, recuperação e exportação interna. Consulte a [entrega do MVP local](docs/entrega-mvp-local.md) para o escopo, os critérios e as limitações. A avaliação editorial e o piloto representativo permanecem abertos; o ensaio atual acumulou atraso de transcrição. Contas e operação simultânea em equipe são evolução posterior ao escopo escolhido.
 
 ## Diagramas de funcionamento
 
@@ -13,13 +13,13 @@ Os dois diagramas são arquivos SVG editáveis, que podem ser abertos no navegad
 - [Fluxo interno do sistema](docs/diagramas/fluxo-interno.svg): captura, transcrição, tarefas de IA, validação, persistência, evidências e decisão humana.
 - [Jornada do usuário](docs/diagramas/fluxo-usuario.svg): preparar a captura, conferir falas, organizar a fila, pesquisar e concluir a revisão.
 
-As caixas tracejadas identificam funções ainda planejadas: pesquisa contínua, separação de falantes e operação simultânea em equipe. Os fluxos mostram possibilidades de uso; captura, triagem e pesquisa podem ocorrer em paralelo. A exportação interna pode conter pendências identificadas. Qualquer divulgação continua sob responsabilidade editorial humana. Consulte a [legenda e a regeneração dos diagramas](docs/diagramas/README.md).
+As caixas tracejadas identificam funções ainda planejadas: pesquisa contínua, separação de vozes durante a transmissão e operação simultânea em equipe. A separação em vozes anônimas depois da gravação já está disponível. Os fluxos mostram possibilidades de uso; captura, triagem e pesquisa podem ocorrer em paralelo. A exportação interna pode conter pendências identificadas. Qualquer divulgação continua sob responsabilidade editorial humana. Consulte a [legenda e a regeneração dos diagramas](docs/diagramas/README.md).
 
-## Usar o protótipo
+## Usar o aplicativo
 
 No Windows, abra **iniciar.cmd** com dois cliques. Na janela:
 
-1. Em **Dados do debate**, cadastre título, data, origem do vídeo e os participantes. O cadastro é opcional para um teste rápido.
+1. Em **Dados da transmissão**, escolha o tipo de conteúdo e cadastre título, data da fala, origem do vídeo e participantes. O cadastro é opcional para um teste rápido.
 2. Selecione a saída usada para ouvir o vídeo, como alto-falantes ou monitor.
 3. Mantenha **Transcrever durante a gravação** marcado, escolha **Contínua · prévia durante a fala** e clique em **Iniciar captura**.
 4. Acompanhe o nível do áudio, a fala em andamento e os parágrafos com horários. A pausa entre parágrafos começa em **1,5 segundo** e pode ser ajustada antes da captura.
@@ -42,6 +42,18 @@ O campo **Em andamento** contém uma hipótese que pode mudar ou terminar com um
 **Pacotes de 0,2 segundo não significam palavras prontas em 0,2 segundo.** A primeira prévia depende da chegada da fala e do processamento. Os horários são estimativas do reconhecimento, não marcações conferidas palavra por palavra. Se o dispositivo suspender as amostras durante o silêncio, a estabilização pode aguardar novas amostras ou o encerramento.
 
 O modo **Whisper · trechos a cada três segundos** continua disponível para comparação. Ele usa o modelo small do faster-whisper, envia o primeiro trecho após dois segundos e mantém até seis segundos de contexto. A escolha do modo acontece antes de iniciar a sessão.
+
+### Ensaiar uma gravação e conferir vozes
+
+Para material já gravado, clique em **Ensaiar WAV salvo** e selecione um WAV PCM16, de 8 a 192 kHz. O aplicativo cria outra sessão e recebe as amostras no ritmo original, silenciosamente e sem dispositivo físico. O fim do arquivo encerra e salva; cancelar exige confirmação. O original permanece intacto. Também é possível usar `python -m factcheck --replay-wav caminho.wav`.
+
+Depois de encerrar a captura, abra **Falantes → Preparar modelos locais**. O download explícito de aproximadamente 47 MB é conferido por SHA-256; depois, a análise funciona localmente e sem API. Informe a quantidade de vozes esperadas ou zero para estimar e use **Analisar gravação**. Os números **Voz 1, Voz 2...** pertencem somente àquela análise e não identificam pessoas pelo nome.
+
+Selecione trechos da mesma voz usando Ctrl/Shift, ouça-os individualmente e clique em **Atribuir participante à seleção**. Escolha um nome cadastrado, confirme que ouviu todos os trechos e justifique. Substituir outro participante exige confirmação adicional. Mistura de vozes, pouca fala, origens pendentes e edições antigas impedem atribuição em lote; nesses casos, use **Revisar fala**. A cobertura temporal mostrada não é confiança estatística.
+
+A atribuição registra a proveniência, aumenta a revisão da fala e exige nova triagem. Não confere o texto nem decide a veracidade. **Cancelar análise / preparação** e o fechamento durante a tarefa pedem confirmação. Consulte os modelos e resultados na [entrega local](docs/entrega-mvp-local.md#falantes-alcance-e-privacidade).
+
+No ensaio desta versão, processar 20,011 segundos com o motor contínuo levou 33,42 segundos de computação isolada em CPU. Houve acúmulo de fila no ensaio no ritmo original. Meça o desempenho antes de uma transmissão longa; o modo Whisper permite comparação. Os resultados da versão 0.3 registrados abaixo descrevem outras execuções.
 
 ### Configurar temas para triagem e revisão
 
@@ -382,6 +394,9 @@ O leitor PyAV está limitado a uma versão compatível com o faster-whisper util
 .\.venv\Scripts\python.exe -m factcheck --engine whisper --prepare-model
 .\.venv\Scripts\python.exe -m factcheck --engine whisper --record-seconds 20
 .\.venv\Scripts\python.exe -m scripts.rehearse_recovery
+.\.venv\Scripts\python.exe -m factcheck --replay-wav recordings\PASTA_DA_SESSAO\audio.wav
+.\.venv\Scripts\python.exe -m factcheck --prepare-speaker-models
+.\.venv\Scripts\python.exe -m scripts.validate_project
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
@@ -391,7 +406,8 @@ Para escolher uma saída pela linha de comando, acrescente **--device** com o í
 
 ### Validação realizada neste computador
 
-- Os 474 testes automatizados passaram, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Os **510 testes automatizados passaram**, em 167,011 s, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Na versão 0.23, os testes cobrem entrada WAV no ritmo original, PCM exato, cancelamento, arquivo alterado ou incompleto, ausência de dispositivo, vozes anônimas, trechos mistos, associação humana transacional, revisões antigas, recuperação e proveniência exportada. Incluem tipo de conteúdo em sessões antigas/novas e cuidado com fala reportada. Foram conferidos o pacote Python, seus recursos, os links locais e os SVGs renderizados. Os [ensaios nativos e seus limites](docs/entrega-mvp-local.md#validação-desta-entrega) distinguem execução técnica de precisão editorial. O [workflow Windows](.github/workflows/tests.yml) executa a suíte, validação e construção do pacote; o resultado remoto pode ser consultado em [GitHub Actions](https://github.com/elcelsius/Fact-Check-AI/actions).
 - Na versão 0.22, os testes exercitam cadastro, duplicação de nomes/variações, edição concorrente, arquivamento, restauração, rollback, leitura sem escrita, normalização textual, termos desconhecidos e versão capturada por tarefa. Cobrem histórico automático e humano, preservação dos casos após mudanças do cadastro, exportação somente do tema usado, sugestões no editor e rejeição de vocabulário alterado durante a revisão. Aba e cadastro foram conferidos em dois tamanhos cada, assim como a revisão da afirmação. Os SVGs foram atualizados e renderizados. O ensaio foi fictício e não chamou APIs ou alterou casos políticos reais; a adequação editorial dos temas continua pendente.
 - Na versão 0.21, os testes exercitam consulta somente de leitura, filtros locais, casos históricos, bancos ausentes/antigos/corrompidos/bloqueados, deduplicação e conflito entre cópias, cancelamento, fechamento, origem e destino alterados durante a comparação, campos obrigatórios e não transferência de conclusões. Cobrem preservação dos arquivos originais, procedência importada, decisões e tarefas do destino, retratos consultados e exportação apenas dos antecedentes registrados. A aba foi conferida em 1120 × 860 e 1000 × 760; as duas abas da comparação, em 920 × 780 e 840 × 700. Os SVGs foram atualizados e renderizados. O ensaio usou dados fictícios, sem API ou alterações nos casos políticos reais; equivalência factual e validade temporal continuam sob conferência humana.
 - Na versão 0.20, os testes exercitam cadastro, edição, arquivamento, restauração, busca local, URLs duplicadas, versões concorrentes e rollback da coleção. Cobrem reutilização entre sessões, cópias imutáveis das seleções, destinos desatualizados, ausência de coleta automática, preservação da origem de cópias importadas e exportação apenas das referências usadas. A coleção foi conferida em 1120 × 860 e 1000 × 760; as duas abas do editor, em 900 × 760 e 820 × 700. O ensaio fictício selecionou uma referência, preservou a decisão humana após alteração posterior do cadastro e manteve outra referência privada fora da exportação. Os SVGs foram atualizados e renderizados. Nenhuma API foi chamada ou referência selecionada para os casos políticos reais.
@@ -454,12 +470,12 @@ O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) detalha as t
 
 A equipe humana validará cada dossiê e decidirá sobre qualquer divulgação. A análise preliminar deverá apresentar evidências consultáveis, contexto e lacunas.
 
-O primeiro piloto acompanhará um debate político ao vivo em uso interno. Um ensaio com gravação permitirá testar a operação antes do evento.
+O foco inicial continua sendo checagem política em uso interno. A primeira versão aceita também propaganda política e noticiários, conforme a decisão de escopo de 24/10/2026. O piloto com material representativo e referência humana será feito antes de assumir desempenho ou qualidade para eventos ao vivo.
 
 O projeto avaliará a redução de trabalho humano junto com a qualidade das evidências, a cobertura das afirmações, o tempo até a revisão e o custo. Tecnologias, orçamento, equipe, evento e metas operacionais serão definidos na preparação do piloto.
 
-## Próximo marco
+## Validação após a entrega local
 
 Usar **Testar conexão** para validar uma chave Gemini e **Encontrar fontes** para exercitar uma chave Tavily no Windows, registrando disponibilidade e consumo real. A coleta real foi exercitada em uma página do MJSP; ampliar a validação para outros domínios e diagnosticar a tentativa do TSE antes de generalizar disponibilidade. Cópias importadas continuam com origem pendente de conferência. Avaliar transcrição, triagem e dossiês com gravações representativas e anotações humanas. Pesquisa contínua e outros provedores de busca dependem de novos limites e ensaios. A definição editorial do piloto e seu conjunto de referência continuam no checklist.
 
-O [checklist de desenvolvimento](docs/checklist-desenvolvimento.md) registra as entregas das versões 0.9 a 0.22, incluindo vocabulário de temas, revisão das extrações, filtros, descoberta de fontes sob demanda, prioridade manual, responsáveis locais, coleção de referências e consulta de checagens anteriores. As próximas entregas técnicas incluem avanços na identificação de falantes e preparação da operação em equipe com contas e permissões. Correspondência semântica, pesquisa em acervos externos e avaliação editorial dos temas e da equivalência entre checagens continuam pendentes. Essas entregas podem seguir em paralelo à avaliação do áudio e dos rascunhos reais, à definição dos recortes e à pesquisa de evidências antes da decisão humana.
+O [checklist amplo](docs/checklist-desenvolvimento.md) preserva o histórico e as tarefas de avaliação e evolução. A [entrega do MVP local](docs/entrega-mvp-local.md) registra o escopo aceito e o roteiro completo de uso; a [metodologia editorial proposta](docs/metodologia-editorial.md) orienta o próximo ensaio humano. O material pode ser debate, propaganda política, noticiário ou entrevista. Em relatos e reexibições, confira a data original e diferencie a voz de quem apresenta da pessoa cuja declaração foi citada. Pesquisa contínua, acervos externos, correspondência semântica e operação em equipe ficam para versões posteriores.

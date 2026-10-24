@@ -1,6 +1,8 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.22.0**, de 24/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+Procedimento do MVP local Windows, versão **0.23.0**, de 24/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+
+A [entrega do MVP local](entrega-mvp-local.md) detalha o escopo escolhido, o botão **Ensaiar WAV salvo**, a aba **Falantes** e os resultados da versão 0.23. Em **Dados da transmissão**, selecione debate, propaganda política, noticiário, entrevista ou outro conteúdo; confira a data original e a autoria de declarações relatadas.
 
 ## Preparar e manter a coleção de referências
 

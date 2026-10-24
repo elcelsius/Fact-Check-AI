@@ -11,7 +11,7 @@ from .net_errors import network_message
 MODEL = "gemini-3.1-flash-lite"
 ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
 ENGINE = {"name": "gemini-api", "provider": "google", "model": MODEL,
-          "prompt_version": 3, "compute": "remote"}
+          "prompt_version": 4, "compute": "remote"}
 
 
 class GeminiError(RuntimeError):

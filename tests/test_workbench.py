@@ -715,6 +715,140 @@ class WorkbenchTests(unittest.TestCase):
         self.assertFalse(self.work.busy())
         self.assertIsNotNone(self.work.store)
 
+    def test_registration_supports_news_ads_and_interviews_without_changing_event_identity(self):
+        before=self.work.debate.event_id
+        self.work.configure_debate()
+        window=widgets(self.root,tk.Toplevel)[0]
+        kind=widgets(window,ttk.Combobox)[0]
+        self.assertIn("Propaganda política",kind["values"])
+        self.assertIn("Entrevista",kind["values"])
+        kind.set("Noticiário")
+        next(button for button in widgets(window,ttk.Button) if button["text"]=="Salvar cadastro").invoke()
+        self.assertEqual(self.work.debate.event_kind,"noticiario")
+        self.assertEqual(self.work.debate.event_id,before)
+        self.assertIn("Noticiário",self.work.title.get())
+
+    def speaker_analysis(self, mixed=False):
+        from tests.test_speakers import speaker_session,result
+        review,store,cid=speaker_session(self.project/"speaker-session")
+        self.work.load(review.folder)
+        pane=self.work.speakers
+        rid,_=pane.store.begin(2)
+        segments=[{"start":0,"end":2,"voice":0},{"start":2,"end":4,"voice":1}] if mixed else None
+        pane.store.finish(rid,result(review.folder,segments))
+        pane.refresh()
+        pane.tree.selection_set("1")
+        pane.show_selected()
+        return pane,review,cid
+
+    def speaker_editor(self):
+        pane,review,cid=self.speaker_analysis()
+        pane.assign()
+        window=widgets(self.root,tk.Toplevel)[0]
+        participant=widgets(window,ttk.Combobox)[0]
+        participant.set("Ana")
+        reason=widgets(window,tk.Text)[-1]
+        reason.insert("1.0","Ouvi e confirmei a voz no ensaio fictício.")
+        save=next(button for button in widgets(window,ttk.Button) if button["text"]=="Confirmar atribuição")
+        return pane,review,cid,window,save
+
+    def test_speaker_panel_shows_anonymous_candidates_without_assigning_participant(self):
+        pane,review,cid=self.speaker_analysis()
+        self.assertIn("Voz 1",pane.tree.item("1","values"))
+        self.assertIsNone(review.source(1)["speaker"])
+        self.assertIn("não é confiança estatística",pane.preview.get("1.0","end"))
+        pane.voice.set("Voz 2")
+        self.assertEqual(pane.tree.get_children(),("2",))
+        self.assertFalse(pane.tree.selection())
+
+    def test_speaker_assignment_requires_hearing_confirmation_and_keeps_text_unreviewed(self):
+        pane,review,cid,window,save=self.speaker_editor()
+        with patch("factcheck.speakers_ui.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        self.assertIsNone(review.source(1)["speaker"])
+        widgets(window,ttk.Checkbutton)[0].invoke()
+        save.invoke()
+        self.assertFalse(window.winfo_exists())
+        self.assertEqual(review.source(1)["speaker"],"Ana")
+        self.assertFalse(review.source(1)["human_reviewed"])
+        self.assertTrue(next(row for row in self.work.store.claims() if row["id"]==cid)["source_outdated"])
+
+    def test_speaker_assignment_rejects_changed_source_and_confirmed_cancel_discards_form(self):
+        pane,review,cid,window,save=self.speaker_editor()
+        widgets(window,ttk.Checkbutton)[0].invoke()
+        review.revise(1,1,review.source(1)["text"]+" Correção.",None,False)
+        with patch("factcheck.speakers_ui.messagebox.showerror") as error:
+            save.invoke()
+        error.assert_called_once()
+        with patch("factcheck.speakers_ui.messagebox.askyesno",return_value=False):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertTrue(window.winfo_exists())
+        with patch("factcheck.speakers_ui.messagebox.askyesno",return_value=True):
+            window.tk.call(window.protocol("WM_DELETE_WINDOW"))
+        self.assertFalse(window.winfo_exists())
+        self.assertIsNone(review.source(1)["speaker"])
+
+    def test_speaker_panel_rejects_mixed_voice_assignment_but_allows_listening(self):
+        pane,review,cid=self.speaker_analysis(mixed=True)
+        with patch("factcheck.speakers_ui.messagebox.showinfo") as info:
+            pane.assign()
+        info.assert_called_once()
+        with patch.object(self.work,"play") as play:
+            pane.play()
+        play.assert_called_once()
+        self.assertEqual(play.call_args.args[0]["paragraph_id"],1)
+
+    def test_speaker_task_cancel_confirms_and_close_waits_for_done_event(self):
+        pane,review,cid=self.speaker_analysis()
+        with patch("factcheck.speakers_ui.SpeakerTask.start"):
+            pane.start(pane.store)
+        with patch("factcheck.speakers_ui.messagebox.askyesno",return_value=False):
+            pane.cancel()
+        self.assertFalse(pane.task.cancelled.is_set())
+        with patch("factcheck.ui.messagebox.askyesno",return_value=True),patch.object(self.root,"destroy") as destroy:
+            self.app.close()
+            self.assertTrue(pane.task.cancelled.is_set())
+            destroy.assert_not_called()
+            pane.store.fail(pane.task.rid,"Cancelamento de teste.",True)
+            pane.task.pending=0
+            pane.task.emit("speaker_done",{"token":pane.task.token,"success":False,"message":"Análise cancelada."})
+            self.app.poll()
+            destroy.assert_called_once()
+
+    def test_speaker_task_start_failure_releases_close_guard(self):
+        pane,review,cid=self.speaker_analysis()
+        with patch("factcheck.speakers_ui.SpeakerTask.start",side_effect=RuntimeError("Falha fictícia")),patch("factcheck.speakers_ui.messagebox.showinfo") as info:
+            pane.start(pane.store)
+        info.assert_called_once()
+        self.assertFalse(self.app.activities)
+        self.assertFalse(self.work.busy())
+        self.assertEqual(pane.store.runs()[0]["status"],"failed")
+
+    def test_replay_can_start_without_audio_device_and_does_not_open_hardware(self):
+        from tests.test_replay import wav_file
+        path=self.project/"ui-replay.wav"
+        wav_file(path)
+        self.app.devices=[]
+        self.app.device_box.configure(values=[])
+        with patch("factcheck.ui.CaptureSession") as session,patch("factcheck.ui.threading.Thread") as thread:
+            self.app.start(replay_path=path)
+        self.assertEqual(session.call_args.kwargs["replay_path"],path)
+        self.assertEqual(session.call_args.args[0].index,-1)
+        thread.return_value.start.assert_called_once()
+        self.assertEqual(str(self.app.replay_button["state"]),"disabled")
+
+    def test_replay_file_dialog_cancel_or_invalid_file_does_not_clear_current_session(self):
+        with patch("factcheck.ui.filedialog.askopenfilename",return_value=""),patch("factcheck.ui.CaptureSession") as session:
+            self.app.replay()
+        session.assert_not_called()
+        before=self.work.store
+        with patch("factcheck.ui.messagebox.showerror") as error:
+            self.app.start(replay_path=self.project/"missing.wav")
+        error.assert_called_once()
+        self.assertIs(self.work.store,before)
+        self.assertIsNone(self.app.session)
+
     def topic_entry(self, **changes):
         from tests.test_topics import fields
         pane = self.work.topics

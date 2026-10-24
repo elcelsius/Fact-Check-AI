@@ -1,6 +1,6 @@
 # Diagramas de funcionamento
 
-Referência do protótipo **0.22.0**, de 24/10/2026. Os arquivos são SVGs independentes, com texto selecionável, título e descrição de acessibilidade, sem imagens ou fontes externas.
+Referência do MVP local **0.23.0**, de 24/10/2026. Os arquivos são SVGs independentes, com texto selecionável, título e descrição de acessibilidade, sem imagens ou fontes externas.
 
 | Arquivo | Leitura |
 | --- | --- |
@@ -9,7 +9,7 @@ Referência do protótipo **0.22.0**, de 24/10/2026. Os arquivos são SVGs indep
 
 Setas mostram um percurso principal possível. Captura, triagem e pesquisa têm tarefas próprias e podem se sobrepor; os controles de versão impedem que resultados antigos substituam uma edição. Nem a coleta nem a exportação interna exigem uma conclusão factual. Os estados pendentes acompanham os arquivos.
 
-Azul representa processamento local; verde, organização e evidências; roxo, tarefas de IA; amarelo, ações humanas. Os títulos também identificam essas funções. Caixas tracejadas descrevem somente evolução planejada: pesquisa contínua, separação de falantes e operação em equipe com contas, permissões e sincronização. Hoje, o participante é atribuído manualmente. A fila oferece prioridade e responsável local pelo caso, com justificativa, histórico e conferência após alterações da extração. São registros de organização separados do veredito e do nome de quem conclui a revisão factual; não reorganizam tarefas em execução. A Tavily opcional encontra URLs por consulta solicitada pelo operador; selecionar e coletar documentos continua sendo uma ação humana. Gemini também é opcional. A transcrição local, a busca no navegador e a conferência humana funcionam sem essas APIs.
+Azul representa processamento local; verde, organização e evidências; roxo, tarefas de IA; amarelo, ações humanas. Os títulos também identificam essas funções. Caixas tracejadas descrevem somente evolução planejada: pesquisa contínua, separação de vozes durante a transmissão e operação em equipe com contas, permissões e sincronização. Já é possível ensaiar um WAV salvo e separar vozes anônimas após encerrar a gravação. A associação a participantes exige ouvir os trechos e confirmar manualmente. A fila oferece prioridade e responsável local pelo caso, com justificativa, histórico e conferência após alterações da extração. São registros de organização separados do veredito e do nome de quem conclui a revisão factual; não reorganizam tarefas em execução. A Tavily opcional encontra URLs por consulta solicitada pelo operador; selecionar e coletar documentos continua sendo uma ação humana. Gemini também é opcional. A transcrição local, a busca no navegador e a conferência humana funcionam sem essas APIs.
 
 Transcrição estabilizada, extração revisada, análise preliminar e decisão humana são estados diferentes. Nenhuma etapa publica resultados automaticamente. O piloto editorial e a avaliação com referência humana continuam pendentes.
 

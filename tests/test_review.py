@@ -219,12 +219,41 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(store.debate()["participants"], [])
 
     def test_invalid_registration_is_rejected(self):
-        for debate in [Debate(title=""), Debate(event_date="2026-99-01"), Debate(source_url="file:///private"), Debate(participants=["Ana", "ana"])]:
+        for debate in [Debate(title=""), Debate(event_date="2026-99-01"), Debate(source_url="file:///private"), Debate(participants=["Ana", "ana"]),
+                       Debate(event_kind="tipo-inexistente"),Debate(event_kind=[])]:
             with self.subTest(debate=debate), self.assertRaises(ValueError):
                 debate.validate()
 
+    def test_content_kind_persists_and_change_invalidates_old_extractions(self):
+        self.complete()
+        before=self.store.debate()
+        self.store.save_debate(Debate(**{**before,"event_kind":"noticiario"}))
+        self.assertEqual(ReviewStore(self.folder).debate()["event_kind"],"noticiario")
+        self.assertEqual(self.store.debate()["event_id"],before["event_id"])
+        self.assertTrue(self.store.claims()[0]["source_outdated"])
+        from factcheck.exports import snapshot,csv_rows
+        data=snapshot(self.store,True)
+        self.assertEqual(data["event"]["event_kind"],"noticiario")
+        self.assertEqual(next(csv_rows(data,"claims"))["evento_tipo"],"noticiario")
+
+    def test_old_event_without_kind_is_not_silently_classified_as_a_debate(self):
+        before=self.store.debate()
+        before.pop("event_kind")
+        with self.store.connection() as db:
+            db.execute("UPDATE debate SET payload=? WHERE id=1",(json.dumps(before),))
+        reopened=ReviewStore(self.folder)
+        self.assertNotIn("event_kind",reopened.debate())
+        self.assertEqual(Debate(**reopened.debate()).event_kind,"nao_informado")
+
 
 class TriageValidationTests(unittest.TestCase):
+    def test_reported_speech_keeps_literal_quote_and_flags_authorship_context(self):
+        text="Segundo Maria, a taxa foi de 3% em 2025."
+        quote="a taxa foi de 3% em 2025."
+        result=validate_items([item(quote)],text)[0]
+        self.assertEqual(result["quote"],quote)
+        self.assertTrue(any("fala reportada" in note for note in result["context_notes"]))
+        self.assertEqual(text[result["quote_start"]:result["quote_end"]],quote)
     def test_nonliteral_quote_is_rejected(self):
         with self.assertRaises(ValueError):
             validate_items([item("A inflação subiu.")], paragraph()["source_text"])

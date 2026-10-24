@@ -151,6 +151,7 @@ def session_report(review, cancelled=None):
               "event": {key: data["event"][key] for key in ("event_id", "title")},
               "session_snapshot_sha256": data["content_sha256"],
               "capture": {"state": capture_state(review.folder)[0], "audio_state": audio["state"],
+                          "input_kind": metadata.get("input_kind") if metadata.get("input_kind") in ("wav_replay","system_loopback") else "not_recorded",
                           "available_audio_seconds": audio.get("duration"),
                           "transcription_complete": metadata.get("transcription_complete") if type(metadata.get("transcription_complete")) is bool else None,
                           "time_anchor": {"at": start if isinstance(start, str) else None, "source": anchor}},
@@ -212,6 +213,7 @@ def render_report(report):
     lines = ["RELATÓRIO DO ENSAIO · USO INTERNO", "", f"Evento: {report['event']['title']}",
              f"Sessão: {report['session_id']}", f"Gerado em: {report['generated_at']}",
              f"Versão do relatório: {report['app_version']}", "", f"Estado da captura: {STATE_NAMES[report['capture']['state']]}",
+             f"Entrada: {dict(wav_replay='ensaio WAV silencioso',system_loopback='saída de áudio do sistema').get(report['capture'].get('input_kind'),'Não registrada')}",
              f"Dados de áudio presentes: {number(report['capture']['available_audio_seconds'], ' s')}",
              "Transcrição integralmente finalizada, conforme metadados: " +
              {True: "Sim", False: "Não", None: "Não registrado"}[report['capture']['transcription_complete']], "",

@@ -4,7 +4,7 @@
 
 Este checklist organiza o trabalho necessário para desenvolver, testar e avaliar o primeiro piloto de checagem assistida por IA em um debate político ao vivo. A equipe humana validará os dossiês e decidirá sobre qualquer divulgação; o piloto será de uso interno.
 
-O plano contém **15 fases de execução, 123 tarefas pendentes e 7 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
+O plano contém **15 fases de execução, 122 tarefas pendentes e 8 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
 
 ### Andamento do primeiro incremento
 
@@ -56,13 +56,19 @@ Na versão 0.21 foi implementada **Checagens anteriores**, com leitura local em 
 
 Na versão 0.22 foi implementada **Temas**, com vocabulário local de nomes, variações e descrições, versões, histórico, arquivamento e restauração. A triagem normaliza correspondências textuais completas após a resposta da IA, preservando termos originais e temas desconhecidos; cada entrada na fila captura sua versão do vocabulário. O editor sugere nomes ativos e registra a revisão humana. Os **474 testes passaram**, incluindo concorrência, rollback, fila com versões diferentes, cancelamento e controles existentes, preservação factual e exportação somente da definição usada. As telas foram conferidas em dois tamanhos e os diagramas atualizados. O ensaio foi fictício, sem APIs ou alterações nos casos políticos reais. Avaliação editorial dos temas e precisão da triagem continuam pendentes; **07.03** permanece parcialmente atendida.
 
+### Escopo fechado da primeira versão local · 24/10/2026
+
+O proponente escolheu **aplicativo local, revisão humana e exportação**, aplicável a futuros debates, propaganda política e noticiários. A versão 0.23 acrescenta **Ensaiar WAV salvo**, **Falantes** com vozes anônimas após gravar e associação humana auditável, tipo de conteúdo e cuidado com declarações relatadas. A [entrega local](entrega-mvp-local.md) registra critérios, ensaios e limites; a [metodologia proposta](metodologia-editorial.md) orienta a avaliação humana. Contas e operação simultânea ficam fora deste primeiro escopo. Este checklist amplo mantém as tarefas editoriais, de piloto e de evolução; o fechamento técnico local não as marca como realizadas.
+
+A entrada WAV foi exercitada com áudio português existente, preservando todos os bytes e gerando três segmentos sem APIs. Houve atraso: 20,011 s de áudio exigiram 33,42 s de processamento isolado. A análise de vozes funcionou em processo Windows real sobre amostra pública, sem atribuir nomes. As telas foram conferidas em dois tamanhos. O workflow Windows e a verificação de pacote estão implementados; a execução remota ainda precisa ser conferida para concluir **05.07**. Precisão e atribuição de falantes em português não foram medidas com referência humana; **06.06** permanece parcial.
+
 ## Prioridades para a operação ao vivo
 
-**Planejamento atualizado em 24 de outubro de 2026; acompanhamento da implementação: versão 0.22.**
+**Planejamento atualizado em 24 de outubro de 2026; acompanhamento da implementação: versão 0.23.**
 
 A análise de um fluxo de desenvolvimento paralelo trouxe necessidades úteis para nosso piloto. Esta seção registra requisitos gerais, sem reproduzir mensagens, dados pessoais ou acessos do material privado. Os relatos não constituem uma auditoria da outra aplicação; imagens, vídeos e áudios omitidos na exportação não foram avaliados. A proposta mantém os produtos independentes, com transcrição e triagem locais e Gemini opcional no Fact-Check AI.
 
-| Necessidade observada | Situação no Fact-Check AI 0.22 | Melhoria proposta |
+| Necessidade observada | Situação no Fact-Check AI 0.23 | Melhoria proposta |
 | --- | --- | --- |
 | Encontrar a fala na transmissão | Tempos da captura, reprodução do áudio salvo e referência manual do vídeo por sessão. | Validar sincronização com um player real e tratamento operacional de descontinuidades. |
 | Corrigir cortes entre falas | Agrupamento automático e combinação reversível na revisão, com originais, correções e histórico preservados. | Avaliar a segmentação e o esforço de revisão com referência humana. |
@@ -110,7 +116,7 @@ O plano de incrementos reúne **minutagem de referência, combinação reversív
 
 Depois desse incremento, priorizar avaliação editorial dos temas e da consulta de checagens anteriores. O vocabulário da versão 0.22 normaliza nomes e variações informados pela equipe, sem inferir significado ou reescrever casos anteriores. A consulta local de decisões permite registrar comparações e lacunas; reutilizar uma conclusão exige conferir período, território, indicador, método e documentos. A preparação editorial da coleção, a pesquisa contínua e os demais recursos da fase 08 permanecem pendentes.
 
-As próximas entregas técnicas podem avançar em paralelo ao ensaio humano: avaliação e ampliação do uso dos temas; correspondência semântica e acervos externos de checagens; contas, permissões, distribuição e escalonamento das tarefas; tratamento de falhas e repetições; pesquisa contínua e outros provedores; e separação de falantes com atribuição aos participantes. A avaliação humana informa essas escolhas, sem interromper o desenvolvimento dos recursos ainda pendentes.
+Além do escopo local agora escolhido, evoluções técnicas podem avançar após o ensaio humano: avaliação e ampliação do uso dos temas; correspondência semântica e acervos externos de checagens; contas, permissões, distribuição e escalonamento das tarefas; tratamento de falhas e repetições; pesquisa contínua e outros provedores; e separação de vozes durante a captura. A separação posterior com associação humana já está disponível na 0.23. A avaliação humana informa essas escolhas, sem interromper o desenvolvimento dos recursos ainda pendentes.
 
 O manual editorial deve definir o recorte das afirmações, a preservação de negações e qualificadores, os critérios de fonte e as condições para concluir ou se abster. Registrar sua versão em cada análise e avaliá-lo com casos revisados por pessoas antes de ampliar a automação. Relacionado às fases **02, 07, 08 e 09**.
 
@@ -233,7 +239,7 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 **Responsável sugerido:** Equipe técnica e operador. **Dependências:** 05.
 
 - [x] **06.01** Implementar o cadastro da sessão do debate e de seus participantes. Entregue na versão 0.5, com persistência por sessão e validação automatizada do cadastro.
-- [ ] **06.02** Implementar reprodução de gravação como entrada de ensaio, preservando o ritmo e os horários.
+- [x] **06.02** Implementar reprodução de gravação como entrada de ensaio, preservando o ritmo e os horários. — Entregue na 0.23: entrada WAV silenciosa no ritmo original, pela interface e CLI, com cancelamento e preservação do áudio.
 - [ ] **06.03** Conectar a entrada de áudio ao vivo e permitir iniciar, pausar e encerrar a captura.
 - [ ] **06.04** Segmentar o áudio e associar trechos à linha do tempo do evento, medindo atraso de entrada.
 - [ ] **06.05** Integrar a transcrição contínua e distinguir resultados provisórios de trechos estabilizados.

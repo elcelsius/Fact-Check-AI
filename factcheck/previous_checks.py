@@ -13,7 +13,7 @@ import uuid
 from .grouping import active
 from .planning import PLAN_FIELDS
 from .queue_filters import normalize
-from .review import now
+from .review import now, EVENT_KINDS
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -43,7 +43,7 @@ def _check(cancelled):
 def previous_snapshot(data):
     """Cópia permitida para o novo caso; exclui caminhos, outras decisões e texto de documentos."""
     try:
-        result = {"session_id": data["session_id"], "event": _pick(data["event"], ("event_id", "title", "event_date", "source_url")),
+        result = {"session_id": data["session_id"], "event": _pick(data["event"], ("event_id", "title", "event_date", "source_url", "event_kind")),
                   "claim": _pick(data["claim"], CLAIM_FIELDS), "case_revision": data["case_revision"],
                   "source_current": data["source_current"], "transcript_reviewed": data["transcript_reviewed"],
                   "decision": _pick(data["decision"], ("verdict", "reviewer", "reason", "at")),
@@ -191,6 +191,7 @@ def render_previous(data):
         "Origem atual no instante da consulta." if data["source_current"] else "HISTÓRICA: fala ou extração de origem foi alterada/descartada.",
         "Transcrição conferida por pessoa." if data["transcript_reviewed"] else "Transcrição de origem ainda sem conferência humana.",
         f"Evento: {data['event'].get('title', '')} · {data['event'].get('event_date', '')}",
+        "Tipo de conteúdo: " + EVENT_KINDS.get(data["event"].get("event_kind"),"Não informado"),
         f"Sessão: {data['session_id']} · afirmação {claim['id']}",
         f"Fala {claim['revision']} · extração {claim.get('claim_revision', 1)} · dossiê {data['case_revision']}",
         f"Participante: {claim.get('speaker') or 'Não identificado'} · captura {claim['start']}–{claim['end']} s",

@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1600" height="1550" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.22.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.23.0</text>
 <text x="60" y="96" class="title">Como o sistema processa uma fala</text>
 <text x="60" y="133" class="subtitle">Filas independentes, registros versionados e decisão factual sob responsabilidade humana.</text>
 <text x="60" y="187" class="section">01 / ÁUDIO E TRANSCRIÇÃO LOCAL</text>
@@ -29,20 +29,20 @@
 <path d="M 78 210 H 352 Q 370 210 370 228 V 220 H 60 V 228 Q 60 210 78 210 Z" fill="#52637B"/>
 <rect x="78" y="230" width="274" height="26" rx="7" fill="#F0F3F8" stroke="#F0F3F8" stroke-width="1.5"/>
 <text x="88" y="248" class="tag" style="fill:#52637B">ENTRADA</text>
-<text x="80" y="286" class="heading">Vídeo no navegador</text>
-<text x="80" y="317" class="body">YouTube, Globoplay, Band…</text>
-<text x="80" y="342" class="body">A aplicação capta a saída</text>
-<text x="80" y="367" class="body">usada para ouvir o vídeo.</text>
+<text x="80" y="286" class="heading">Vídeo ou WAV salvo</text>
+<text x="80" y="317" class="body">Debate, propaganda, notícia</text>
+<text x="80" y="342" class="body">Saída de áudio do Windows</text>
+<text x="80" y="367" class="body">ou ensaio silencioso de WAV.</text>
 </g>
 <g data-card-bounds="450,210,310,187">
 <rect x="450" y="210" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
 <path d="M 468 210 H 742 Q 760 210 760 228 V 220 H 450 V 228 Q 450 210 468 210 Z" fill="#2455A4"/>
 <rect x="468" y="230" width="274" height="26" rx="7" fill="#EAF1FF" stroke="#EAF1FF" stroke-width="1.5"/>
-<text x="478" y="248" class="tag" style="fill:#2455A4">CAPTURA</text>
-<text x="470" y="286" class="heading">Captura da saída</text>
-<text x="470" y="317" class="body">WASAPI loopback · PCM16</text>
+<text x="478" y="248" class="tag" style="fill:#2455A4">CAPTURA / ENSAIO</text>
+<text x="470" y="286" class="heading">Entrada de áudio</text>
+<text x="470" y="317" class="body">WASAPI ou WAV · PCM16</text>
 <text x="470" y="342" class="body">Fila de captura separada</text>
-<text x="470" y="367" class="body">WAV salvo durante a sessão.</text>
+<text x="470" y="367" class="body">Áudio salvo em nova sessão.</text>
 </g>
 <g data-card-bounds="840,210,310,187">
 <rect x="840" y="210" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
@@ -75,9 +75,9 @@
 <rect x="78" y="535" width="274" height="26" rx="7" fill="#FFF3DE" stroke="#FFF3DE" stroke-width="1.5"/>
 <text x="88" y="553" class="tag" style="fill:#9A5C00">AÇÃO HUMANA</text>
 <text x="80" y="591" class="heading">Revisão do operador</text>
-<text x="80" y="622" class="body">Conferir fala e participante</text>
-<text x="80" y="647" class="body">Editar / reclassificar extração</text>
-<text x="80" y="672" class="body">Combinar trechos com histórico.</text>
+<text x="80" y="622" class="body">Vozes locais após gravar</text>
+<text x="80" y="647" class="body">Ouvir e atribuir participante</text>
+<text x="80" y="672" class="body">Revisar texto e extração.</text>
 </g>
 <g data-card-bounds="450,515,310,187">
 <rect x="450" y="515" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
@@ -207,9 +207,9 @@
 <g data-card-bounds="545,1360,450,118">
 <rect x="545" y="1360" width="450" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
 <path d="M 563 1360 H 977 Q 995 1360 995 1378 V 1370 H 545 V 1378 Q 545 1360 563 1360 Z" fill="#52637B"/>
-<text x="565" y="1399" class="heading">Pesquisa e falantes</text>
+<text x="565" y="1399" class="heading">Pesquisa e áudio ao vivo</text>
 <text x="565" y="1430" class="body">Busca contínua e outros provedores.</text>
-<text x="565" y="1455" class="body">Separação automática de falantes.</text>
+<text x="565" y="1455" class="body">Separação de vozes durante a captura.</text>
 </g>
 <g data-card-bounds="1030,1360,510,118">
 <rect x="1030" y="1360" width="510" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>

@@ -1,0 +1,3 @@
+# Ferramentas usadas somente para conferir o pacote Python, em Python 3.12.
+setuptools==80.9.0
+wheel==0.45.1

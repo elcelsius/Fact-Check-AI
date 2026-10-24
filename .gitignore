@@ -8,6 +8,8 @@ logs/
 /tmp/
 /exports/
 /library/
+/build/
+/dist/
 __pycache__/
 *.py[cod]
 .env

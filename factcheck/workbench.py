@@ -10,7 +10,7 @@ import uuid
 import wave
 import webbrowser
 
-from .review import Debate, ReviewStore
+from .review import Debate, ReviewStore, EVENT_KINDS
 from .triage import TriageConfig, TriageRunner
 from .gemini import MODEL as GEMINI_MODEL
 from .evidence_ui import EvidencePane
@@ -28,6 +28,7 @@ from .library_ui import LibraryPane
 from .previous_checks_ui import PreviousChecksPane
 from .topics_ui import TopicsPane
 from .topics import describe_topic, load_snapshot
+from .speakers_ui import SpeakersPane
 
 
 class Workbench:
@@ -54,7 +55,7 @@ class Workbench:
         self.visible_claims = {}
         self.case_states = {}
         self.last_notice = ""
-        self.title = tk.StringVar(value="Debate sem título · participantes não cadastrados")
+        self.title = tk.StringVar(value="Transmissão sem título · participantes não cadastrados")
         self.auto = tk.BooleanVar(value=True)
         self.review_tab = ttk.Frame(notebook, padding=12)
         self.claim_tab = ttk.Frame(notebook, padding=12)
@@ -116,6 +117,7 @@ class Workbench:
         self.library = LibraryPane(self, notebook)
         self.previous_checks = PreviousChecksPane(self, notebook)
         self.topics = TopicsPane(self, notebook)
+        self.speakers = SpeakersPane(self, notebook)
 
     def build_filters(self):
         frame = ttk.LabelFrame(self.claim_tab, text="Filtrar afirmações", padding=8)
@@ -218,7 +220,7 @@ class Workbench:
         return tree
 
     def busy(self):
-        return (bool(self.runner and self.runner.pending) or self.evidence.busy()
+        return (bool(self.runner and self.runner.pending) or self.evidence.busy() or self.speakers.busy()
                 or bool(self.connection_test and self.connection_test.pending) or bool(self.export_task and self.export_task.pending)
                 or bool(self.recovery_task and self.recovery_task.pending))
 
@@ -421,16 +423,22 @@ class Workbench:
 
     def configure_debate(self):
         if self.app.session or self.busy():
-            messagebox.showinfo("Dados do debate", "Encerre a captura e aguarde ou cancele as tarefas antes de alterar o cadastro.", parent=self.root)
+            messagebox.showinfo("Dados da transmissão", "Encerre a captura e aguarde ou cancele as tarefas antes de alterar o cadastro.", parent=self.root)
             return
-        window, close = self.dialog("Dados do debate")
+        window, close = self.dialog("Dados da transmissão")
         frame = ttk.Frame(window, padding=20)
         frame.pack(fill="both", expand=True)
         variables = {}
-        for key, label in [("title", "Nome do debate"), ("event_date", "Data do evento (AAAA-MM-DD)"), ("source_url", "URL do vídeo (opcional)")]:
+        ttk.Label(frame, text="Tipo de conteúdo").pack(anchor="w")
+        kind = ttk.Combobox(frame, state="readonly", values=list(EVENT_KINDS.values()))
+        kind.set(EVENT_KINDS[self.debate.event_kind])
+        kind.pack(fill="x", pady=4)
+        for key, label in [("title", "Nome da transmissão ou do conteúdo"), ("event_date", "Data da fala/transmissão (AAAA-MM-DD)"), ("source_url", "URL do vídeo (opcional)")]:
             ttk.Label(frame, text=label).pack(anchor="w", pady=(8, 4))
             variables[key] = tk.StringVar(value=getattr(self.debate, key))
             ttk.Entry(frame, textvariable=variables[key]).pack(fill="x")
+        ttk.Label(frame, text="Em material reexibido, confira a data das declarações e registre o recorte no plano. A data de upload pode ser diferente.",
+                  wraplength=790).pack(anchor="w", pady=8)
         ttk.Label(frame, text="Participantes · um nome por linha (opcional)").pack(anchor="w", pady=(12, 4))
         names = ScrolledText(frame, height=8)
         names.pack(fill="both", expand=True)
@@ -439,7 +447,8 @@ class Workbench:
         def save():
             try:
                 debate = Debate(**{key: value.get().strip() for key, value in variables.items()},
-                                participants=names.get("1.0", "end-1c").splitlines(), event_id=self.debate.event_id).validate()
+                                participants=names.get("1.0", "end-1c").splitlines(), event_id=self.debate.event_id,
+                                event_kind=next(key for key,label in EVENT_KINDS.items() if label==kind.get())).validate()
                 if self.store:
                     self.store.save_debate(debate)
                 self.debate = debate
@@ -447,7 +456,7 @@ class Workbench:
                 self.refresh()
                 close()
             except (ValueError, OSError) as exc:
-                messagebox.showerror("Dados do debate", str(exc), parent=window)
+                messagebox.showerror("Dados da transmissão", str(exc), parent=window)
 
         ttk.Button(frame, text="Salvar cadastro", command=save).pack(side="left", pady=12)
         ttk.Button(frame, text="Cancelar", command=close).pack(side="right", pady=12)
@@ -614,7 +623,7 @@ class Workbench:
         window.protocol("WM_DELETE_WINDOW", close_settings)
 
     def update_title(self):
-        self.title.set(f"{self.debate.title} · {self.debate.event_date} · {len(self.debate.participants)} participante(s)")
+        self.title.set(f"{self.debate.title} · {EVENT_KINDS[self.debate.event_kind]} · {self.debate.event_date} · {len(self.debate.participants)} participante(s)")
 
     def load(self, folder: Path, live=False):
         if self.busy():
@@ -636,6 +645,7 @@ class Workbench:
         self.import_warnings = warnings
         self.runner = None
         self.evidence.load(store)
+        self.speakers.load(store)
         self.debate = Debate(**store.debate())
         self.update_title()
         self.reset_filters()
@@ -704,6 +714,7 @@ class Workbench:
         self.update_filter_options()
         self.apply_filters()
         self.evidence.refresh()
+        self.speakers.refresh()
 
     @staticmethod
     def _rows(tree, rows):

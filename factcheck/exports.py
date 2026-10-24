@@ -17,6 +17,7 @@ from .planning import PLAN_FIELDS
 from .discovery import search_basis
 from .priorities import priority_payload
 from .assignments import assignment_payload, history_entry
+from .speakers import assignment_provenance
 
 
 SCHEMA_VERSION = 1
@@ -165,7 +166,9 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
              "automatic_extraction": _pick(claim["automatic_extraction"], CLAIM_KEYS) if claim.get("automatic_extraction") else None,
              "extraction_review": _pick(claim["extraction_review"], ("origin", "at", "reason")) if claim.get("extraction_review") else None,
              "source_paragraph_ids": claim.get("source_paragraph_ids", [claim["paragraph_id"]]),
-             "dossier_revision": revision, "factual_state": state, "engine": _engine(claim.get("engine"))}))
+             "dossier_revision": revision, "factual_state": state, "engine": _engine(claim.get("engine")),
+             **({"speaker_assignment": {**claim["speaker_assignment"], "current": bool(valid and claim["speaker_assignment"].get("current"))}}
+                if claim.get("speaker_assignment") else {})}))
 
     claims.sort(key=lambda row: (row["start"], row["end"], row["claim_id"]))
     selected = {pid for pid, source in paragraphs.items() if include_inactive or active(source)}
@@ -190,6 +193,7 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
             "source_paragraph_ids": source["original"].get("source_paragraph_ids", [pid]),
             "merged_from": source.get("merged_from", []),
             "triage": analyses.get((pid, source["revision"]), {"id": None, "status": "not_analyzed", "engine": {}}),
+            **({"speaker_assignment": assignment_provenance(source)} if source.get("speaker_assignment") else {}),
         })
         (main if pid in selected else origins).append(record)
     sources = []
@@ -207,17 +211,18 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
     result = {"format": "factcheck-session", "schema_version": SCHEMA_VERSION, "app_version": __version__,
               "intended_use": "internal_review",
               "scope": "including_inactive" if include_inactive else "current",
-              "event": _pick(json.loads(event_raw), ("event_id", "title", "event_date", "source_url", "participants")),
+              "event": {"event_kind": "nao_informado", **_pick(json.loads(event_raw), ("event_id", "title", "event_date", "source_url", "participants", "event_kind"))},
               "session_id": session_id, "video_reference": {"revision": reference_revision, "offset_seconds": offset},
               "paragraphs": main, "origin_paragraphs": origins, "claims": claims, "dossiers": dossiers, "sources": sources}
     return {**result, "content_sha256": _digest(result), "exported_at": captured_at}
 
 
-COMMON = ("formato_versao", "evento_id", "sessao_id", "exportado_em", "snapshot_sha256", "registro_id", "registro_sha256")
+COMMON = ("formato_versao", "evento_id", "sessao_id", "exportado_em", "snapshot_sha256", "registro_id", "registro_sha256", "evento_tipo")
 COLUMNS = {
     "paragraphs": (*COMMON, "paragrafo_id", "revisao", "ativo", "concluido", "encerramento_recuperado_em", "motivo_encerramento_recuperado", "transcricao_conferida", "precisa_reconciliar",
                    "participante", "inicio_captura_s", "fim_captura_s", "inicio_video_s", "fim_video_s", "inicio_video", "fim_video",
-                   "referencia_revisao", "origens_ids", "componentes_ids", "substituido_por", "desfeito", "estado_triagem", "analise_id", "texto", "texto_reconhecido"),
+                   "referencia_revisao", "origens_ids", "componentes_ids", "substituido_por", "desfeito", "estado_triagem", "analise_id", "texto", "texto_reconhecido",
+                   "falante_analise_id", "falante_voz_id", "falante_atribuido_em", "falante_motivo", "falante_atribuicao_atual"),
     "claims": (*COMMON, "afirmacao_id", "afirmacao_revisao", "extracao_revisada", "categoria_automatica", "citacao_automatica",
                "motivo_revisao_extracao", "revisao_extracao_em", "paragrafo_id", "revisao_fala", "origens_ids", "origem_atual", "estado_triagem", "categoria",
                "participante", "inicio_captura_s", "fim_captura_s", "inicio_video", "fim_video", "referencia_revisao", "citacao", "resumo", "motivo",
@@ -228,7 +233,8 @@ COLUMNS = {
                "plano_observacoes", "plano_urls_candidatas", "plano_origem", "plano_precisa_revisao",
                "prioridade", "prioridade_revisao", "prioridade_atual", "prioridade_precisa_conferencia", "prioridade_justificativa", "prioridade_em",
                "responsavel_caso", "atribuicao_revisao", "atribuicao_atual", "atribuicao_precisa_conferencia", "atribuicao_justificativa", "atribuicao_em",
-               "tema_estado", "tema_termo_original", "tema_origem", "tema_id", "tema_revisao", "vocabulario_id", "vocabulario_revisao"),
+               "tema_estado", "tema_termo_original", "tema_origem", "tema_id", "tema_revisao", "vocabulario_id", "vocabulario_revisao",
+               "falante_analise_id", "falante_voz_id", "falante_atribuido_em", "falante_motivo", "falante_atribuicao_atual"),
     "sources": (*COMMON, "fonte_id", "afirmacao_id", "origem_afirmacao_atual", "titulo", "instituicao", "autoria", "url", "publicado_em",
                 "acessado_em", "origem", "acesso_url_confirmado", "importado_em", "sha256", "texto_sha256", "leitura_limitada", "avisos", "localizadores"),
 }
@@ -255,6 +261,7 @@ def _csv_cell(value):
 def csv_rows(data, kind):
     dossiers = {row["claim_id"]: row for row in data["dossiers"]}
     common = {"formato_versao": data["schema_version"], "evento_id": data["event"]["event_id"], "sessao_id": data["session_id"],
+              "evento_tipo": data["event"].get("event_kind","nao_informado"),
               "exportado_em": data["exported_at"], "snapshot_sha256": data["content_sha256"]}
     for row in data[kind]:
         record = {**common, "registro_id": row["record_id"], "registro_sha256": row["record_sha256"]}
@@ -312,6 +319,11 @@ def csv_rows(data, kind):
                           importado_em=row.get("imported_at"), sha256=row.get("sha256"), texto_sha256=row.get("text_sha256"),
                           leitura_limitada=row.get("truncated", False), avisos=row.get("warnings", []),
                           localizadores=[_pick(block, ("id", "locator")) for block in row["blocks"]])
+        if kind in {"paragraphs", "claims"}:
+            attribution = row.get("speaker_assignment") or {}
+            record.update(falante_analise_id=attribution.get("run_id"), falante_voz_id=attribution.get("voice"),
+                          falante_atribuido_em=attribution.get("assigned_at"), falante_motivo=attribution.get("reason"),
+                          falante_atribuicao_atual=attribution.get("current"))
         yield {key: _csv_cell(record.get(key)) for key in COLUMNS[kind]}
 
 

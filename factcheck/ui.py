@@ -6,7 +6,7 @@ import queue
 import threading
 import time
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 from typing import Callable
 
@@ -49,7 +49,7 @@ class CaptureApp:
                   style="Hint.TLabel").pack(anchor="w", pady=(5, 20))
         event_bar = ttk.Frame(main)
         event_bar.pack(fill="x", pady=(0, 8))
-        ttk.Button(event_bar, text="Dados do debate", command=lambda: self.workbench.configure_debate()).pack(side="right")
+        ttk.Button(event_bar, text="Dados da transmissão", command=lambda: self.workbench.configure_debate()).pack(side="right")
         ttk.Button(event_bar, text="Configurar IA · API Google", command=lambda: self.workbench.configure_ai()).pack(side="right", padx=8)
         timeline_bar = ttk.Frame(main)
         timeline_bar.pack(fill="x", pady=(0, 8))
@@ -87,6 +87,8 @@ class CaptureApp:
         action_row.pack(fill="x")
         self.start_button = ttk.Button(action_row, text="Iniciar captura", command=self.start)
         self.start_button.pack(side="left")
+        self.replay_button = ttk.Button(action_row, text="Ensaiar WAV salvo", command=self.replay)
+        self.replay_button.pack(side="left", padx=(8,0))
         self.stop_button = ttk.Button(action_row, text="Encerrar e salvar", command=self.stop,
                                       state="disabled")
         self.stop_button.pack(side="left", padx=8)
@@ -130,7 +132,7 @@ class CaptureApp:
         self.transcript.pack(fill="both", expand=True, pady=(6, 0))
         self.transcript.configure(state="disabled")
         self.workbench = Workbench(self, self.notebook)
-        ttk.Label(event_bar, textvariable=self.workbench.title, wraplength=830).pack(side="left")
+        ttk.Label(event_bar, textvariable=self.workbench.title, wraplength=600).pack(side="left")
         ttk.Label(timeline_bar, textvariable=self.workbench.timeline_label, wraplength=800).pack(side="left")
         self.refresh()
         self.root.after(100, self.poll)
@@ -153,12 +155,32 @@ class CaptureApp:
             self.status.configure(text="Não foi possível listar as saídas de áudio.")
             self.detail.configure(text=str(exc))
 
-    def start(self) -> None:
+    def replay(self):
+        if self.session or self.closing:
+            return
+        if self.workbench.busy():
+            messagebox.showinfo("Ensaio WAV", "Aguarde ou cancele as tarefas antes do ensaio.", parent=self.root)
+            return
+        path = filedialog.askopenfilename(parent=self.root, title="Ensaio silencioso · WAV PCM16 no ritmo original",
+                                          filetypes=[("WAV PCM16", "*.wav")])
+        if path:
+            self.start(replay_path=Path(path))
+
+    def start(self, replay_path=None) -> None:
         selected = self.device_box.current()
-        if self.session or self.closing or not 0 <= selected < len(self.devices):
+        if self.session or self.closing or (replay_path is None and not 0 <= selected < len(self.devices)):
             return
         if self.workbench.busy():
             messagebox.showinfo("Iniciar captura", "Aguarde ou cancele as tarefas antes de iniciar outra sessão.", parent=self.root)
+            return
+        try:
+            if replay_path is not None:
+                from .replay import replay_device
+                device = replay_device(replay_path)
+            else:
+                device = self.devices[selected]
+        except Exception:
+            messagebox.showerror("Ensaio WAV", "Não foi possível abrir o WAV. Escolha áudio PCM16 completo, de 8 a 192 kHz.", parent=self.root)
             return
         try:
             import winsound
@@ -182,6 +204,7 @@ class CaptureApp:
         self.status.configure(text="Preparando sessão…")
         self.detail.configure(text="A primeira preparação do modelo pode exigir download. Aguarde o início da captura.")
         self.start_button.configure(state="disabled")
+        self.replay_button.configure(state="disabled")
         self.refresh_button.configure(state="disabled")
         self.device_box.configure(state="disabled")
         self.transcribe_check.configure(state="disabled")
@@ -190,11 +213,12 @@ class CaptureApp:
         self.folder_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.cancel_button.configure(state="normal")
-        self.session = CaptureSession(self.devices[selected], self.project_root,
+        self.session = CaptureSession(device, self.project_root,
                                        emit=lambda kind, data: self.events.put((kind, data)),
                                        transcribe=self.transcribe_enabled.get(),
                                        engine_name="streaming" if self.engine_box.current() == 0 else "whisper",
-                                       paragraph_config=paragraph_config, debate=self.workbench.debate)
+                                       paragraph_config=paragraph_config, debate=self.workbench.debate,
+                                       **({"replay_path": replay_path} if replay_path is not None else {}))
         threading.Thread(target=self.session.run, name="capture-session", daemon=True).start()
 
     def stop(self) -> None:
@@ -252,6 +276,7 @@ class CaptureApp:
             return
         self.closing = True
         self.start_button.configure(state="disabled")
+        self.replay_button.configure(state="disabled")
         self._cancel_session()
         failures = []
         for _, request_cancel in list(self.activities.values()):
@@ -263,6 +288,7 @@ class CaptureApp:
             self.closing = False
             if self.session is None:
                 self.start_button.configure(state="normal" if self.devices else "disabled")
+                self.replay_button.configure(state="normal")
             self.detail.configure(text="Não foi possível interromper uma tarefa. A janela continuará aberta.")
             messagebox.showerror("Fechamento não concluído", "\n".join(failures), parent=self.root)
             return
@@ -347,11 +373,17 @@ class CaptureApp:
                 self.workbench.load(self.folder, live=True)
                 self.started_at = time.monotonic()
                 self.folder_button.configure(state="normal")
-                self.status.configure(text=("Capturando. Áudio enviado a cada 0,2 s; a prévia aparece conforme a fala."
-                                            if self.engine_box.current() == 0 else
-                                            "Capturando. Primeiro envio em dois segundos; depois, a cada três segundos.")
-                                      if self.transcribe_enabled.get() else "Capturando e gravando áudio.")
-                self.detail.configure(text=f"Sessão: {self.folder.name}")
+                if data.get("input_kind")=="wav_replay":
+                    status="Ensaio WAV silencioso no ritmo original. O resultado será salvo em outra sessão."
+                elif not self.transcribe_enabled.get():
+                    status="Capturando e gravando áudio."
+                elif self.engine_box.current()==0:
+                    status="Capturando. Áudio enviado a cada 0,2 s; a prévia aparece conforme a fala."
+                else:
+                    status="Capturando. Primeiro envio em dois segundos; depois, a cada três segundos."
+                self.status.configure(text=status)
+                source=f"{data['device']} · " if data.get("input_kind")=="wav_replay" else ""
+                self.detail.configure(text=f"{source}Sessão: {self.folder.name}")
             elif kind == "level":
                 dbfs = data["dbfs"]
                 self.meter["value"] = max(0, min(100, (dbfs + 60) / 60 * 100))
@@ -373,6 +405,10 @@ class CaptureApp:
                 self.workbench.triage_update(data)
             elif kind == "research_done":
                 self.workbench.evidence.done(data)
+            elif kind == "speaker_done":
+                self.workbench.speakers.done(data)
+            elif kind == "speaker_progress":
+                self.workbench.speakers.progress(data)
             elif kind == "previous_checks_done":
                 self.workbench.previous_checks.done(data)
             elif kind == "export_done":
@@ -404,6 +440,7 @@ class CaptureApp:
                 self.stop_button.configure(state="disabled")
                 self.cancel_button.configure(state="disabled")
                 self.start_button.configure(state="normal" if self.devices and not self.closing else "disabled")
+                self.replay_button.configure(state="normal" if not self.closing else "disabled")
                 self.device_box.configure(state="readonly")
                 self.refresh_button.configure(state="normal")
                 self.transcribe_check.configure(state="normal")

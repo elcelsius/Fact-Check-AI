@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "debate-factcheck"
-version = "0.22.0"
+version = "0.23.0"
 description = "Captura de áudio do Windows e transcrição local para checagem assistida"
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -23,3 +23,6 @@ factcheck = "factcheck.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["factcheck*"]
+
+[tool.setuptools.package-data]
+factcheck = ["assets/*.ps1"]

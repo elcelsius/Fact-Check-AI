@@ -84,8 +84,8 @@ def internal(path):
     svg.text(60, 187, "01 / ÁUDIO E TRANSCRIÇÃO LOCAL", "section")
     xs, width = [60, 450, 840, 1230], 310
     row1 = [
-        ("Vídeo no navegador", ["YouTube, Globoplay, Band…", "A aplicação capta a saída", "usada para ouvir o vídeo."], "gray", "ENTRADA"),
-        ("Captura da saída", ["WASAPI loopback · PCM16", "Fila de captura separada", "WAV salvo durante a sessão."], "blue", "CAPTURA"),
+        ("Vídeo ou WAV salvo", ["Debate, propaganda, notícia", "Saída de áudio do Windows", "ou ensaio silencioso de WAV."], "gray", "ENTRADA"),
+        ("Entrada de áudio", ["WASAPI ou WAV · PCM16", "Fila de captura separada", "Áudio salvo em nova sessão."], "blue", "CAPTURA / ENSAIO"),
         ("Transcrição local", ["sherpa-onnx ou Whisper", "Hipóteses provisórias", "Só trechos estáveis persistem."], "blue", "PROCESSO LOCAL"),
         ("Parágrafos", ["Pausas e continuidade", "Ligação aos trechos originais", "Tempos relativos à captura."], "teal", "ORGANIZAÇÃO")]
     for x, (title, lines, color, tag) in zip(xs, row1):
@@ -95,7 +95,7 @@ def internal(path):
     svg.text(60, 435, "Pacotes curtos alimentam o reconhecimento; tamanho do pacote não equivale à latência de uma palavra.", "small")
     svg.text(60, 492, "02 / EXTRAÇÃO, VALIDAÇÃO E REVISÃO", "section")
     row2 = [
-        ("Revisão do operador", ["Conferir fala e participante", "Editar / reclassificar extração", "Combinar trechos com histórico."], "amber", "AÇÃO HUMANA"),
+        ("Revisão do operador", ["Vozes locais após gravar", "Ouvir e atribuir participante", "Revisar texto e extração."], "amber", "AÇÃO HUMANA"),
         ("Fila de afirmações", ["Fatos, opiniões e promessas", "Prioridade, responsável e filtros", "Estados atuais e históricos."], "teal", "INTERFACE"),
         ("Validar extrações", ["Citação, números e negações", "Tema: correspondência textual", "Resposta inválida é rejeitada."], "teal", "CONTROLES"),
         ("Triagem de afirmações", ["Qwen local OU Gemini opcional", "Tarefa em processo separado", "Não decide a veracidade."], "purple", "IA / FILA DE TAREFAS")]
@@ -128,7 +128,7 @@ def internal(path):
     svg.text(545, 1336, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS", "section")
     svg.card(60, 1360, 450, 118, "Temas e referências locais", ["Vocabulário + fontes + checagens antigas.", "Versões preservadas nos casos e tarefas."], "teal")
     svg.path("M 510 1419 H 525 V 1307 H 750 V 1080 H 605 V 1010")
-    svg.card(545, 1360, 450, 118, "Pesquisa e falantes", ["Busca contínua e outros provedores.", "Separação automática de falantes."], "gray", planned=True)
+    svg.card(545, 1360, 450, 118, "Pesquisa e áudio ao vivo", ["Busca contínua e outros provedores.", "Separação de vozes durante a captura."], "gray", planned=True)
     svg.card(1030, 1360, 510, 118, "Operação em equipe", ["Contas, permissões e sincronização.", "Distribuição entre operadores."], "gray", planned=True)
     svg.text(60, 1520, "Setas: percurso principal possível. A coleta e a exportação não exigem aprovação factual; a divulgação depende da equipe editorial.", "small")
     svg.save(path)
@@ -154,9 +154,9 @@ def user(path):
         svg.lines(x+35, y+273, outcome, spacing=25)
         svg.parts.append('</g>')
 
-    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre debate, temas e fontes de pesquisa.", "• Reproduza o vídeo e escolha a saída de áudio.", "• Use IA local ou configure sua chave Gemini.", "• Inicie a captura e informe a minutagem do vídeo."],
+    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre tipo, data, participantes e temas.", "• Escolha saída de áudio ou ensaio com WAV.", "• Use IA local ou configure sua chave Gemini.", "• Inicie a entrada e informe a minutagem do vídeo."],
           ["O aplicativo grava áudio e mostra texto provisório.", "Parágrafos concluídos podem alimentar a triagem."], "blue")
-    stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Corrija a fala e atribua o participante.", "• Confira citação, resumo, categoria e tema.", "• Defina prioridade e responsável; use os filtros."],
+    stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Analise vozes locais e confirme participantes.", "• Corrija fala, citação, resumo, categoria e tema.", "• Defina prioridade e responsável; use os filtros."],
           ["Fatos, opiniões e promessas têm estados próprios.", "A revisão da extração não aprova a afirmação."], "amber")
     stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Consulte a coleção e checagens anteriores.", "• Use Tavily, colete URL ou importe PDF/HTML.", "• Opcional: peça análise preliminar ao Gemini."],
           ["Compare recortes antes de usar antecedentes.", "URLs candidatas ficam separadas das evidências."], "purple")
@@ -170,7 +170,7 @@ def user(path):
     svg.text(60, 1140, "AÇÕES DE APOIO DURANTE O TRABALHO", "section")
     svg.card(60, 1166, 410, 210, "Se houver uma correção", ["O histórico permanece disponível.", "Resultados anteriores são invalidados.", "O plano pode pedir nova conferência.", "Uma tarefa antiga não substitui a edição."], "amber", "REVISÕES PROTEGIDAS")
     svg.card(515, 1166, 410, 210, "Ao cancelar ou fechar", ["Uma atividade em andamento pede", "confirmação de cancelamento.", "Dados já salvos são preservados.", "Texto provisório pode ser perdido."], "blue", "ENCERRAMENTO E RECUPERAÇÃO")
-    svg.card(970, 1166, 410, 210, "Ainda planejado", ["Pesquisa contínua e outros provedores", "Separação automática de falantes", "Contas e operação em equipe"], "gray", "EVOLUÇÃO DO PROTÓTIPO", planned=True)
+    svg.card(970, 1166, 410, 210, "Além do escopo local", ["Pesquisa contínua e outros provedores", "Separação de vozes durante a captura", "Contas e operação em equipe"], "gray", "EVOLUÇÃO PLANEJADA", planned=True)
     svg.rect(60, 1420, 1320, 80, "#EAF1FF", "#CEDCF5", 12)
     svg.lines(83, 1452, ["Para começar: faça um ensaio curto e confira um caso completo antes de acompanhar um evento ao vivo.",
                        "A análise da IA é preliminar. A validação e qualquer divulgação continuam sob responsabilidade humana."], spacing=25)

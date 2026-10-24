@@ -1,0 +1,47 @@
+name: Testes do aplicativo Windows
+
+on:
+  push:
+    branches: [main]
+    paths: ['factcheck/**', 'tests/**', 'scripts/**', 'pyproject.toml', 'requirements*.lock', '.github/workflows/**']
+  pull_request:
+    paths: ['factcheck/**', 'tests/**', 'scripts/**', 'pyproject.toml', 'requirements*.lock', '.github/workflows/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Instalar as dependências CPU fixadas
+        run: python -m pip install -r requirements.lock
+      - name: Validar sintaxe e documentação
+        run: |
+          python -m compileall -q factcheck scripts
+          python -m scripts.validate_project
+      - name: Executar testes sem chaves, dispositivos ou modelos baixados
+        run: python -m unittest discover -s tests -v
+      - name: Conferir SVGs reproduzíveis
+        run: |
+          python -m scripts.generate_flow_diagrams
+          git diff --exit-code -- docs/diagramas
+      - name: Conferir empacotamento e recursos locais
+        run: |
+          python -m pip install -r requirements-build.lock
+          python -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist --cache-dir .cache/pip
+          python -c "from pathlib import Path; from zipfile import ZipFile; p=next(Path('dist').glob('*.whl')); z=ZipFile(p); assert 'factcheck/assets/download_speaker_asset.ps1' in z.namelist(); assert all(n.startswith(('factcheck/','debate_factcheck-')) for n in z.namelist()); print(p.name, len(z.namelist()), 'arquivos públicos')"
