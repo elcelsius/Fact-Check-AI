@@ -20,7 +20,7 @@
   </style>
 </defs>
 <rect width="1600" height="1550" fill="#F5F7FC"/>
-<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.16.0</text>
+<text x="60" y="45" class="section">FACT-CHECK AI / ARQUITETURA / REFERÊNCIA 0.17.0</text>
 <text x="60" y="96" class="title">Como o sistema processa uma fala</text>
 <text x="60" y="133" class="subtitle">Filas independentes, registros versionados e decisão factual sob responsabilidade humana.</text>
 <text x="60" y="187" class="section">01 / ÁUDIO E TRANSCRIÇÃO LOCAL</text>
@@ -130,10 +130,10 @@
 <rect x="450" y="823" width="310" height="187" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
 <path d="M 468 823 H 742 Q 760 823 760 841 V 833 H 450 V 841 Q 450 823 468 823 Z" fill="#087F74"/>
 <rect x="468" y="843" width="274" height="26" rx="7" fill="#E6F5F2" stroke="#E6F5F2" stroke-width="1.5"/>
-<text x="478" y="861" class="tag" style="fill:#087F74">COLETA / IMPORTAÇÃO</text>
-<text x="470" y="899" class="heading">Coletar fontes</text>
-<text x="470" y="930" class="body">Busca orientada no navegador</text>
-<text x="470" y="955" class="body">URL institucional ou PDF/HTML</text>
+<text x="478" y="861" class="tag" style="fill:#087F74">BUSCA / COLETA / IMPORTAÇÃO</text>
+<text x="470" y="899" class="heading">Descobrir e coletar</text>
+<text x="470" y="930" class="body">Tavily opcional · URLs candidatas</text>
+<text x="470" y="955" class="body">Coleta por URL ou PDF/HTML</text>
 <text x="470" y="980" class="body">Texto, origem e localizadores.</text>
 </g>
 <g data-card-bounds="840,823,310,187">
@@ -168,7 +168,7 @@
 <text x="88" y="1150" class="tag" style="fill:#2455A4">ARQUIVOS + BANCO LOCAL</text>
 <text x="80" y="1188" class="heading">Persistência por sessão</text>
 <text x="80" y="1219" class="body">audio.wav + transcrição / parágrafos JSONL e TXT</text>
-<text x="80" y="1244" class="body">SQLite: cadastro, extrações, revisões, fontes e dossiês</text>
+<text x="80" y="1244" class="body">SQLite: revisões, buscas, fontes e dossiês</text>
 <text x="80" y="1269" class="body">Originais e histórico preservados; recuperação após interrupção.</text>
 </g>
 <g data-card-bounds="770,1112,350,174">
@@ -179,7 +179,7 @@
 <text x="790" y="1188" class="heading">Controle transversal</text>
 <text x="790" y="1219" class="body">Versões e resultados antigos</text>
 <text x="790" y="1244" class="body">Cancelamento com confirmação</text>
-<text x="790" y="1269" class="body">Chave Gemini só na memória.</text>
+<text x="790" y="1269" class="body">Chaves de API só na memória.</text>
 </g>
 <g data-card-bounds="1230,1112,310,174">
 <rect x="1230" y="1112" width="310" height="174" rx="18" fill="white" stroke="#D8E1ED" stroke-width="1.5"/>
@@ -198,8 +198,9 @@
 <g data-card-bounds="60,1360,450,118">
 <rect x="60" y="1360" width="450" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>
 <path d="M 78 1360 H 492 Q 510 1360 510 1378 V 1370 H 60 V 1378 Q 60 1360 78 1360 Z" fill="#52637B"/>
-<text x="80" y="1399" class="heading">Descoberta automática</text>
-<text x="80" y="1430" class="body">Provedor de busca, limites e fontes candidatas.</text>
+<text x="80" y="1399" class="heading">Pesquisa contínua</text>
+<text x="80" y="1430" class="body">Mais provedores e fontes por tema.</text>
+<text x="80" y="1455" class="body">Reuso de checagens com contexto conferido.</text>
 </g>
 <g data-card-bounds="545,1360,450,118">
 <rect x="545" y="1360" width="450" height="118" rx="18" fill="white" stroke="#A9B5C6" stroke-width="1.5" stroke-dasharray="8 6"/>

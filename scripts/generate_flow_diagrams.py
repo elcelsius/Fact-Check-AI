@@ -109,7 +109,7 @@ def internal(path):
     svg.text(450, 800, "03 / PESQUISA ASSISTIDA E DECISÃO", "section")
     row3 = [
         ("Planejar checagem", ["Pergunta, recortes e lacunas", "Rascunho de IA identificado", "URLs candidatas ≠ evidências."], "amber", "PERGUNTA E CONTEXTO"),
-        ("Coletar fontes", ["Busca orientada no navegador", "URL institucional ou PDF/HTML", "Texto, origem e localizadores."], "teal", "COLETA / IMPORTAÇÃO"),
+        ("Descobrir e coletar", ["Tavily opcional · URLs candidatas", "Coleta por URL ou PDF/HTML", "Texto, origem e localizadores."], "teal", "BUSCA / COLETA / IMPORTAÇÃO"),
         ("Análise preliminar", ["Gemini opcional e explícito", "Somente evidências fornecidas", "Lacunas → resultado inconclusivo."], "purple", "IA / NÃO APROVADA"),
         ("Decisão humana", ["Conferir fontes e recortes", "Confirmada / contradita /", "inconclusiva + justificativa."], "amber", "REVISOR RESPONSÁVEL")]
     for x, (title, lines, color, tag) in zip(xs, row3):
@@ -118,14 +118,14 @@ def internal(path):
     for x in xs[:-1]:
         svg.path(f"M {x+width} 917 H {x+390}")
     svg.text(845, 1048, "Sem API: leitura e decisão humanas continuam disponíveis.", "small")
-    svg.card(60, 1112, 680, 174, "Persistência por sessão", ["audio.wav + transcrição / parágrafos JSONL e TXT", "SQLite: cadastro, extrações, revisões, fontes e dossiês", "Originais e histórico preservados; recuperação após interrupção."], "blue", "ARQUIVOS + BANCO LOCAL")
-    svg.card(770, 1112, 350, 174, "Controle transversal", ["Versões e resultados antigos", "Cancelamento com confirmação", "Chave Gemini só na memória."], "gray", "COORDENADORES E FILAS")
+    svg.card(60, 1112, 680, 174, "Persistência por sessão", ["audio.wav + transcrição / parágrafos JSONL e TXT", "SQLite: revisões, buscas, fontes e dossiês", "Originais e histórico preservados; recuperação após interrupção."], "blue", "ARQUIVOS + BANCO LOCAL")
+    svg.card(770, 1112, 350, 174, "Controle transversal", ["Versões e resultados antigos", "Cancelamento com confirmação", "Chaves de API só na memória."], "gray", "COORDENADORES E FILAS")
     svg.card(1230, 1112, 310, 174, "Exportação interna", ["Sessão JSON / tabelas CSV", "Dossiê e relatório do ensaio", "Pendências acompanham o arquivo."], "teal", "SEM PUBLICAÇÃO AUTOMÁTICA")
     svg.path("M 1385 1010 V 1112")
     svg.path("M 605 397 V 411 H 32 V 1199 H 60")
     svg.text(42, 1090, "WAV", "small")
     svg.text(60, 1336, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS AINDA NÃO EXECUTADAS", "section")
-    svg.card(60, 1360, 450, 118, "Descoberta automática", ["Provedor de busca, limites e fontes candidatas."], "gray", planned=True)
+    svg.card(60, 1360, 450, 118, "Pesquisa contínua", ["Mais provedores e fontes por tema.", "Reuso de checagens com contexto conferido."], "gray", planned=True)
     svg.card(545, 1360, 450, 118, "Separação de falantes", ["Distinguir vozes e associar participantes."], "gray", planned=True)
     svg.card(1030, 1360, 510, 118, "Distribuição de casos", ["Prioridades, responsáveis e coordenação ampliada."], "gray", planned=True)
     svg.text(60, 1520, "Setas: percurso principal possível. A coleta e a exportação não exigem aprovação factual; a divulgação depende da equipe editorial.", "small")
@@ -156,7 +156,7 @@ def user(path):
           ["O aplicativo grava áudio e mostra texto provisório.", "Parágrafos concluídos podem alimentar a triagem."], "blue")
     stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Corrija a fala e atribua o participante.", "• Confira categoria, resumo e citação da extração.", "• Use filtros para localizar itens e pendências."],
           ["Fatos, opiniões e promessas têm estados próprios.", "A revisão da extração não aprova a afirmação."], "amber")
-    stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Busque no navegador e colete URLs institucionais.", "• Ou importe PDF/HTML e confira sua origem.", "• Opcional: peça análise preliminar ao Gemini."],
+    stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Encontre URLs com Tavily ou no navegador.", "• Colete a URL ou importe PDF/HTML e confira.", "• Opcional: peça análise preliminar ao Gemini."],
           ["URLs candidatas ficam separadas das evidências.", "Contexto insuficiente pede nova conferência."], "purple")
     stage(60, 740, 4, "Decidir e exportar", ["• Leia as fontes e confronte dados e contexto.", "• Registre a decisão humana com justificativa:", "  confirmada, contradita ou inconclusiva.", "• Exporte o dossiê, os dados e o relatório do ensaio."],
           ["Arquivos podem conter pendências identificadas.", "A publicação permanece com a equipe editorial."], "teal")
@@ -168,7 +168,7 @@ def user(path):
     svg.text(60, 1140, "AÇÕES DE APOIO DURANTE O TRABALHO", "section")
     svg.card(60, 1166, 410, 210, "Se houver uma correção", ["O histórico permanece disponível.", "Resultados anteriores são invalidados.", "O plano pode pedir nova conferência.", "Uma tarefa antiga não substitui a edição."], "amber", "REVISÕES PROTEGIDAS")
     svg.card(515, 1166, 410, 210, "Ao cancelar ou fechar", ["Uma atividade em andamento pede", "confirmação de cancelamento.", "Dados já salvos são preservados.", "Texto provisório pode ser perdido."], "blue", "ENCERRAMENTO E RECUPERAÇÃO")
-    svg.card(970, 1166, 410, 210, "Ainda planejado", ["Busca automática de fontes", "Separação automática de falantes", "Prioridade e distribuição de casos"], "gray", "EVOLUÇÃO DO PROTÓTIPO", planned=True)
+    svg.card(970, 1166, 410, 210, "Ainda planejado", ["Pesquisa contínua e checagens anteriores", "Separação automática de falantes", "Prioridade e distribuição de casos"], "gray", "EVOLUÇÃO DO PROTÓTIPO", planned=True)
     svg.rect(60, 1420, 1320, 80, "#EAF1FF", "#CEDCF5", 12)
     svg.lines(83, 1452, ["Para começar: faça um ensaio curto e confira um caso completo antes de acompanhar um evento ao vivo.",
                        "A análise da IA é preliminar. A validação e qualquer divulgação continuam sob responsabilidade humana."], spacing=25)

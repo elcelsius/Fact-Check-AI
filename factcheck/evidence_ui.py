@@ -12,6 +12,8 @@ from .dossiers import DossierStore, VERDICTS, render
 from .research import ResearchTask
 from .sources import search_plan, source_url
 from .planning import ORIGINS, SCOPES
+from .discovery import SearchConfig
+from .discovery_ui import DiscoveryDialog
 
 
 class EvidencePane:
@@ -19,6 +21,8 @@ class EvidencePane:
         self.work = workbench
         self.app, self.root = workbench.app, workbench.root
         self.store, self.cid, self.task = None, None, None
+        self.search_config = SearchConfig()
+        self.discovery_dialog = None
         self.notebook = notebook
         self.tab = ttk.Frame(notebook, padding=12)
         notebook.add(self.tab, text="Dossiê e fontes")
@@ -29,6 +33,7 @@ class EvidencePane:
         self.query = ttk.Combobox(row)
         self.query.pack(side="left", fill="x", expand=True)
         ttk.Button(row, text="Buscar no navegador", command=self.search).pack(side="left", padx=(8, 0))
+        ttk.Button(row, text="Encontrar fontes", command=self.discover).pack(side="left", padx=(8, 0))
         ttk.Label(self.tab, text="Consulte dados, metodologia e versões divergentes. Resultados de busca só entram como evidência após a coleta da fonte.", wraplength=950).pack(anchor="w", pady=(0, 8))
         row = ttk.Frame(self.tab)
         row.pack(fill="x", pady=4)
@@ -178,6 +183,19 @@ class EvidencePane:
             doc["blocks"] = [{**block, "text": block["text"][:1600]} for block in doc["blocks"][:2]]
             doc["warnings"].append("Prévia reduzida. Use Ler cópia extraída para consultar todos os trechos.")
         self.show_text(render(preview))
+        if self.discovery_dialog and self.discovery_dialog.cid == self.cid:
+            self.discovery_dialog.refresh(snapshot)
+
+    def discover(self):
+        if not self.store or not self.cid or self.app.closing:
+            return
+        if not self.store.snapshot(self.cid)["valid"]:
+            messagebox.showinfo("Encontrar fontes", "Abra uma afirmação atual antes de buscar fontes.", parent=self.root)
+            return
+        if self.discovery_dialog and self.discovery_dialog.window.winfo_exists():
+            self.discovery_dialog.window.lift()
+            return
+        self.discovery_dialog = DiscoveryDialog(self)
 
     def search(self):
         query = self.query.get().strip()
@@ -228,17 +246,18 @@ class EvidencePane:
                 snapshot = self.store.snapshot(self.cid)
                 if snapshot["claim"]["category"] != "fato":
                     raise ValueError("A análise factual exige uma declaração classificada como fato. Revise a origem e a triagem.")
-            task = ResearchTask(self.store, self.cid, kind, argument, self.work.ai_config,
+            task = ResearchTask(self.store, self.cid, kind, argument, self.search_config if kind == "discover" else self.work.ai_config,
                                 lambda event, data: self.app.events.put((event, data)))
             self.app.register_activity(task.token, "Pesquisa de evidências", task.cancel)
             self.task = task
-            self.progress.configure(text="Coletando o documento…" if kind == "collect" else "Importando cópia local. A origem online precisará ser conferida." if kind == "import" else "Preparando análise preliminar. Fala e trechos coletados serão enviados ao Gemini.")
+            self.progress.configure(text="Buscando URLs candidatas na Tavily…" if kind == "discover" else
+                                    "Coletando o documento…" if kind == "collect" else "Importando cópia local. A origem online precisará ser conferida." if kind == "import" else "Preparando análise preliminar. Fala e trechos coletados serão enviados ao Gemini.")
             task.start()
         except (ValueError, RuntimeError) as exc:
             self.progress.configure(text=str(exc))
 
     def cancel(self):
-        if self.busy() and messagebox.askyesno("Cancelar pesquisa", "Cancelar a coleta ou análise em andamento? Fontes e resultados já salvos serão preservados.", default=messagebox.NO, parent=self.root):
+        if self.busy() and messagebox.askyesno("Cancelar pesquisa", "Cancelar a busca, coleta ou análise em andamento? Fontes e resultados já salvos serão preservados.", default=messagebox.NO, parent=self.root):
             self.task.cancel()
 
     def done(self, data):

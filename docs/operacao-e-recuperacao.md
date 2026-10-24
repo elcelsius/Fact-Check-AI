@@ -1,6 +1,6 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do protótipo Windows, versão **0.16.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+Procedimento do protótipo Windows, versão **0.17.0**, de 23/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
 
 ## Antes de um ensaio com vídeo
 
@@ -99,6 +99,21 @@ Campos vazios permanecem a definir. A pergunta e os recortes do plano orientam a
 Rascunhos preparados pela IA ficam como **conferência humana pendente**. Salvar pelo operador registra essa origem no plano, sem conferir a transcrição ou decidir o veredito. Uma mudança tem revisão e histórico, limpa a análise e a decisão atuais e rejeita a conclusão de tarefas que usaram a versão anterior. As cópias de fontes permanecem disponíveis para reavaliar pertinência; nova coleta, análise ou retirada de fonte preservam o plano. Salvar dados idênticos não invalida resultados. Um editor concorrente não pode sobrescrever a versão mais recente.
 
 O plano aparece no dossiê interno, em `dossiers.plan` no JSON e em colunas `plano_*` no CSV de afirmações. O relatório conta os planos das extrações atuais, incluindo as indefinidas. Uma sugestão de extração não verificável não altera a categoria nem descarta a afirmação; após conferir o caso, use **Descartar com justificativa** quando pertinente. A proporção de decisões continua usando apenas afirmações factuais atuais. A análise automática Gemini permanece inconclusiva quando depende de plano com contexto pendente, possível ausência de alegação verificável ou rascunho de IA sem conferência.
+
+### Descobrir URLs candidatas
+
+1. Abra uma afirmação atual em **Dossiê e fontes**, confira a pergunta e use **Encontrar fontes**.
+2. Digite sua chave Tavily no campo mascarado. Essa chave é independente do Gemini e permanece só na memória; **Limpar chave** remove a configuração para próximas buscas. Uma requisição já enviada continua usando sua configuração até terminar.
+3. Confira a consulta sugerida ou edite os termos e os recortes. **Buscar fontes** envia somente essa consulta à Tavily e solicita até cinco URLs institucionais no modo `basic`, sem resposta gerada ou conteúdo bruto. Não há busca de todos os parágrafos nem repetição automática.
+4. Confira o título e a URL de cada candidata. **Usar URL para coleta** preenche o campo da fonte e fecha a janela; use **Coletar fonte** para obter o documento. A descoberta, sozinha, não cria evidência nem permite concluir sobre veracidade. O acesso à URL só é confirmado pela coleta posterior.
+5. Se uma candidata não corresponder ao recorte, use **Descartar candidata** e justifique. O registro permanece. Buscas de versões anteriores ficam ocultas por padrão e podem ser consultadas pelo seletor de histórico; suas candidatas não podem ser usadas como atuais por essa janela.
+6. **Cancelar busca** pede confirmação. Fechar a janela durante uma busca também exige confirmar o cancelamento. O fechamento do aplicativo aguarda a finalização da tarefa; uma requisição já enviada pode consumir cota mesmo se seu resultado for descartado.
+
+Buscas e descartes ficam em tabelas próprias do SQLite, no dossiê interno e em `dossiers[].discoveries` no JSON. Não alteram o veredito humano ou a revisão factual do dossiê. Alterar fala, extração ou planejamento torna o contexto da busca anterior histórico e rejeita resultados antigos ainda em processamento. Os CSVs de fontes continuam contendo somente documentos coletados ou importados.
+
+O modo local de triagem pode ser usado junto da busca Tavily. Sem essa chave, continue por **Buscar no navegador**, coleta por URL ou importação local. Limites, privacidade e cobrança dependem do seu contrato com o provedor; consulte a [documentação Tavily](https://docs.tavily.com/documentation/api-reference/endpoint/search). O aplicativo registra créditos apenas quando a API os informa, sem estimar reais ou saldo disponível.
+
+O ensaio da versão 0.17 usou transporte simulado e dados fictícios. Verificou duas candidatas aceitas, descarte de URL fora da coleção, justificativa, seleção sem coleta automática e ausência da chave nos arquivos. A janela foi conferida em 1000 × 740 e 900 × 650; os diagramas foram renderizados sem textos fora dos cartões. Chamada real, disponibilidade e consumo da conta Tavily ainda dependem de uma chave e de validação operacional. Não houve nova inferência ou decisão sobre os casos políticos reais.
 
 ### Ensaio dos primeiros rascunhos na versão 0.14
 

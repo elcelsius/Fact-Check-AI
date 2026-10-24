@@ -40,6 +40,18 @@ class FakeConnectionTest:
         self.cancelled.set()
 
 
+class FakeDiscoveryTask:
+    token = "discovery-test-ui"
+    pending = 1
+    def __init__(self, store, cid, kind, argument, config, emit):
+        self.cid, self.kind, self.argument, self.config = cid, kind, argument, config
+        self.cancelled = threading.Event()
+    def start(self):
+        pass
+    def cancel(self):
+        self.cancelled.set()
+
+
 class FakeExportTask:
     token = "export-test-ui"
     pending = 1
@@ -557,6 +569,100 @@ class WorkbenchTests(unittest.TestCase):
         self.work.claim_tree.selection_set(cid)
         self.work.evidence.open_selected()
         return self.work.evidence, cid
+
+    def open_discovery(self, with_results=True):
+        pane, cid = self.open_dossier()
+        if with_results:
+            from factcheck.discovery import parse_results
+            jid = pane.store.begin(cid, "discover", "Inflação 2025 metodologia")
+            pane.store.finish(jid, *parse_results({"results": [{"title": "Documento fictício", "url": "https://ibge.gov.br/teste"}]}, "Inflação 2025 metodologia"))
+        pane.discover()
+        return pane, cid, pane.discovery_dialog
+
+    def test_discovery_requires_own_key_and_can_use_local_triage_without_gemini(self):
+        pane, cid, dialog = self.open_discovery(False)
+        with patch("factcheck.discovery_ui.messagebox.showinfo") as info, patch("factcheck.evidence_ui.ResearchTask") as task:
+            dialog.search()
+        info.assert_called_once()
+        task.assert_not_called()
+        dialog.key.insert(0, "tvly-chave-ficticia")
+        self.assertEqual(str(dialog.key["show"]), "*")
+        with patch("factcheck.evidence_ui.ResearchTask", FakeDiscoveryTask):
+            dialog.search()
+        self.assertEqual(pane.task.kind, "discover")
+        self.assertEqual(pane.task.config.api_key, "tvly-chave-ficticia")
+        self.assertEqual(self.work.ai_config.provider, "local")
+        self.assertIn(pane.task.token, self.app.activities)
+        for file in self.folder.iterdir():
+            if file.is_file():
+                self.assertNotIn(b"tvly-chave-ficticia", file.read_bytes())
+        dialog.clear_key()
+        self.assertEqual(dialog.key.get(), "")
+        self.assertEqual(pane.search_config.api_key, "")
+
+    def test_candidate_selection_only_copies_url_and_never_collects_automatically(self):
+        pane, cid, dialog = self.open_discovery()
+        dialog.tree.selection_set(dialog.tree.get_children()[0])
+        with patch("factcheck.evidence_ui.ResearchTask") as task:
+            dialog.use()
+        task.assert_not_called()
+        self.assertEqual(pane.url.get(), "https://ibge.gov.br/teste")
+        self.assertEqual(pane.store.snapshot(cid)["documents"], [])
+        self.assertFalse(dialog.window.winfo_exists())
+
+    def test_candidate_discard_preserves_reason_and_blocks_use(self):
+        pane, cid, dialog = self.open_discovery()
+        dialog.tree.selection_set(dialog.tree.get_children()[0])
+        with patch("factcheck.discovery_ui.simpledialog.askstring", return_value="Outro período."):
+            dialog.discard()
+        self.assertEqual(pane.store.snapshot(cid)["discoveries"][0]["candidates"][0]["discard_reason"], "Outro período.")
+        with patch("factcheck.discovery_ui.messagebox.showinfo") as info:
+            dialog.use()
+        info.assert_called_once()
+        self.assertEqual(pane.url.get(), "")
+
+    def test_old_candidates_are_hidden_by_default_and_cannot_be_used_as_current(self):
+        pane, cid, dialog = self.open_discovery()
+        claim = self.work.store.claims()[0]
+        fields = {key: claim.get(key) for key in ("quote", "summary", "category", "topic")}
+        fields["topic"] = "Indicadores"
+        self.work.store.revise_claim(cid, 1, 1, fields, "Tema corrigido.")
+        self.work.refresh()
+        self.assertEqual(dialog.tree.get_children(), ())
+        dialog.historical.set(True)
+        dialog.refresh()
+        dialog.tree.selection_set(dialog.tree.get_children()[0])
+        with patch("factcheck.discovery_ui.messagebox.showinfo") as info:
+            dialog.use()
+        info.assert_called_once()
+        self.assertEqual(pane.url.get(), "")
+
+    def test_discovery_window_close_confirms_cancellation_and_preserves_running_guard(self):
+        pane, cid, dialog = self.open_discovery(False)
+        dialog.key.insert(0, "tvly-chave-ficticia")
+        with patch("factcheck.evidence_ui.ResearchTask", FakeDiscoveryTask):
+            dialog.search()
+        with patch("factcheck.discovery_ui.messagebox.askyesno", return_value=False):
+            dialog.close()
+        self.assertTrue(dialog.window.winfo_exists())
+        self.assertFalse(pane.task.cancelled.is_set())
+        with patch("factcheck.discovery_ui.messagebox.askyesno", return_value=True):
+            dialog.close()
+        self.assertTrue(pane.task.cancelled.is_set())
+        self.assertTrue(pane.busy())
+        self.assertFalse(dialog.window.winfo_exists())
+
+    def test_discovery_completion_refreshes_candidates_and_releases_application_guard(self):
+        pane, cid, dialog = self.open_discovery()
+        pane.task = FakeDiscoveryTask(pane.store, cid, "discover", "Consulta", None, None)
+        self.app.register_activity(pane.task.token, "Busca de fontes", pane.task.cancel)
+        pane.task.pending = 0
+        self.app.events.put(("research_done", {"token": pane.task.token, "claim_id": cid, "message": "Busca concluída."}))
+        self.app.poll()
+        self.assertNotIn(pane.task.token, self.app.activities)
+        self.assertEqual(len(dialog.tree.get_children()), 1)
+        self.assertEqual(dialog.status.get(), "Busca concluída.")
+        self.assertEqual(str(dialog.cancel_button["state"]), "disabled")
 
     def test_queue_filters_hide_selection_without_database_reads_or_ai_calls(self):
         pane, cid = self.open_dossier()

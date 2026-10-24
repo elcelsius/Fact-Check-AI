@@ -8,6 +8,7 @@ from .review import now, process_alive
 from .timeline import describe_time, timestamp
 from .grouping import active as active_source
 from .planning import ORIGINS, PLAN_FIELDS, SCOPES, validate_plan
+from .discovery import search_basis, validate_query
 
 
 VERDICTS = {"confirmada": "Confirmada", "contradita": "Contradita", "inconclusiva": "Inconclusiva"}
@@ -22,6 +23,8 @@ class DossierStore:
                 CREATE TABLE IF NOT EXISTS evidence (id TEXT PRIMARY KEY, claim_id TEXT, payload TEXT);
                 CREATE TABLE IF NOT EXISTS research_jobs (id TEXT PRIMARY KEY, claim_id TEXT, revision INTEGER, status TEXT, payload TEXT);
                 CREATE INDEX IF NOT EXISTS evidence_claim ON evidence(claim_id);
+                CREATE TABLE IF NOT EXISTS discoveries (id TEXT PRIMARY KEY, claim_id TEXT, payload TEXT);
+                CREATE INDEX IF NOT EXISTS discoveries_claim ON discoveries(claim_id);
             """)
 
     @staticmethod
@@ -62,9 +65,13 @@ class DossierStore:
             ref_revision, offset = db.execute("SELECT revision,offset_seconds FROM video_reference WHERE id=1").fetchone()
             queries = [json.loads(payload) for (payload,) in db.execute("SELECT payload FROM history WHERE kind='search_query_opened'")
                        if json.loads(payload).get("claim_id") == cid]
+            discoveries = [{"id": sid, **json.loads(payload)} for sid, payload in
+                           db.execute("SELECT id,payload FROM discoveries WHERE claim_id=? ORDER BY rowid", (cid,))]
+            for batch in discoveries:
+                batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
                     "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
-                    "jobs": jobs, "queries": queries, "plan": case.get("plan"), **case}
+                    "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case}
 
     def save_plan(self, cid, expected_revision, plan, origin="operator_input"):
         if origin not in ORIGINS:
@@ -84,18 +91,22 @@ class DossierStore:
             self._save(db, cid, revision + 1, case, "check_plan_changed")
             return True
 
-    def begin(self, cid, kind):
-        if kind not in {"collect", "import", "analyze"}:
+    def begin(self, cid, kind, query=None):
+        if kind not in {"collect", "import", "analyze", "discover"}:
             raise ValueError("Tarefa de pesquisa inválida.")
+        if kind == "discover":
+            query = validate_query(query)
         with self.review.connection() as db:
-            self._claim(db, cid, active=True)
-            revision, _ = self._case(db, cid)
+            claim, _ = self._claim(db, cid, active=True)
+            revision, case = self._case(db, cid)
             if db.execute("SELECT 1 FROM research_jobs WHERE claim_id=? AND status='running'", (cid,)).fetchone():
                 raise ValueError("Já existe pesquisa em andamento para esta afirmação.")
             if kind == "analyze" and not db.execute("SELECT 1 FROM evidence WHERE claim_id=?", (cid,)).fetchone():
                 raise ValueError("Colete ao menos uma fonte antes de analisar.")
             jid = uuid.uuid4().hex
             payload = {"kind": kind, "started_at": now(), "owner_pid": os.getpid()}
+            if kind == "discover":
+                payload.update(query=query, basis=search_basis(claim, case.get("plan")))
             db.execute("INSERT INTO research_jobs VALUES (?,?,?,?,?)", (jid, cid, revision, "running", json.dumps(payload)))
             return jid
 
@@ -116,7 +127,13 @@ class DossierStore:
                 return False
             cid, revision, case = accepted
             payload = json.loads(db.execute("SELECT payload FROM research_jobs WHERE id=?", (jid,)).fetchone()[0])
-            if payload["kind"] in {"collect", "import"}:
+            if payload["kind"] == "discover":
+                if result["query"] != payload["query"]:
+                    raise ValueError("O resultado pertence a outra consulta.")
+                batch = {**result, "basis": payload["basis"], "engine": engine or {}}
+                db.execute("INSERT INTO discoveries VALUES (?,?,?)", (jid, cid, json.dumps(batch, ensure_ascii=False)))
+                self.review._audit(db, "sources_discovered", {"claim_id": cid, "id": jid, **batch})
+            elif payload["kind"] in {"collect", "import"}:
                 existing = db.execute("SELECT payload FROM evidence WHERE claim_id=?", (cid,)).fetchall()
                 duplicate = any(doc["url"] == result["url"] and doc["sha256"] == result["sha256"]
                                 and (doc.get("acquisition", "remote_fetch") == result.get("acquisition", "remote_fetch")
@@ -164,6 +181,25 @@ class DossierStore:
         with self.review.connection() as db:
             self._claim(db, cid)
             self.review._audit(db, "search_query_opened", {"claim_id": cid, "query": query, "provider": "browser-google", "results_retrieved": False})
+
+    def discard_candidate(self, cid, sid, candidate_id, reason):
+        if not isinstance(reason, str) or not reason.strip() or len(reason) > 2000:
+            raise ValueError("Informe uma justificativa de até 2.000 caracteres.")
+        with self.review.connection() as db:
+            claim, _ = self._claim(db, cid, active=True)
+            _, case = self._case(db, cid)
+            row = db.execute("SELECT payload FROM discoveries WHERE id=? AND claim_id=?", (sid, cid)).fetchone()
+            if not row:
+                raise ValueError("Busca não encontrada.")
+            batch = json.loads(row[0])
+            if batch["basis"] != search_basis(claim, case.get("plan")):
+                raise ValueError("A afirmação ou o plano mudou. Faça uma nova busca.")
+            candidate = next((item for item in batch["candidates"] if item["id"] == candidate_id), None)
+            if not candidate or candidate["disposition"] != "pending":
+                raise ValueError("A candidata já foi descartada ou não existe.")
+            candidate.update(disposition="discarded", discard_reason=reason.strip(), discarded_at=now())
+            db.execute("UPDATE discoveries SET payload=? WHERE id=?", (json.dumps(batch, ensure_ascii=False), sid))
+            self.review._audit(db, "candidate_discarded", {"claim_id": cid, "search_id": sid, **candidate})
 
     def states(self):
         with self.review.connection() as db:
@@ -240,6 +276,19 @@ def render(snapshot):
                   "URLs candidatas para pesquisa; não são evidências coletadas:", *plan["candidate_urls"], ""]
     else:
         lines += ["Pergunta e recortes ainda não registrados.", ""]
+    lines += ["## Descoberta de fontes · candidatas, não evidências", ""]
+    if not snapshot.get("discoveries"):
+        lines += ["Nenhuma busca automática registrada.", ""]
+    for batch in snapshot.get("discoveries", []):
+        lines += [f"Consulta: {batch['query']}", f"Tavily · {batch['searched_at']} · " + ("recortes atuais" if batch["current"] else "versão anterior"),
+                  f"Resultados omitidos por domínio, duplicação ou limite: {batch['discarded_count']}", ""]
+        credits = batch.get("engine", {}).get("credits")
+        lines += [f"Créditos informados pelo provedor: {credits if credits is not None else 'Não informado'}; não representa valor monetário.", ""]
+        for item in batch["candidates"]:
+            lines += [f"{item['title']} · {item['disposition']}", item["url"]]
+            if item.get("discard_reason"):
+                lines.append("Motivo do descarte: " + item["discard_reason"])
+        lines += ["Títulos e URLs são sugestões do provedor. Coleta e conferência continuam necessárias.", ""]
     lines += ["## Fontes coletadas", ""]
     if not snapshot["documents"]:
         lines.append("Nenhuma fonte coletada. Não há evidências para concluir.")

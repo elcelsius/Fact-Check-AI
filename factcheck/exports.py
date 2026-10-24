@@ -14,6 +14,7 @@ from .grouping import active
 from .review import now
 from .timeline import timestamp
 from .planning import PLAN_FIELDS
+from .discovery import search_basis
 
 
 SCHEMA_VERSION = 1
@@ -70,6 +71,7 @@ def read_session(review, cancelled=None):
             "cases": "SELECT claim_id,revision,payload FROM cases ORDER BY claim_id",
             "evidence": "SELECT id,claim_id,payload FROM evidence ORDER BY id",
             "research_jobs": "SELECT status,payload FROM research_jobs ORDER BY rowid",
+            "discoveries": "SELECT id,claim_id,payload FROM discoveries ORDER BY rowid",
         }.items()}
         captured_at = now()
     return {"event_raw": event_raw, "session_id": session_id, "reference_revision": reference_revision,
@@ -123,10 +125,13 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
             decision = _pick(decision, ("verdict", "reviewer", "reason", "at"))
         state = ("historical" if not valid else "human_decision_recorded" if decision else "preliminary" if preliminary
                  else "sources_collected" if cid in evidence_claims else "pending")
+        discoveries = [{"id": sid, **json.loads(payload)} for sid, owner, payload in raw.get("discoveries", []) if owner == cid]
+        for batch in discoveries:
+            batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
         dossiers.append(_record(session_id, "dossier", cid,
             {"claim_id": cid, "revision": revision, "source_current": valid, "state": state,
              "preliminary_current": bool(valid and preliminary), "decision_current": bool(valid and decision),
-             "preliminary": preliminary, "decision": decision,
+             "preliminary": preliminary, "decision": decision, "discoveries": discoveries,
              "plan": _pick(case["plan"], (*PLAN_FIELDS, "origin", "updated_at", "claim_revision", "needs_review")) if case.get("plan") else None}))
         claims.append(_record(session_id, "claim", cid,
             {"claim_id": cid, **_pick(claim, CLAIM_KEYS), **times(claim), "source_current": valid,

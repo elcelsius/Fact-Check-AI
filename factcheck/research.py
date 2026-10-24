@@ -10,6 +10,7 @@ import time
 from .gemini import GeminiError, GeminiModel
 from .net_errors import network_message
 from .sources import download, extract_document, read_local_document, source_url
+from .discovery import SearchError, TavilySearch, validate_query
 
 
 COMPATIBILITY = ("period", "location", "indicator", "methodology")
@@ -136,12 +137,14 @@ def _network_worker(kind, argument, snapshot, config, cancelled, outputs):
             result, engine = {"raw": raw, "content_type": content_type, "url": final_url, "requested_url": source_url(argument), "acquisition": "remote_fetch"}, {}
         elif kind == "import":
             result, engine = read_local_document(argument["path"], argument["url"], cancelled), {}
+        elif kind == "discover":
+            result, engine = TavilySearch(config).search(argument, cancelled)
         else:
             result, engine = analyze(snapshot, config, cancelled)
         outputs.put((result, engine, None))
     except InterruptedError:
         outputs.put((None, {}, "Pesquisa cancelada."))
-    except (ValueError, GeminiError) as exc:
+    except (ValueError, GeminiError, SearchError) as exc:
         outputs.put((None, {}, str(exc)))
     except OSError as exc:
         message = "Não foi possível ler o arquivo escolhido. Confira se ele está disponível e acessível." if kind == "import" else network_message(exc, "a fonte")
@@ -171,9 +174,12 @@ class ResearchTask:
     def __init__(self, store, cid, kind, argument, config, emit):
         if kind == "analyze" and config.provider != "gemini":
             raise ValueError("Selecione Gemini explicitamente em Configurar IA para enviar o material à análise automática.")
+        if kind == "discover":
+            config.validate()
+            argument = validate_query(argument)
         self.store, self.cid, self.kind = store, cid, kind
         self.argument, self.config, self.emit = argument, config, emit
-        self.job_id = store.begin(cid, kind)
+        self.job_id = store.begin(cid, kind, query=argument) if kind == "discover" else store.begin(cid, kind)
         self.snapshot = store.snapshot(cid)
         self.token = "research-" + self.job_id
         self.cancelled = threading.Event()
@@ -190,6 +196,8 @@ class ResearchTask:
 
     def _run(self):
         message = "Cópia importada. Confira a origem e a correspondência com a URL informada." if self.kind == "import" else "Pesquisa concluída. Confira o dossiê."
+        if self.kind == "discover":
+            message = "Busca concluída. As URLs candidatas precisam de coleta e conferência."
         try:
             if self.cancelled.is_set():
                 raise InterruptedError("Pesquisa cancelada.")
