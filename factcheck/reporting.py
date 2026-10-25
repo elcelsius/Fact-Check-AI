@@ -63,7 +63,7 @@ def read_events(folder, cancelled):
                     invalid.append(number)
                     continue
                 # O relatório nunca copia falas, mensagens livres de erro ou credenciais.
-                events.append({key: data[key] for key in ("kind", "elapsed_seconds", "processing_seconds", "delivery_lag_seconds",
+                events.append({key: data[key] for key in ("kind", "elapsed_seconds", "processing_seconds", "inference_seconds", "delivery_lag_seconds",
                               "queued_chunks", "capture_started_at", "at", "code") if key in data})
     except FileNotFoundError:
         return [], {"present": False, "bytes_read": 0, "invalid_lines": 0, "first_invalid_line": None}
@@ -152,6 +152,7 @@ def session_report(review, cancelled=None):
               "session_snapshot_sha256": data["content_sha256"],
               "capture": {"state": capture_state(review.folder)[0], "audio_state": audio["state"],
                           "input_kind": metadata.get("input_kind") if metadata.get("input_kind") in ("wav_replay","system_loopback") else "not_recorded",
+                          "transcription_compute": metadata.get("compute") if metadata.get("compute") in ("cpu/int8","cuda/int8_float16") else "not_recorded",
                           "available_audio_seconds": audio.get("duration"),
                           "transcription_complete": metadata.get("transcription_complete") if type(metadata.get("transcription_complete")) is bool else None,
                           "time_anchor": {"at": start if isinstance(start, str) else None, "source": anchor}},
@@ -175,6 +176,8 @@ def session_report(review, cancelled=None):
               "timing_seconds": {"first_partial": first_partial["minimum"], "first_stabilized_delivery": first_stable["minimum"],
                                  "stabilized_delivery_lag": statistics([row.get("delivery_lag_seconds") for row in deliveries]),
                                  "chunk_processing": statistics([row.get("processing_seconds") for row in chunks]),
+                                 "chunk_inference": statistics([row.get("inference_seconds") for row in chunks]),
+                                 "streaming_flush": statistics([row.get("processing_seconds") for row in events if row["kind"] == "transcription_flush"]),
                                  "chunk_delivery_lag": statistics([row.get("delivery_lag_seconds") for row in chunks]),
                                  "triage_processing": statistics(triage_times),
                                  "claim_to_current_human_decision": decision_seconds,
@@ -214,6 +217,7 @@ def render_report(report):
              f"Sessão: {report['session_id']}", f"Gerado em: {report['generated_at']}",
              f"Versão do relatório: {report['app_version']}", "", f"Estado da captura: {STATE_NAMES[report['capture']['state']]}",
              f"Entrada: {dict(wav_replay='ensaio WAV silencioso',system_loopback='saída de áudio do sistema').get(report['capture'].get('input_kind'),'Não registrada')}",
+             f"Processador da transcrição: {report['capture'].get('transcription_compute', 'Não registrado')}",
              f"Dados de áudio presentes: {number(report['capture']['available_audio_seconds'], ' s')}",
              "Transcrição integralmente finalizada, conforme metadados: " +
              {True: "Sim", False: "Não", None: "Não registrado"}[report['capture']['transcription_complete']], "",
@@ -242,6 +246,8 @@ def render_report(report):
              f"Primeira entrega de segmento estabilizado: {number(timing['first_stabilized_delivery'], ' s')}",
              distribution("Atraso de entrega dos segmentos", timing["stabilized_delivery_lag"]),
              distribution("Processamento dos pacotes/trechos", timing["chunk_processing"]),
+             distribution("Inferência dos pacotes/trechos (sem persistência)", timing.get("chunk_inference", statistics([]))),
+             distribution("Finalização adicional do motor contínuo", timing.get("streaming_flush", statistics([]))),
              distribution("Atraso de entrega dos pacotes/trechos", timing["chunk_delivery_lag"]),
              distribution("Duração das tentativas de triagem concluídas", timing["triage_processing"]),
              distribution("Do registro da afirmação à decisão humana atual", timing["claim_to_current_human_decision"]),

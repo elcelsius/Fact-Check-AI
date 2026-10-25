@@ -25,6 +25,8 @@ def main() -> int:
                         help="Motor local: contínuo (padrão) ou Whisper em janelas.")
     parser.add_argument("--model", choices=("tiny", "base", "small"), default="small",
                         help="Tamanho do modelo quando --engine whisper.")
+    parser.add_argument("--whisper-device", choices=("cpu", "cuda"), default="cpu",
+                        help="Processador do Whisper; cuda exige o runtime NVIDIA opcional.")
     parser.add_argument("--device", type=int, help="Índice da saída informado por --list-devices.")
     parser.add_argument("--record-seconds", type=float, help="Gravar por uma duração limitada, sem abrir janela.")
     parser.add_argument("--replay-wav", type=Path, help="Ensaiar um WAV PCM16 silenciosamente, no ritmo original, em nova sessão.")
@@ -32,6 +34,8 @@ def main() -> int:
     parser.add_argument("--paragraph-pause", type=float, default=1.5,
                         help="Pausa mínima para sugerir novo parágrafo, de 0.8 a 5 segundos.")
     args = parser.parse_args()
+    if args.whisper_device == "cuda" and args.engine != "whisper":
+        parser.error("Use --whisper-device cuda com --engine whisper.")
     if args.replay_wav is not None and args.record_seconds is not None:
         parser.error("Use --replay-wav ou --record-seconds separadamente.")
     if args.record_seconds is not None and args.record_seconds <= 0:
@@ -56,7 +60,7 @@ def main() -> int:
         if args.prepare_model:
             from .streaming import StreamingTranscriber
             engine = (StreamingTranscriber(project_root) if args.engine == "streaming" else
-                      LocalTranscriber(project_root, args.model))
+                      LocalTranscriber(project_root, args.model, device=args.whisper_device))
             print(engine.prepare())
             return 0
         if args.list_devices:
@@ -79,14 +83,15 @@ def main() -> int:
 
             session = CaptureSession(device, project_root, emit,
                                      transcribe=not args.no_transcription, model_name=args.model,
-                                     engine_name=args.engine, paragraph_config=paragraph_config, replay_path=args.replay_wav)
+                                     engine_name=args.engine, paragraph_config=paragraph_config, replay_path=args.replay_wav,
+                                     whisper_device=args.whisper_device)
             try:
                 return 0 if session.run(args.record_seconds) else 1
             except KeyboardInterrupt:
                 session.stop()
                 return 130
         from .ui import launch
-        launch(project_root, engine_name=args.engine, paragraph_pause=args.paragraph_pause)
+        launch(project_root, engine_name=args.engine, paragraph_pause=args.paragraph_pause, whisper_device=args.whisper_device)
         return 0
     except Exception as exc:
         logging.exception("Falha ao iniciar aplicação")

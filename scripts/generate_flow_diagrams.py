@@ -86,7 +86,7 @@ def internal(path):
     row1 = [
         ("Vídeo ou WAV salvo", ["Debate, propaganda, notícia", "Saída de áudio do Windows", "ou ensaio silencioso de WAV."], "gray", "ENTRADA"),
         ("Entrada de áudio", ["WASAPI ou WAV · PCM16", "Fila de captura separada", "Áudio salvo em nova sessão."], "blue", "CAPTURA / ENSAIO"),
-        ("Transcrição local", ["sherpa-onnx ou Whisper", "Hipóteses provisórias", "Só trechos estáveis persistem."], "blue", "PROCESSO LOCAL"),
+        ("Transcrição local", ["Contínuo: CPU e prévia", "Whisper: CPU ou NVIDIA", "Só trechos estáveis persistem."], "blue", "PROCESSO LOCAL"),
         ("Parágrafos", ["Pausas e continuidade", "Ligação aos trechos originais", "Tempos relativos à captura."], "teal", "ORGANIZAÇÃO")]
     for x, (title, lines, color, tag) in zip(xs, row1):
         svg.card(x, 210, width, 187, title, lines, color, tag)

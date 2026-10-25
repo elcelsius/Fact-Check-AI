@@ -4,7 +4,7 @@ Checagem assistida por IA para debates, propaganda política e noticiários.
 
 Aplicativo Windows que transcreve falas, identifica afirmações verificáveis e organiza evidências e análises preliminares para revisão humana. Funciona com áudio da saída do computador ou ensaio silencioso de um WAV salvo.
 
-**Status:** MVP local 0.23.0, de 24 de outubro de 2026, com revisão humana e exportação. Inclui captura, transcrição, ensaio com WAV, vozes anônimas após a gravação, associação humana de participantes, triagem local ou Gemini opcional, dossiês, pesquisa sob demanda, recuperação e exportação interna. Consulte a [entrega do MVP local](docs/entrega-mvp-local.md) para o escopo, os critérios e as limitações. A avaliação editorial e o piloto representativo permanecem abertos; o ensaio atual acumulou atraso de transcrição. Contas e operação simultânea em equipe são evolução posterior ao escopo escolhido.
+**Status:** MVP local 0.24.0, de 24 de outubro de 2026, com revisão humana e exportação. Inclui captura, transcrição, ensaio com WAV, vozes anônimas após a gravação, associação humana de participantes, triagem local ou Gemini opcional, dossiês, pesquisa sob demanda, recuperação e exportação interna. A 0.24 acrescenta **Whisper com NVIDIA**, aquecimento antes da captura e [comparação automática de desempenho](docs/desempenho-transcricao.md). No ensaio de 20 s, a inferência caiu de cerca de 40 s em CPU para 13 s em NVIDIA; houve picos de atraso no ensaio longo. Consulte a [entrega local original](docs/entrega-mvp-local.md) para o escopo. Avaliação editorial, chamadas reais com chaves e piloto representativo permanecem abertos; contas e operação simultânea são evolução posterior.
 
 ## Diagramas de funcionamento
 
@@ -41,7 +41,7 @@ O campo **Em andamento** contém uma hipótese que pode mudar ou terminar com um
 
 **Pacotes de 0,2 segundo não significam palavras prontas em 0,2 segundo.** A primeira prévia depende da chegada da fala e do processamento. Os horários são estimativas do reconhecimento, não marcações conferidas palavra por palavra. Se o dispositivo suspender as amostras durante o silêncio, a estabilização pode aguardar novas amostras ou o encerramento.
 
-O modo **Whisper · trechos a cada três segundos** continua disponível para comparação. Ele usa o modelo small do faster-whisper, envia o primeiro trecho após dois segundos e mantém até seis segundos de contexto. A escolha do modo acontece antes de iniciar a sessão.
+O modo **Whisper · CPU · trechos a cada três segundos** continua disponível para comparação. A versão 0.24 acrescenta **Whisper · NVIDIA (GPU) · trechos a cada três segundos**, com o mesmo modelo small e preparação antes da captura. Os dois enviam o primeiro trecho após dois segundos e mantêm até seis segundos de contexto. A escolha acontece antes da sessão. Consulte [resultados, instalação e limites](docs/desempenho-transcricao.md); somente o motor contínuo fornece a prévia revisável.
 
 ### Ensaiar uma gravação e conferir vozes
 
@@ -53,7 +53,7 @@ Selecione trechos da mesma voz usando Ctrl/Shift, ouça-os individualmente e cli
 
 A atribuição registra a proveniência, aumenta a revisão da fala e exige nova triagem. Não confere o texto nem decide a veracidade. **Cancelar análise / preparação** e o fechamento durante a tarefa pedem confirmação. Consulte os modelos e resultados na [entrega local](docs/entrega-mvp-local.md#falantes-alcance-e-privacidade).
 
-No ensaio desta versão, processar 20,011 segundos com o motor contínuo levou 33,42 segundos de computação isolada em CPU. Houve acúmulo de fila no ensaio no ritmo original. Meça o desempenho antes de uma transmissão longa; o modo Whisper permite comparação. Os resultados da versão 0.3 registrados abaixo descrevem outras execuções.
+No ensaio da 0.23, processar 20,011 segundos com o motor contínuo levou 33,42 segundos de computação isolada em CPU. Na comparação do fluxo completo da 0.24, o contínuo e Whisper em CPU consumiram cerca de 40 segundos de inferência; Whisper com NVIDIA, 12,88 segundos. A preparação é medida separadamente. O teste NVIDIA de 336,341 segundos terminou sem perda de PCM, mas teve picos de atraso. Meça o desempenho e a fidelidade antes de um evento; os resultados da 0.3 abaixo descrevem outras execuções.
 
 ### Configurar temas para triagem e revisão
 
@@ -385,7 +385,7 @@ py -3.12 -m venv .venv
 .\iniciar.cmd
 ```
 
-**requirements.lock** fornece o backend CPU para Windows x64. Para um ambiente novo com GPU NVIDIA e driver compatível, use **requirements-gpu.lock** no comando de instalação. Essa configuração inclui o wheel CUDA e as bibliotecas NVIDIA dentro da `.venv`; não instala drivers nem altera o toolkit global. Foi verificada neste computador com RTX 5060 Laptop, driver 617.42 e runtime CUDA 13.4. A transcrição continua em CPU, e o motor de triagem tenta usar a GPU disponível. Os registros das análises indicam o processador efetivamente usado. Ao trocar um backend já instalado, recrie o ambiente ou reinstale explicitamente o wheel correspondente.
+**requirements.lock** fornece o backend CPU para Windows x64. Para um ambiente novo com GPU NVIDIA e driver compatível, use **requirements-gpu.lock** no comando de instalação. Essa configuração inclui o wheel CUDA e as bibliotecas NVIDIA na `.venv`; não instala drivers nem altera o toolkit global ou o PATH do Windows. A triagem usa o backend CUDA 13 e a opção Whisper NVIDIA da 0.24 usa os runtimes CUDA 12 e cuDNN 9 fixados no arquivo. O contínuo permanece em CPU. Whisper NVIDIA foi exercitado nesta RTX 5060 Laptop com driver 621.01; confira [preparação, métricas e limites](docs/desempenho-transcricao.md). Ao trocar um backend já instalado, recrie o ambiente ou reinstale explicitamente o wheel correspondente.
 
 O leitor PyAV está limitado a uma versão compatível com o faster-whisper utilizado. Implementações de referência: [PyAudioWPatch](https://github.com/s0d3s/PyAudioWPatch), [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) e [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Referência das bibliotecas NVIDIA: [instalação de runtimes por pip no Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/).
 
@@ -397,6 +397,7 @@ O leitor PyAV está limitado a uma versão compatível com o faster-whisper util
 .\.venv\Scripts\python.exe -m factcheck --record-seconds 5 --no-transcription
 .\.venv\Scripts\python.exe -m factcheck --engine whisper --prepare-model
 .\.venv\Scripts\python.exe -m factcheck --engine whisper --record-seconds 20
+.\.venv\Scripts\python.exe -m scripts.compare_transcription recordings\PASTA_DA_SESSAO\audio.wav --profiles streaming-cpu whisper-cpu whisper-cuda
 .\.venv\Scripts\python.exe -m scripts.rehearse_recovery
 .\.venv\Scripts\python.exe -m factcheck --replay-wav recordings\PASTA_DA_SESSAO\audio.wav
 .\.venv\Scripts\python.exe -m factcheck --prepare-speaker-models
@@ -410,7 +411,8 @@ Para escolher uma saída pela linha de comando, acrescente **--device** com o í
 
 ### Validação realizada neste computador
 
-- Os **510 testes automatizados passaram**, em 167,011 s, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Os **529 testes automatizados passaram**, em 178,992 s, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Na versão 0.24, os testes cobrem opção NVIDIA explícita, aquecimento sintético consumido antes de gravar, falha de runtime sem troca silenciosa para CPU, limpeza dos diretórios de DLL, seleção pela interface, relatório antigo sem medidas inventadas, métricas de inferência separadas do pipeline, PCM exato, modelos/áudio alterados, preservação de JSON existente e comparação interrompida com resultados já salvos. Os [ensaios nativos](docs/desempenho-transcricao.md) usaram os três perfis com o mesmo WAV curto e NVIDIA com uma gravação de 336,341 s. Não foram chamadas APIs ou criadas decisões factuais. A nova seleção e os diagramas foram conferidos visualmente; a avaliação de fidelidade e a carga simultânea com Qwen continuam pendentes.
 - Na versão 0.23, os testes cobrem entrada WAV no ritmo original, PCM exato, cancelamento, arquivo alterado ou incompleto, ausência de dispositivo, vozes anônimas, trechos mistos, associação humana transacional, revisões antigas, recuperação e proveniência exportada. Incluem tipo de conteúdo em sessões antigas/novas e cuidado com fala reportada. Foram conferidos o pacote Python, seus recursos, os links locais e os SVGs renderizados. Os [ensaios nativos e seus limites](docs/entrega-mvp-local.md#validação-desta-entrega) distinguem execução técnica de precisão editorial. O [workflow Windows](.github/workflows/tests.yml) executa a suíte, validação e construção do pacote. A [primeira execução no GitHub](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40135380140), sobre o código `105aded`, passou em Windows 2022/Python 3.12: 510 testes em 318,217 s, documentação, SVGs reproduzíveis e pacote com seus recursos.
 - Na versão 0.22, os testes exercitam cadastro, duplicação de nomes/variações, edição concorrente, arquivamento, restauração, rollback, leitura sem escrita, normalização textual, termos desconhecidos e versão capturada por tarefa. Cobrem histórico automático e humano, preservação dos casos após mudanças do cadastro, exportação somente do tema usado, sugestões no editor e rejeição de vocabulário alterado durante a revisão. Aba e cadastro foram conferidos em dois tamanhos cada, assim como a revisão da afirmação. Os SVGs foram atualizados e renderizados. O ensaio foi fictício e não chamou APIs ou alterou casos políticos reais; a adequação editorial dos temas continua pendente.
 - Na versão 0.21, os testes exercitam consulta somente de leitura, filtros locais, casos históricos, bancos ausentes/antigos/corrompidos/bloqueados, deduplicação e conflito entre cópias, cancelamento, fechamento, origem e destino alterados durante a comparação, campos obrigatórios e não transferência de conclusões. Cobrem preservação dos arquivos originais, procedência importada, decisões e tarefas do destino, retratos consultados e exportação apenas dos antecedentes registrados. A aba foi conferida em 1120 × 860 e 1000 × 760; as duas abas da comparação, em 920 × 780 e 840 × 700. Os SVGs foram atualizados e renderizados. O ensaio usou dados fictícios, sem API ou alterações nos casos políticos reais; equivalência factual e validade temporal continuam sob conferência humana.
@@ -479,6 +481,8 @@ O foco inicial continua sendo checagem política em uso interno. A primeira vers
 O projeto avaliará a redução de trabalho humano junto com a qualidade das evidências, a cobertura das afirmações, o tempo até a revisão e o custo. Tecnologias, orçamento, equipe, evento e metas operacionais serão definidos na preparação do piloto.
 
 ## Validação após a entrega local
+
+Ouvir a saída de **Whisper NVIDIA** e comparar com os motores CPU usando uma referência humana. O ganho medido não elimina os picos de atraso; testar depois a operação com triagem simultânea e manter os resultados de qualidade separados dos tempos. O [guia de desempenho](docs/desempenho-transcricao.md) inclui comandos, medidas e roteiro para completar uma checagem humana.
 
 Usar **Testar conexão** para validar uma chave Gemini e **Encontrar fontes** para exercitar uma chave Tavily no Windows, registrando disponibilidade e consumo real. A coleta real foi exercitada em uma página do MJSP; ampliar a validação para outros domínios e diagnosticar a tentativa do TSE antes de generalizar disponibilidade. Cópias importadas continuam com origem pendente de conferência. Avaliar transcrição, triagem e dossiês com gravações representativas e anotações humanas. Pesquisa contínua e outros provedores de busca dependem de novos limites e ensaios. A definição editorial do piloto e seu conjunto de referência continuam no checklist.
 

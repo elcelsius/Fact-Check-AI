@@ -838,6 +838,18 @@ class WorkbenchTests(unittest.TestCase):
         thread.return_value.start.assert_called_once()
         self.assertEqual(str(self.app.replay_button["state"]),"disabled")
 
+    def test_whisper_nvidia_is_explicit_and_replay_passes_the_selected_device(self):
+        from tests.test_replay import wav_file
+        path = self.project / "gpu-replay.wav"
+        wav_file(path)
+        self.assertEqual(self.app.engine_box.current(), 0)
+        self.app.engine_box.current(2)
+        with patch("factcheck.ui.CaptureSession") as session, patch("factcheck.ui.threading.Thread"):
+            self.app.start(replay_path=path)
+        self.assertEqual(session.call_args.kwargs["engine_name"], "whisper")
+        self.assertEqual(session.call_args.kwargs["whisper_device"], "cuda")
+        self.assertEqual(session.call_args.kwargs["replay_path"], path)
+
     def test_replay_file_dialog_cancel_or_invalid_file_does_not_clear_current_session(self):
         with patch("factcheck.ui.filedialog.askopenfilename",return_value=""),patch("factcheck.ui.CaptureSession") as session:
             self.app.replay()

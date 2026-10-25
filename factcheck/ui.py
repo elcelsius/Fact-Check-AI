@@ -20,7 +20,7 @@ from .timeline import timestamp, video_range
 
 class CaptureApp:
     def __init__(self, root: tk.Tk, project_root: Path, engine_name: str = "streaming",
-                 paragraph_pause: float = 1.5):
+                 paragraph_pause: float = 1.5, whisper_device: str = "cpu"):
         self.root = root
         self.project_root = project_root
         self.events: queue.Queue = queue.Queue()
@@ -75,8 +75,9 @@ class CaptureApp:
         engine_row.pack(fill="x", pady=(0, 12))
         ttk.Label(engine_row, text="Transcrição").pack(side="left", padx=(0, 10))
         self.engine_box = ttk.Combobox(engine_row, state="readonly", width=48,
-                                      values=("Contínua · prévia durante a fala", "Whisper · trechos a cada três segundos"))
-        self.engine_box.current(0 if engine_name == "streaming" else 1)
+                                      values=("Contínua · prévia durante a fala", "Whisper · CPU · trechos a cada três segundos",
+                                              "Whisper · NVIDIA (GPU) · trechos a cada três segundos"))
+        self.engine_box.current(0 if engine_name == "streaming" else 2 if whisper_device == "cuda" else 1)
         self.engine_box.pack(side="left")
         ttk.Label(engine_row, text="Pausa entre parágrafos (s)").pack(side="left", padx=(16, 6))
         self.paragraph_pause = tk.StringVar(value=f"{paragraph_pause:g}".replace(".", ","))
@@ -218,7 +219,8 @@ class CaptureApp:
                                        transcribe=self.transcribe_enabled.get(),
                                        engine_name="streaming" if self.engine_box.current() == 0 else "whisper",
                                        paragraph_config=paragraph_config, debate=self.workbench.debate,
-                                       **({"replay_path": replay_path} if replay_path is not None else {}))
+                                       **({"replay_path": replay_path} if replay_path is not None else {}),
+                                       **({"whisper_device": "cuda"} if self.engine_box.current() == 2 else {}))
         threading.Thread(target=self.session.run, name="capture-session", daemon=True).start()
 
     def stop(self) -> None:
@@ -380,7 +382,8 @@ class CaptureApp:
                 elif self.engine_box.current()==0:
                     status="Capturando. Áudio enviado a cada 0,2 s; a prévia aparece conforme a fala."
                 else:
-                    status="Capturando. Primeiro envio em dois segundos; depois, a cada três segundos."
+                    processor="NVIDIA" if self.engine_box.current()==2 else "CPU"
+                    status=f"Capturando com Whisper em {processor}. Primeiro envio em dois segundos; depois, a cada três segundos."
                 self.status.configure(text=status)
                 source=f"{data['device']} · " if data.get("input_kind")=="wav_replay" else ""
                 self.detail.configure(text=f"{source}Sessão: {self.folder.name}")
@@ -460,7 +463,7 @@ class CaptureApp:
         self.root.after(100, self.poll)
 
 
-def launch(project_root: Path, engine_name: str = "streaming", paragraph_pause: float = 1.5) -> None:
+def launch(project_root: Path, engine_name: str = "streaming", paragraph_pause: float = 1.5, whisper_device: str = "cpu") -> None:
     root = tk.Tk()
-    CaptureApp(root, project_root, engine_name=engine_name, paragraph_pause=paragraph_pause)
+    CaptureApp(root, project_root, engine_name=engine_name, paragraph_pause=paragraph_pause, whisper_device=whisper_device)
     root.mainloop()

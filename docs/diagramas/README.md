@@ -1,6 +1,6 @@
 # Diagramas de funcionamento
 
-Referência do MVP local **0.23.0**, de 24/10/2026. Os arquivos são SVGs independentes, com texto selecionável, título e descrição de acessibilidade, sem imagens ou fontes externas.
+Referência do MVP local **0.24.0**, de 24/10/2026. Os arquivos são SVGs independentes, com texto selecionável, título e descrição de acessibilidade, sem imagens ou fontes externas. Whisper pode usar CPU ou NVIDIA; a preparação da opção NVIDIA antecede a captura. Consulte os [ensaios de desempenho](../desempenho-transcricao.md).
 
 | Arquivo | Leitura |
 | --- | --- |

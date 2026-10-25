@@ -35,6 +35,21 @@ class ReportTests(unittest.TestCase):
         self.assertIn("não registrado neste relatório antigo", text)
         self.assertIn("NÃO AVALIADOS", text)
 
+    def test_inference_is_separate_from_pipeline_and_old_timings_remain_unknown(self):
+        self.write_events([{"kind": "transcription_chunk", "processing_seconds": .4, "inference_seconds": .1},
+                           {"kind": "transcription_flush", "processing_seconds": .05}])
+        report = session_report(self.review)
+        self.assertEqual(report["timing_seconds"]["chunk_inference"]["median"], .1)
+        self.assertEqual(report["timing_seconds"]["chunk_processing"]["median"], .4)
+        self.assertEqual(report["timing_seconds"]["streaming_flush"]["median"], .05)
+        self.assertIn("sem persistência", render_report(report))
+        self.write_events([{"kind": "transcription_chunk", "processing_seconds": .4}])
+        old = session_report(self.review)
+        self.assertIsNone(old["timing_seconds"]["chunk_inference"]["median"])
+        old["timing_seconds"].pop("chunk_inference")
+        old["timing_seconds"].pop("streaming_flush")
+        self.assertIn("Não registrado", render_report(old))
+
     def test_human_decisions_ratio_uses_current_factual_claims_and_excludes_opinions(self):
         self.dossiers.decide(self.cid, 0, "inconclusiva", "Revisor fictício", "Sem fonte neste ensaio.")
         report = session_report(self.review)

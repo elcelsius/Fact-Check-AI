@@ -53,12 +53,18 @@ class TranscriptMerger:
 
 class LocalTranscriber:
     def __init__(self, project_root: Path, model_name: str = "small", *,
-                 beam_size: int = 1, right_context: float = 0.5):
+                 beam_size: int = 1, right_context: float = 0.5, device: str = "cpu"):
         if model_name not in {"tiny", "base", "small"}:
             raise ValueError("Modelo local não suportado pelo protótipo.")
+        if device not in {"cpu", "cuda"}:
+            raise ValueError("Escolha CPU ou NVIDIA para Whisper.")
         self.root = project_root
         self.model_name = model_name
         self.beam_size = beam_size
+        self.device = device
+        self.compute = "cuda/int8_float16" if device == "cuda" else "cpu/int8"
+        self.cpu_threads = min(8, max(1, (os.cpu_count() or 4) - 2))
+        self.dll_handles, self.native_handles = [], []
         self.model = None
         self.merger = TranscriptMerger(right_context=right_context)
 
@@ -66,6 +72,11 @@ class LocalTranscriber:
         # Caches pertencem ao projeto. O áudio permanece local.
         os.environ.setdefault("HF_HOME", str(self.root / ".cache" / "huggingface"))
         os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+        if self.device == "cuda":
+            from .cuda_runtime import whisper_cuda_libraries
+            self.dll_handles, self.native_handles = whisper_cuda_libraries()
+            os.environ.setdefault("CUDA_CACHE_PATH", str(self.root / ".cache/cuda"))
+            Path(os.environ["CUDA_CACHE_PATH"]).mkdir(parents=True, exist_ok=True)
         from faster_whisper import WhisperModel
         from faster_whisper.utils import download_model
 
@@ -75,9 +86,15 @@ class LocalTranscriber:
             download_model(self.model_name, output_dir=str(model_path),
                            cache_dir=str(self.root / ".cache" / "huggingface"))
         self.model = WhisperModel(
-            str(model_path), device="cpu", compute_type="int8",
-            cpu_threads=min(8, max(1, (os.cpu_count() or 4) - 2)),
+            str(model_path), device=self.device, compute_type="int8_float16" if self.device == "cuda" else "int8",
+            cpu_threads=self.cpu_threads,
         )
+        if self.device == "cuda":
+            # Inicializar kernels antes de abrir a captura; esta amostra não é persistida.
+            import numpy as np
+            segments, _ = self.model.transcribe(np.zeros(16000, np.float32), language="pt", task="transcribe",
+                beam_size=1, temperature=0, word_timestamps=True, vad_filter=False, condition_on_previous_text=False)
+            list(segments)
         return model_path
 
     def transcribe(self, chunk: AudioChunk) -> list[TranscriptLine]:

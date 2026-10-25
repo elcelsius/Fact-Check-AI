@@ -30,15 +30,18 @@ class CaptureSession:
                  emit: Callable[[str, dict], None] | None = None,
                  transcribe: bool = True, model_name: str = "small",
                  engine_name: str = "streaming", paragraph_config: ParagraphConfig | None = None,
-                 debate: Debate | None = None, replay_path: Path | None = None):
+                 debate: Debate | None = None, replay_path: Path | None = None, whisper_device: str = "cpu"):
         if engine_name not in {"streaming", "whisper"}:
             raise ValueError("Motor de transcrição desconhecido.")
+        if whisper_device not in {"cpu", "cuda"} or (engine_name == "streaming" and whisper_device != "cpu"):
+            raise ValueError("A opção NVIDIA está disponível somente para Whisper.")
         self.device = device
         self.root = project_root
         self.emit = emit or (lambda kind, data: None)
         self.transcribe = transcribe
         self.model_name = model_name
         self.engine_name = engine_name
+        self.whisper_device = whisper_device
         self.paragraph_config = paragraph_config or ParagraphConfig()
         self.debate = (debate or Debate()).validate()
         self.replay_path = Path(replay_path).resolve() if replay_path is not None else None
@@ -69,9 +72,10 @@ class CaptureSession:
                 return False
             engine = None
             if self.transcribe:
-                self.emit("status", {"text": "Preparando transcrição local…"})
+                self.emit("status", {"text": "Preparando Whisper NVIDIA e aquecendo o motor antes da captura…"
+                          if self.whisper_device == "cuda" else "Preparando transcrição local…"})
                 engine = (StreamingTranscriber(self.root) if self.engine_name == "streaming"
-                          else LocalTranscriber(self.root, self.model_name))
+                          else LocalTranscriber(self.root, self.model_name, **({"device": "cuda"} if self.whisper_device == "cuda" else {})))
                 engine.prepare()
             if not self.stop_event.is_set():
                 succeeded = self._record(engine, seconds)
@@ -107,7 +111,8 @@ class CaptureSession:
             "transcription_engine": ("sherpa-onnx" if streaming else "faster-whisper") if engine else None,
             "model": (MODEL_NAME if streaming else self.model_name) if engine else None,
             "model_revision": MODEL_REVISION if engine and streaming else None,
-            "compute": "cpu/int8" if engine else None,
+            "compute": ("cuda/int8_float16" if not streaming and self.whisper_device == "cuda" else "cpu/int8") if engine else None,
+            "cpu_threads": getattr(engine, "cpu_threads", None) if type(getattr(engine, "cpu_threads", None)) is int else None,
             "packet_seconds": PACKET_SECONDS if streaming else None,
             "context_seconds": None if streaming else 6,
             "first_seconds": None if streaming else 2,
@@ -207,7 +212,12 @@ class CaptureSession:
                     try:
                         if chunk is None:
                             if streaming and not self.cancel_event.is_set() and not transcription_failed.is_set():
-                                publish(engine.finish())
+                                before = time.perf_counter()
+                                lines = engine.finish()
+                                flush_seconds = time.perf_counter() - before
+                                publish(lines)
+                                event("transcription_flush", {"processing_seconds": round(flush_seconds, 6),
+                                      "elapsed_seconds": round(time.perf_counter() - capture_started, 6)})
                                 self.emit("partial", {"text": ""})
                             return
                         if self.cancel_event.is_set():
@@ -217,6 +227,7 @@ class CaptureSession:
                             continue
                         before = time.perf_counter()
                         lines = engine.transcribe(chunk)
+                        inference_seconds = time.perf_counter() - before
                         if self.cancel_event.is_set():
                             self.metadata["cancelled_chunks"] += 1
                             continue
@@ -235,6 +246,7 @@ class CaptureSession:
                         event("transcription_chunk", {
                             "start": chunk.start, "end": chunk.end,
                             "processing_seconds": round(time.perf_counter() - before, 3),
+                            "inference_seconds": round(inference_seconds, 6),
                             "queued_chunks": jobs.qsize(),
                             "delivery_lag_seconds": round(max(0, time.perf_counter() - capture_started -
                                 (chunk.end if streaming or chunk.final else chunk.end - 0.5)), 3),
@@ -376,6 +388,9 @@ class CaptureSession:
                 capture_error = str(exc)
                 issue("capture_error", capture_error)
             finally:
+                if capture_started is not None:
+                    event("capture_finished", {"elapsed_seconds": round(time.perf_counter() - capture_started, 6),
+                          "audio_seconds": frames / self.device.sample_rate, "capture_failed": capture_error is not None})
                 self.metadata.update(status="finalizing", frames=frames)
                 try:
                     atomic_json(metadata_path, self.metadata)

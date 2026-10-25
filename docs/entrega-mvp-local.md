@@ -2,6 +2,8 @@
 
 **Versão 0.23.0 · 24 de outubro de 2026**
 
+Este documento registra a primeira entrega. A **0.24.0** acrescenta Whisper NVIDIA e comparação automática; os [ensaios de desempenho](desempenho-transcricao.md) registram os resultados atuais e seus limites, sem substituir as medições históricas abaixo.
+
 O escopo escolhido pelo proponente é um **aplicativo local, com revisão humana e exportação**. O material de entrada pode ser um debate político, propaganda política, noticiário, entrevista ou outro conteúdo falado. O evento que motivou o projeto já passou; esta versão prepara o trabalho com gravações e futuras transmissões. Nenhum evento ou revisor foi presumido.
 
 Esta entrega encerra a implementação desse primeiro escopo para ensaios internos. A aprovação editorial e o desempenho em uma transmissão representativa exigem avaliação humana. O [checklist amplo](checklist-desenvolvimento.md) continua registrando o piloto, a avaliação e evoluções além desta entrega; suas 130 tarefas não são requisitos todos atendidos por uma versão local.

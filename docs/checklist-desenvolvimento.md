@@ -4,7 +4,7 @@
 
 Este checklist organiza o trabalho necessário para desenvolver, testar e avaliar o primeiro piloto de checagem assistida por IA em um debate político ao vivo. A equipe humana validará os dossiês e decidirá sobre qualquer divulgação; o piloto será de uso interno.
 
-O plano contém **15 fases de execução, 104 tarefas pendentes e 26 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
+O plano contém **15 fases de execução, 103 tarefas pendentes e 27 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
 
 ### Andamento do primeiro incremento
 
@@ -62,13 +62,19 @@ O proponente escolheu **aplicativo local, revisão humana e exportação**, apli
 
 A entrada WAV foi exercitada com áudio português existente, preservando todos os bytes e gerando três segmentos sem APIs. Houve atraso: 20,011 s de áudio exigiram 33,42 s de processamento isolado. A análise de vozes funcionou em processo Windows real sobre amostra pública, sem atribuir nomes. As telas foram conferidas em dois tamanhos. Os 510 testes passaram localmente e na [execução Windows do GitHub](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40135380140), que também aprovou documentação, SVGs reproduzíveis e pacote. **05.07** está concluída. A funcionalidade de **06.06** está entregue; a avaliação da precisão e qualidade de atribuição em português continua nas fases 02 e 13.
 
+### Comparação e aceleração da transcrição · 0.24
+
+A [comparação automática](desempenho-transcricao.md) usa a mesma entrada WAV em processos separados, com hashes da mídia e dos modelos, preparação separada das latências e ausência de APIs ou triagem. A interface oferece Whisper NVIDIA explicitamente, sem alterar a escolha padrão em CPU. O aquecimento sintético ocorre antes de abrir a entrada e não é persistido. Os runtimes ficam na venv. O relatório da sessão distingue computação, persistência e flush, preservando a leitura de versões antigas.
+
+No ensaio de 20,011 s, o contínuo e Whisper em CPU consumiram cerca de 40 s de inferência; Whisper NVIDIA, 12,88 s. O teste NVIDIA de 336,341 s terminou com áudio íntegro e transcrição completa, razão 0,67 e recuperação da fila, mas entrega estabilizada com P95 de 16,51 s e pico de 19,43 s. Preparação, outros programas e caches afetam os resultados. Qualidade, picos sob carga simultânea e ensaio editorial permanecem em avaliação; nenhuma conclusão factual foi produzida. **04.01** está entregue como ferramenta e ensaio comparativo, sem concluir a fase 04 ou liberar o piloto.
+
 ## Prioridades para a operação ao vivo
 
-**Planejamento atualizado em 24 de outubro de 2026; acompanhamento da implementação: versão 0.23.**
+**Planejamento atualizado em 24 de outubro de 2026; acompanhamento da implementação: versão 0.24.**
 
 A análise de um fluxo de desenvolvimento paralelo trouxe necessidades úteis para nosso piloto. Esta seção registra requisitos gerais, sem reproduzir mensagens, dados pessoais ou acessos do material privado. Os relatos não constituem uma auditoria da outra aplicação; imagens, vídeos e áudios omitidos na exportação não foram avaliados. A proposta mantém os produtos independentes, com transcrição e triagem locais e Gemini opcional no Fact-Check AI.
 
-| Necessidade observada | Situação no Fact-Check AI 0.23 | Melhoria proposta |
+| Necessidade observada | Situação no Fact-Check AI 0.24 | Melhoria proposta |
 | --- | --- | --- |
 | Encontrar a fala na transmissão | Tempos da captura, reprodução do áudio salvo e referência manual do vídeo por sessão. | Validar sincronização com um player real e tratamento operacional de descontinuidades. |
 | Corrigir cortes entre falas | Agrupamento automático e combinação reversível na revisão, com originais, correções e histórico preservados. | Avaliar a segmentação e o esforço de revisão com referência humana. |
@@ -209,7 +215,7 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 **Responsável sugerido:** Equipe técnica com revisão editorial. **Dependências:** 02, 03.
 
-- [ ] **04.01** Preparar uma comparação de transcrição usando as mesmas amostras em português e as mesmas condições de áudio.
+- [x] **04.01** Preparar uma comparação de transcrição usando as mesmas amostras em português e as mesmas condições de áudio. — Entregue na 0.24: WAV original no ritmo real, perfis CPU/NVIDIA sequenciais, processos separados, hashes, parâmetros, tempos e resultados automáticos para conferência humana. Ensaio longo e limitações registrados; fidelidade ainda sem referência humana.
 - [ ] **04.02** Comparar modelos de identificação e análise com foco em fidelidade à fala, vínculo com evidências, abstenção e tempo de resposta.
 - [ ] **04.03** Comparar mecanismos de busca e recuperação, verificando acesso real ao documento e localização dos trechos.
 - [ ] **04.04** Estimar custo por hora de evento e por dossiê, incluindo repetições, falhas e novas tentativas.

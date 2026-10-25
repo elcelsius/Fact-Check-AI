@@ -19,6 +19,7 @@ PACKET_SECONDS = 0.2
 class StreamingTranscriber:
     def __init__(self, project_root: Path):
         self.root = project_root
+        self.cpu_threads = min(4, max(1, (os.cpu_count() or 4) - 2))
         self.recognizer = None
         self.stream = None
         self.sample_rate: int | None = None
@@ -43,7 +44,7 @@ class StreamingTranscriber:
         self.recognizer = OnlineRecognizer.from_transducer(
             tokens=str(model_path / "tokens.txt"), encoder=str(model_path / MODEL_FILES[0]),
             decoder=str(model_path / MODEL_FILES[1]), joiner=str(model_path / MODEL_FILES[2]),
-            num_threads=min(4, max(1, (os.cpu_count() or 4) - 2)), provider="cpu",
+            num_threads=self.cpu_threads, provider="cpu",
             enable_endpoint_detection=True, rule1_min_trailing_silence=2.4,
             rule2_min_trailing_silence=0.8, rule3_min_utterance_length=15,
             decoding_method="greedy_search",
