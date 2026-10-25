@@ -71,7 +71,7 @@ A preparação e abertura levaram 1,66 s, 1,12 s e 32,81 s, respectivamente, for
 
 Nessa rodada, a computação NVIDIA foi cerca de três vezes mais rápida que os dois perfis CPU. A preparação inicial permanece relevante e os picos do ensaio longo precisam de acompanhamento. Nenhum resultado determina qual transcrição é mais fiel sem ouvir o áudio e preparar a referência humana.
 
-A suíte local passou com **529 testes em 178,992 s**. A interface NVIDIA foi inspecionada em 1120×860 e 1000×760; os dois diagramas foram renderizados sem cortes. Os testes automatizados de CUDA usam modelos e bibliotecas simulados; a execução NVIDIA real é demonstrada pelos ensaios acima. O ambiente passou por `pip check`. A [verificação automática](../.github/workflows/tests.yml) usa o backend CPU em Windows, sem baixar modelos ou usar chaves.
+A suíte local passou com **529 testes em 178,992 s**. A [execução Windows do GitHub](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40150757194) aprovou testes, documentação, SVGs reproduzíveis e pacote sobre o código `ddd71a6`. A interface NVIDIA foi inspecionada em 1120×860 e 1000×760; os dois diagramas foram renderizados sem cortes. Os testes automatizados de CUDA usam modelos e bibliotecas simulados; a execução NVIDIA real é demonstrada pelos ensaios acima. O ambiente passou por `pip check`. A [verificação automática](../.github/workflows/tests.yml) usa o backend CPU em Windows, sem baixar modelos ou usar chaves.
 
 ## Conferência humana e próximo ensaio
 
