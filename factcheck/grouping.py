@@ -58,6 +58,8 @@ def combine(store, left_id: int, left_revision: int, right_id: int, right_revisi
                         for origin in source["original"].get("source_paragraph_ids", [source["paragraph_id"]])],
                     "parts": [part for source in (left, right) for part in source["original"].get("parts", [])]}
         original["text"] = original["source_text"]
+        gaps = [gap for source in (left, right) for gap in source["original"].get("audio_gaps", [])]
+        if gaps: original["audio_gaps"] = gaps
         combined = {"paragraph_id": pid, "revision": 1, "text": text, "speaker": speaker,
                     "edited": True, "human_reviewed": False, "needs_rebase": False,
                     "closed": True, "start": original["start"], "end": original["end"],

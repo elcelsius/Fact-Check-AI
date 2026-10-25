@@ -29,6 +29,7 @@ from .previous_checks_ui import PreviousChecksPane
 from .topics_ui import TopicsPane
 from .topics import describe_topic, load_snapshot
 from .speakers_ui import SpeakersPane
+from .operations_ui import OperationsPane
 
 
 class Workbench:
@@ -41,6 +42,9 @@ class Workbench:
         self.connection_test = None
         self.export_task = None
         self.recovery_task = None
+        self.batch = None
+        self.batch_window = None
+        self.batch_progress = None
         self.import_warnings = []
         self.session_label = tk.StringVar(value="Nenhuma sessão carregada.")
         self.export_label = tk.StringVar(value="Exportação: nenhum arquivo gerado nesta execução.")
@@ -81,13 +85,14 @@ class Workbench:
                         variable=self.auto).pack(anchor="w", pady=(0, 8))
         self.source_tree = self.tree(self.review_tab,
             [("time", "Captura (s)", 130), ("video_time", "Vídeo (ref.)", 190),
-             ("speaker", "Participante", 140), ("review", "Revisão / triagem", 220), ("text", "Fala", 550)])
+             ("speaker", "Participante", 140), ("review", "Revisão / triagem", 220), ("text", "Fala", 550)], height=6)
         lower = ttk.Frame(self.review_tab)
         lower.pack(fill="x", pady=10)
         ttk.Button(lower, text="Analisar seleção", command=self.analyze_selected).pack(side="left")
         ttk.Button(lower, text="Analisar todos os trechos concluídos", command=self.analyze_all).pack(side="left", padx=8)
         ttk.Button(lower, text="Cancelar triagem", command=self.cancel_triage).pack(side="left")
         ttk.Button(lower, text="Cancelar exportação", command=self.cancel_export).pack(side="left", padx=8)
+        ttk.Button(lower, text="Incluir afirmação", command=self.new_claim).pack(side="left")
         self.progress = ttk.Label(self.review_tab, text="Abra uma sessão gravada ou inicie uma captura.", wraplength=950)
         self.progress.pack(anchor="w")
         ttk.Label(self.review_tab, text="A revisão da transcrição e a identificação do participante são manuais. "
@@ -109,6 +114,10 @@ class Workbench:
         ttk.Button(row, text="Descartar com justificativa", command=self.discard).pack(side="left")
         ttk.Button(row, text="Abrir dossiê", command=lambda: self.evidence.open_selected()).pack(side="left", padx=8)
         ttk.Button(row, text="Exportar sessão", command=self.configure_export).pack(side="left")
+        manual_row = ttk.Frame(self.claim_tab)
+        manual_row.pack(fill="x", pady=(0, 6))
+        ttk.Button(manual_row, text="Dividir afirmação selecionada", command=self.split_claim).pack(side="left")
+        ttk.Button(manual_row, text="Pesquisar fila visível", command=self.open_research_queue).pack(side="left", padx=8)
         ttk.Label(self.claim_tab, textvariable=self.export_label, wraplength=950).pack(anchor="w", pady=(0, 8))
         self.claim_detail = ScrolledText(self.claim_tab, wrap="word", height=8, font=("Segoe UI", 11))
         self.claim_detail.pack(fill="both", expand=True)
@@ -118,6 +127,7 @@ class Workbench:
         self.previous_checks = PreviousChecksPane(self, notebook)
         self.topics = TopicsPane(self, notebook)
         self.speakers = SpeakersPane(self, notebook)
+        self.operations = OperationsPane(self, notebook)
 
     def build_filters(self):
         frame = ttk.LabelFrame(self.claim_tab, text="Filtrar afirmações", padding=8)
@@ -220,7 +230,7 @@ class Workbench:
         return tree
 
     def busy(self):
-        return (bool(self.runner and self.runner.pending) or self.evidence.busy() or self.speakers.busy()
+        return (bool(self.runner and self.runner.pending) or bool(self.batch and self.batch.pending) or self.evidence.busy() or self.speakers.busy() or self.operations.busy()
                 or bool(self.connection_test and self.connection_test.pending) or bool(self.export_task and self.export_task.pending)
                 or bool(self.recovery_task and self.recovery_task.pending))
 
@@ -645,7 +655,13 @@ class Workbench:
         self.import_warnings = warnings
         self.runner = None
         self.evidence.load(store)
+        from .research_queue import BatchStore
+        BatchStore(store).recover()
+        self.batch = None
+        self.batch_window = None
+        self.batch_progress = None
         self.speakers.load(store)
+        self.operations.load(store)
         self.debate = Debate(**store.debate())
         self.update_title()
         self.reset_filters()
@@ -715,6 +731,7 @@ class Workbench:
         self.apply_filters()
         self.evidence.refresh()
         self.speakers.refresh()
+        self.operations.refresh()
 
     @staticmethod
     def _rows(tree, rows):
@@ -874,6 +891,8 @@ class Workbench:
         original.pack(fill="both", expand=True)
         original.insert("1.0", source["original"]["source_text"])
         original.configure(state="disabled")
+        if source["original"].get("audio_gaps"):
+            ttk.Label(frame, text="Esta fala cruza uma pausa de captura. O áudio desse intervalo foi ignorado; confira o contexto antes de marcar a transcrição como conferida.", wraplength=760).pack(anchor="w", pady=5)
         ttk.Label(frame, text="Texto corrigido").pack(anchor="w", pady=(12, 4))
         editor = ScrolledText(frame, height=7, wrap="word")
         editor.pack(fill="both", expand=True)
@@ -953,6 +972,27 @@ class Workbench:
     def selected_claim(self):
         selected = self.claim_tree.selection()
         return self.visible_claims.get(selected[0]) if selected else None
+
+    def new_claim(self):
+        from .manual_claims_ui import open_editor
+        open_editor(self)
+
+    def open_research_queue(self):
+        from .research_queue_ui import open_queue
+        open_queue(self)
+
+    def batch_update(self, data):
+        if not data.get("pending"):
+            self.app.activities.pop(data["token"], None)
+        if self.batch and self.batch.token == data["token"]:
+            self.progress.configure(text=data["message"])
+            if self.batch_progress and self.batch_progress.winfo_exists():
+                self.batch_progress.configure(text=data["message"])
+            self.refresh()
+
+    def split_claim(self):
+        from .manual_claims_ui import open_editor
+        open_editor(self, split=True)
 
     def edit_claim(self):
         claim = self.selected_claim()

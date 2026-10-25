@@ -90,6 +90,8 @@ class CaptureApp:
         self.start_button.pack(side="left")
         self.replay_button = ttk.Button(action_row, text="Ensaiar WAV salvo", command=self.replay)
         self.replay_button.pack(side="left", padx=(8,0))
+        self.pause_button = ttk.Button(action_row, text="Pausar · ignorar áudio", command=self.toggle_pause, state="disabled")
+        self.pause_button.pack(side="left", padx=(8, 0))
         self.stop_button = ttk.Button(action_row, text="Encerrar e salvar", command=self.stop,
                                       state="disabled")
         self.stop_button.pack(side="left", padx=8)
@@ -228,7 +230,20 @@ class CaptureApp:
             self.session.stop()
             self.started_at = None
             self.stop_button.configure(state="disabled")
+            self.pause_button.configure(state="disabled")
             self.status.configure(text="Encerrando e salvando a sessão…")
+
+    def toggle_pause(self):
+        if not self.session or self.closing or self.session.stop_event.is_set(): return
+        paused = not self.session.pause_event.is_set()
+        try:
+            self.session.set_paused(paused)
+        except ValueError:
+            # O WAV pode terminar entre o clique e a aplicação da pausa.
+            self.pause_button.configure(state="disabled")
+            return
+        self.pause_button.configure(text="Retomar captura" if paused else "Pausar · ignorar áudio")
+        self.status.configure(text="Pausa solicitada. O áudio será ignorado; o vídeo continua." if paused else "Retomando a captura…")
 
     def cancel(self) -> None:
         if self.session is None or self.session.cancel_event.is_set():
@@ -252,6 +267,7 @@ class CaptureApp:
         self.started_at = None
         self.stop_button.configure(state="disabled")
         self.cancel_button.configure(state="disabled")
+        self.pause_button.configure(state="disabled")
         self.status.configure(text="Cancelando sessão e preservando os arquivos já gravados…")
 
     def close(self) -> None:
@@ -369,12 +385,14 @@ class CaptureApp:
             except queue.Empty:
                 break
             if kind == "status":
+                self._backlog_message = None
                 self.status.configure(text=data["text"])
             elif kind == "started":
                 self.folder = Path(data["folder"])
                 self.workbench.load(self.folder, live=True)
                 self.started_at = time.monotonic()
                 self.folder_button.configure(state="normal")
+                self.pause_button.configure(state="normal", text="Pausar · ignorar áudio")
                 if data.get("input_kind")=="wav_replay":
                     status="Ensaio WAV silencioso no ritmo original. O resultado será salvo em outra sessão."
                 elif not self.transcribe_enabled.get():
@@ -385,17 +403,29 @@ class CaptureApp:
                     processor="NVIDIA" if self.engine_box.current()==2 else "CPU"
                     status=f"Capturando com Whisper em {processor}. Primeiro envio em dois segundos; depois, a cada três segundos."
                 self.status.configure(text=status)
+                self._backlog_message = None
+                self._capture_message = status
                 source=f"{data['device']} · " if data.get("input_kind")=="wav_replay" else ""
                 self.detail.configure(text=f"{source}Sessão: {self.folder.name}")
             elif kind == "level":
+                self.workbench.operations.live_update(kind, data)
                 dbfs = data["dbfs"]
                 self.meter["value"] = max(0, min(100, (dbfs + 60) / 60 * 100))
                 level_text = "Sem sinal" if dbfs < -85 else "Sinal baixo" if dbfs < -45 else "Sinal presente"
                 if data["peak"] >= 0.999:
                     level_text = "Perto do limite"
                 self.level_label.configure(text=f"{level_text} · {dbfs:.0f} dB")
-                if data["queued_chunks"] > (10 if self.engine_box.current() == 0 else 2):
-                    self.status.configure(text=f"Capturando. {data['queued_chunks']} trechos aguardando transcrição.")
+                if (self.session and not self.session.stop_event.is_set() and not self.session.pause_event.is_set()):
+                    if data["queued_chunks"] > (10 if self.engine_box.current() == 0 else 2):
+                        self._backlog_message = f"Capturando. {data['queued_chunks']} trechos aguardando transcrição."
+                        self.status.configure(text=self._backlog_message)
+                    elif getattr(self, "_backlog_message", None) == self.status["text"]:
+                        self.status.configure(text=getattr(self, "_capture_message", "Capturando áudio."))
+                        self._backlog_message = None
+            elif kind == "capture_paused":
+                self.status.configure(text="Captura pausada: vídeo continua, intervalo marcado sem áudio. Trechos anteriores podem ser finalizados.")
+            elif kind == "capture_resumed":
+                self.status.configure(text="Captura retomada. Confira as falas próximas ao intervalo sem áudio.")
             elif kind == "partial":
                 if not (self.session and self.session.cancel_event.is_set()):
                     self.set_partial(data["text"])
@@ -408,6 +438,14 @@ class CaptureApp:
                 self.workbench.triage_update(data)
             elif kind == "research_done":
                 self.workbench.evidence.done(data)
+            elif kind == "research_queue_update":
+                self.workbench.batch_update(data)
+            elif kind == "transcription_chunk":
+                self.workbench.operations.live_update(kind, data)
+            elif kind == "files_progress":
+                self.workbench.operations.progress(data)
+            elif kind == "files_done":
+                self.workbench.operations.done(data)
             elif kind == "speaker_done":
                 self.workbench.speakers.done(data)
             elif kind == "speaker_progress":
@@ -441,6 +479,7 @@ class CaptureApp:
                 self.started_at = None
                 self.meter["value"] = 0
                 self.stop_button.configure(state="disabled")
+                self.pause_button.configure(state="disabled", text="Pausar · ignorar áudio")
                 self.cancel_button.configure(state="disabled")
                 self.start_button.configure(state="normal" if self.devices and not self.closing else "disabled")
                 self.replay_button.configure(state="normal" if not self.closing else "disabled")

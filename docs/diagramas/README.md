@@ -1,6 +1,6 @@
 # Diagramas de funcionamento
 
-Referência do MVP local **0.24.0**, de 24/10/2026. Os arquivos são SVGs independentes, com texto selecionável, título e descrição de acessibilidade, sem imagens ou fontes externas. Whisper pode usar CPU ou NVIDIA; a preparação da opção NVIDIA antecede a captura. Consulte os [ensaios de desempenho](../desempenho-transcricao.md).
+Referência do MVP local **0.25.0**, de 25/10/2026. Os arquivos são SVGs independentes, com texto selecionável, título e descrição de acessibilidade, sem imagens ou fontes externas. Whisper pode usar CPU ou NVIDIA; a preparação da opção NVIDIA antecede a captura. Consulte os [ensaios de desempenho](../desempenho-transcricao.md).
 
 | Arquivo | Leitura |
 | --- | --- |
@@ -9,7 +9,9 @@ Referência do MVP local **0.24.0**, de 24/10/2026. Os arquivos são SVGs indepe
 
 Setas mostram um percurso principal possível. Captura, triagem e pesquisa têm tarefas próprias e podem se sobrepor; os controles de versão impedem que resultados antigos substituam uma edição. Nem a coleta nem a exportação interna exigem uma conclusão factual. Os estados pendentes acompanham os arquivos.
 
-Azul representa processamento local; verde, organização e evidências; roxo, tarefas de IA; amarelo, ações humanas. Os títulos também identificam essas funções. Caixas tracejadas descrevem somente evolução planejada: pesquisa contínua, separação de vozes durante a transmissão e operação em equipe com contas, permissões e sincronização. Já é possível ensaiar um WAV salvo e separar vozes anônimas após encerrar a gravação. A associação a participantes exige ouvir os trechos e confirmar manualmente. A fila oferece prioridade e responsável local pelo caso, com justificativa, histórico e conferência após alterações da extração. São registros de organização separados do veredito e do nome de quem conclui a revisão factual; não reorganizam tarefas em execução. A Tavily opcional encontra URLs por consulta solicitada pelo operador; selecionar e coletar documentos continua sendo uma ação humana. Gemini também é opcional. A transcrição local, a busca no navegador e a conferência humana funcionam sem essas APIs.
+Azul representa processamento local; verde, organização e evidências; roxo, tarefas de IA; amarelo, ações humanas. Os títulos também identificam essas funções. Caixas tracejadas descrevem somente evolução planejada: busca autônoma contínua, separação de vozes durante a transmissão e operação em equipe com contas, permissões e sincronização. Já é possível ensaiar um WAV salvo e separar vozes anônimas após encerrar a gravação. A associação a participantes exige ouvir os trechos e confirmar manualmente. A fila oferece prioridade e responsável local pelo caso, com justificativa, histórico e conferência após alterações da extração. São registros de organização separados do veredito e do nome de quem conclui a revisão factual; a prioridade é consultada entre casos da fila de pesquisa, sem preempção da tarefa em execução. A Tavily opcional encontra URLs por consulta solicitada pelo operador; a seleção e coleta podem seguir a fila limitada iniciada pelo operador. Gemini também é opcional. A transcrição local, a busca no navegador e a conferência humana funcionam sem essas APIs.
+
+Os diagramas incluem pausa com lacunas, inclusão/divisão manual, citações e cálculos, fila de pesquisa com limites, indicadores de uso, referência humana e backup/restauração. O interno mede 1600×1840; a jornada, 1440×1800.
 
 Transcrição estabilizada, extração revisada, análise preliminar e decisão humana são estados diferentes. Nenhuma etapa publica resultados automaticamente. O piloto editorial e a avaliação com referência humana continuam pendentes.
 

@@ -1,3 +1,3 @@
 """Captura e transcrição local para o protótipo de checagem."""
 
-__version__ = "0.24.0"
+__version__ = "0.25.0"

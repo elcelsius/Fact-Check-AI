@@ -4,7 +4,19 @@ Checagem assistida por IA para debates, propaganda política e noticiários.
 
 Aplicativo Windows que transcreve falas, identifica afirmações verificáveis e organiza evidências e análises preliminares para revisão humana. Funciona com áudio da saída do computador ou ensaio silencioso de um WAV salvo.
 
-**Status:** MVP local 0.24.0, de 24 de outubro de 2026, com revisão humana e exportação. Inclui captura, transcrição, ensaio com WAV, vozes anônimas após a gravação, associação humana de participantes, triagem local ou Gemini opcional, dossiês, pesquisa sob demanda, recuperação e exportação interna. A 0.24 acrescenta **Whisper com NVIDIA**, aquecimento antes da captura e [comparação automática de desempenho](docs/desempenho-transcricao.md). No ensaio de 20 s, a inferência caiu de cerca de 40 s em CPU para 13 s em NVIDIA; houve picos de atraso no ensaio longo. Consulte a [entrega local original](docs/entrega-mvp-local.md) para o escopo. Avaliação editorial, chamadas reais com chaves e piloto representativo permanecem abertos; contas e operação simultânea são evolução posterior.
+**Status:** MVP local **0.25.0**, de 25 de outubro de 2026, com revisão humana e exportação. Este fechamento técnico acrescenta inclusão e divisão manual de afirmações, citações e cálculos reproduzíveis, pesquisa sequencial por prioridade, pausa de captura com lacunas identificadas, limites de API, avaliação com referência humana e backup/restauração. Consulte a [entrega e seus limites](docs/entrega-mvp-local.md). Avaliação editorial com material real, chamadas com as chaves do usuário e piloto representativo permanecem abertos. Contas e operação simultânea são evolução posterior. A [comparação CPU/NVIDIA](docs/desempenho-transcricao.md) continua disponível; picos de atraso precisam ser considerados no ensaio.
+
+### Controles do fechamento local
+
+| Onde | O que fazer |
+| --- | --- |
+| Captura | **Pausar · ignorar áudio** marca o intervalo e grava silêncio; **Retomar captura** volta a receber áudio. O vídeo continua no player. |
+| Revisar falas | **Incluir afirmação** cria um recorte literal com justificativa, mesmo quando a IA não o selecionou. |
+| Afirmações para checagem | **Dividir afirmação selecionada** preserva o original como histórico; as partes começam sem evidências ou decisão. **Pesquisar fila visível** executa casos selecionados com plano conferido e limites explícitos. |
+| Dossiê e fontes | **Registrar evidências e cálculos** permite selecionar citações de documentos coletados, registrar contas e anotar período, anterioridade e origem comum das fontes. |
+| Operação e avaliação | Configure tentativas de API e preços de referência, cadastre referências humanas, calcule métricas e crie ou restaure uma cópia `.fcbak` da sessão. |
+
+O [guia operacional](docs/operacao-e-recuperacao.md#controles-da-versão-025) detalha os novos controles. Fontes e cálculos registrados pelo operador continuam sujeitos à revisão factual. Sem referências humanas anotadas, o aplicativo não informa precisão ou cobertura presumidas. Nenhuma dessas ações publica conteúdo.
 
 ## Diagramas de funcionamento
 
@@ -13,7 +25,7 @@ Os dois diagramas são arquivos SVG editáveis, que podem ser abertos no navegad
 - [Fluxo interno do sistema](docs/diagramas/fluxo-interno.svg): captura, transcrição, tarefas de IA, validação, persistência, evidências e decisão humana.
 - [Jornada do usuário](docs/diagramas/fluxo-usuario.svg): preparar a captura, conferir falas, organizar a fila, pesquisar e concluir a revisão.
 
-As caixas tracejadas identificam funções ainda planejadas: pesquisa contínua, separação de vozes durante a transmissão e operação simultânea em equipe. A separação em vozes anônimas depois da gravação já está disponível. Os fluxos mostram possibilidades de uso; captura, triagem e pesquisa podem ocorrer em paralelo. A exportação interna pode conter pendências identificadas. Qualquer divulgação continua sob responsabilidade editorial humana. Consulte a [legenda e a regeneração dos diagramas](docs/diagramas/README.md).
+As caixas tracejadas identificam evolução posterior: descoberta autônoma contínua, vozes durante a transmissão e operação simultânea em equipe. A pesquisa em fila iniciada pelo operador e a separação de vozes após gravar estão disponíveis. Os fluxos mostram possibilidades de uso; captura, triagem e pesquisa podem ocorrer em paralelo. A exportação interna pode conter pendências identificadas. Qualquer divulgação continua sob responsabilidade editorial humana. Consulte a [legenda e a regeneração dos diagramas](docs/diagramas/README.md).
 
 ## Usar o aplicativo
 
@@ -411,7 +423,8 @@ Para escolher uma saída pela linha de comando, acrescente **--device** com o í
 
 ### Validação realizada neste computador
 
-- Os **529 testes automatizados passaram**, em 178,992 s, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
+- Na versão 0.25, **586 testes passaram em 218.242 s** localmente. A suíte cobre inclusão/divisão, citações/cálculos, fila e limites, pausas, avaliação humana, backup/restauração, falhas de armazenamento e proteção de fechamento. Sintaxe, documentação, SVGs e pacote também foram verificados; consulte a [validação da entrega](docs/entrega-mvp-local.md#validação-do-fechamento-025). Não houve chamada real de API ou decisão sobre caso político real neste fechamento.
+- Na versão 0.24, os **529 testes automatizados passaram**, em 178,992 s, incluindo os controles de captura e fechamento, cadastro e persistência, edição com histórico, reprodução do intervalo correto de áudio, restauração de citações, validação de números e negações e invalidação de resultados durante uma correção concorrente.
 - Na versão 0.24, os testes cobrem opção NVIDIA explícita, aquecimento sintético consumido antes de gravar, falha de runtime sem troca silenciosa para CPU, limpeza dos diretórios de DLL, seleção pela interface, relatório antigo sem medidas inventadas, métricas de inferência separadas do pipeline, PCM exato, modelos/áudio alterados, preservação de JSON existente e comparação interrompida com resultados já salvos. Os [ensaios nativos](docs/desempenho-transcricao.md) usaram os três perfis com o mesmo WAV curto e NVIDIA com uma gravação de 336,341 s. Não foram chamadas APIs ou criadas decisões factuais. A nova seleção e os diagramas foram conferidos visualmente; a avaliação de fidelidade e a carga simultânea com Qwen continuam pendentes.
 - A [execução Windows da 0.24 no GitHub](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40150757194), sobre o código `ddd71a6`, aprovou os testes, a documentação, os SVGs reproduzíveis e o pacote. O backend CPU funciona sem os runtimes NVIDIA opcionais; o pacote inclui os novos módulos e o auxiliar local de download.
 - Na versão 0.23, os testes cobrem entrada WAV no ritmo original, PCM exato, cancelamento, arquivo alterado ou incompleto, ausência de dispositivo, vozes anônimas, trechos mistos, associação humana transacional, revisões antigas, recuperação e proveniência exportada. Incluem tipo de conteúdo em sessões antigas/novas e cuidado com fala reportada. Foram conferidos o pacote Python, seus recursos, os links locais e os SVGs renderizados. Os [ensaios nativos e seus limites](docs/entrega-mvp-local.md#validação-desta-entrega) distinguem execução técnica de precisão editorial. O [workflow Windows](.github/workflows/tests.yml) executa a suíte, validação e construção do pacote. A [primeira execução no GitHub](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40135380140), sobre o código `105aded`, passou em Windows 2022/Python 3.12: 510 testes em 318,217 s, documentação, SVGs reproduzíveis e pacote com seus recursos.
@@ -479,7 +492,7 @@ A equipe humana validará cada dossiê e decidirá sobre qualquer divulgação. 
 
 O foco inicial continua sendo checagem política em uso interno. A primeira versão aceita também propaganda política e noticiários, conforme a decisão de escopo de 24/10/2026. O piloto com material representativo e referência humana será feito antes de assumir desempenho ou qualidade para eventos ao vivo.
 
-O projeto avaliará a redução de trabalho humano junto com a qualidade das evidências, a cobertura das afirmações, o tempo até a revisão e o custo. Tecnologias, orçamento, equipe, evento e metas operacionais serão definidos na preparação do piloto.
+O projeto avaliará a redução de trabalho humano junto com a qualidade das evidências, a cobertura das afirmações, o tempo até a revisão e o custo. As escolhas técnicas locais estão consolidadas na entrega. Orçamento, equipe editorial, evento e metas operacionais serão definidos na preparação do piloto.
 
 ## Validação após a entrega local
 

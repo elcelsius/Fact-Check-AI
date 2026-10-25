@@ -202,7 +202,7 @@ class ReviewStore:
             if source and paragraph["version"] <= source["source_version"]:
                 return source
             changed = source and any(paragraph.get(key) != source["original"].get(key)
-                                     for key in ("source_text", "start", "end", "speaker"))
+                                     for key in ("source_text", "start", "end", "speaker", "audio_gaps"))
             if source is None:
                 source = {"paragraph_id": pid, "revision": 1, "text": paragraph["source_text"],
                           "speaker": paragraph.get("speaker"), "edited": False,
@@ -310,6 +310,12 @@ class ReviewStore:
                 raise ValueError("O trecho foi substituído. Analise a versão ativa na revisão de falas.")
             if source["needs_rebase"]:
                 raise ValueError("Confira a atualização do texto original antes de analisar.")
+            if source["original"].get("audio_gaps") and not source["human_reviewed"]:
+                raise ValueError("A fala atravessa uma pausa da captura. Ouça e confira a transcrição antes de analisar.")
+            if not force:
+                manual = [json.loads(row[0]) for row in db.execute("SELECT payload FROM claims WHERE paragraph_id=? AND revision=?", (pid, source["revision"]))]
+                if any(item.get("creation") and not item.get("source_outdated") and item["status"] not in {"descartada", "analise_desatualizada"} for item in manual):
+                    return None
             states = ("running",) if force else ("running", "completed")
             marks = ",".join("?" for _ in states)
             if db.execute(f"SELECT 1 FROM analyses WHERE paragraph_id=? AND revision=? AND status IN ({marks})",
@@ -391,3 +397,7 @@ class ReviewStore:
     def revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason, topic_vocabulary=None):
         from .claims import revise_claim
         return revise_claim(self, cid, expected_revision, expected_source_revision, fields, reason, topic_vocabulary)
+
+    def create_claims(self, pid, source_revision, fields, reason, vocabulary=None, replaced=None):
+        from .claims import create_claims
+        return create_claims(self, pid, source_revision, fields, reason, vocabulary, replaced)

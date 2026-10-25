@@ -4,7 +4,7 @@
 
 Este checklist organiza o trabalho necessário para desenvolver, testar e avaliar o primeiro piloto de checagem assistida por IA em um debate político ao vivo. A equipe humana validará os dossiês e decidirá sobre qualquer divulgação; o piloto será de uso interno.
 
-O plano contém **15 fases de execução, 103 tarefas pendentes e 27 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
+O plano contém **15 fases de execução, 73 tarefas pendentes e 57 entregas concluídas**. As escolhas de tecnologias, evento, equipe, orçamento e metas serão feitas nas tarefas correspondentes.
 
 ### Andamento do primeiro incremento
 
@@ -68,13 +68,31 @@ A [comparação automática](desempenho-transcricao.md) usa a mesma entrada WAV 
 
 No ensaio de 20,011 s, o contínuo e Whisper em CPU consumiram cerca de 40 s de inferência; Whisper NVIDIA, 12,88 s. O teste NVIDIA de 336,341 s terminou com áudio íntegro e transcrição completa, razão 0,67 e recuperação da fila, mas entrega estabilizada com P95 de 16,51 s e pico de 19,43 s. Preparação, outros programas e caches afetam os resultados. Qualidade, picos sob carga simultânea e ensaio editorial permanecem em avaliação; nenhuma conclusão factual foi produzida. **04.01** está entregue como ferramenta e ensaio comparativo, sem concluir a fase 04 ou liberar o piloto.
 
+### Fechamento técnico local · 0.25 · 25/10/2026
+
+O pedido de concluir o desenvolvimento foi aplicado ao escopo escolhido: aplicativo local, revisão humana e exportação. Estão entregues inclusão/divisão manual, citações e cálculos ligados a fontes, fila sequencial por prioridade com limites, pausa de captura auditável, uso de API, referência humana e backup/restauração. A [entrega](entrega-mvp-local.md) registra critérios e escolhas; o [guia](operacao-e-recuperacao.md#controles-da-versão-025) explica uso, atualização e retorno. Os diagramas representam esses recursos como disponíveis.
+
+| Bloco deste fechamento | Situação |
+| --- | --- |
+| Inclusão, divisão e revisão manual | Implementado e testado |
+| Evidências, contas e contexto das fontes | Implementado e testado |
+| Pesquisa em fila por prioridade e limites | Implementado e testado; APIs reais aguardam chaves do usuário |
+| Pausa, lacunas, alertas e monitoramento | Implementado e testado; desempenho editorial real ainda deve ser medido |
+| Backup e restauração de sessão | Implementado e testado; biblioteca/modelos têm cópia separada |
+| Referência humana e ferramentas de avaliação | Implementado e testado com dados fictícios; material real não foi anotado pelo assistente |
+| Documentação, SVGs, cache local e versionamento | Atualizados neste fechamento; validação remota registrada na entrega |
+
+As caixas numeradas abaixo pertencem ao plano amplo original. Uma caixa técnica marcada confirma a funcionalidade no escopo descrito, sem concluir uma fase editorial. Permanecem abertas as validações com pessoas, as chamadas reais com chaves, o evento futuro, metas de desempenho e decisões de orçamento/retenção. Há também evolução técnica além deste MVP: correspondência semântica/repetições, OCR e tabelas complexas, vozes ao vivo, outros provedores e serviço multiusuário. Nada disso foi declarado pronto por atualização de checklist.
+
+Prioridade após este fechamento: selecionar material representativo, anotar a partição reservada e usar **Operação e avaliação**, conferindo chaves e condições reais antes de liberar um piloto. Não é necessário implementar contas para testar o aplicativo local.
+
 ## Prioridades para a operação ao vivo
 
-**Planejamento atualizado em 24 de outubro de 2026; acompanhamento da implementação: versão 0.24.**
+**Planejamento atualizado em 25 de outubro de 2026; acompanhamento da implementação: versão 0.25.**
 
 A análise de um fluxo de desenvolvimento paralelo trouxe necessidades úteis para nosso piloto. Esta seção registra requisitos gerais, sem reproduzir mensagens, dados pessoais ou acessos do material privado. Os relatos não constituem uma auditoria da outra aplicação; imagens, vídeos e áudios omitidos na exportação não foram avaliados. A proposta mantém os produtos independentes, com transcrição e triagem locais e Gemini opcional no Fact-Check AI.
 
-| Necessidade observada | Situação no Fact-Check AI 0.24 | Melhoria proposta |
+| Necessidade observada | Situação no Fact-Check AI 0.25 | Melhoria proposta |
 | --- | --- | --- |
 | Encontrar a fala na transmissão | Tempos da captura, reprodução do áudio salvo e referência manual do vídeo por sessão. | Validar sincronização com um player real e tratamento operacional de descontinuidades. |
 | Corrigir cortes entre falas | Agrupamento automático e combinação reversível na revisão, com originais, correções e histórico preservados. | Avaliar a segmentação e o esforço de revisão com referência humana. |
@@ -84,7 +102,7 @@ A análise de um fluxo de desenvolvimento paralelo trouxe necessidades úteis pa
 | Descobrir fontes | Busca Tavily sob demanda, com chave em memória e histórico de candidatas e descartes; coleta posterior escolhida pelo operador. | Validar chamada real, pertinência e consumo; ampliar provedores e pesquisa contínua depois dos ensaios. |
 | Corrigir a extração da IA | Editor de citação, resumo, categoria e tema, com justificativa, revisão própria e preservação do automático; filtros locais para localizar itens. | Avaliar erros e esforço de correção com referência humana e a consistência da priorização manual. |
 | Trocar material entre ferramentas | Exportação estruturada em JSON e CSV, com identidades, origens e estados; dossiê interno em Markdown. | Validar consumo em outras ferramentas e depois implementar conectores opcionais com confirmação de recebimento. |
-| Distribuir o trabalho | Prioridade e responsável local pelo caso, com motivo, revisão, histórico, conferência após mudança da extração, filtros e ordenação. | Contas, permissões, aceite autenticado, sincronização entre operadores e escalonamento das tarefas por prioridade. |
+| Distribuir o trabalho | Prioridade e responsável local pelo caso, com motivo, revisão, histórico, conferência após mudança da extração, filtros e ordenação. | Contas, permissões, aceite autenticado, sincronização entre operadores. A pesquisa local já é escalonada por prioridade entre casos. |
 | Reutilizar preparação editorial | Coleção de referências com versões e consulta local de decisões anteriores, com comparação e cópia do antecedente no novo caso. | Preparar e avaliar os materiais; avaliar equivalência e validade temporal, ampliar correspondência e acervos. |
 | Padronizar análises | Metodologia proposta e instruções dos modelos no código. | Manual editorial versionado, exemplos e avaliação contra referência humana. |
 
@@ -220,8 +238,8 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 - [ ] **04.03** Comparar mecanismos de busca e recuperação, verificando acesso real ao documento e localização dos trechos.
 - [ ] **04.04** Estimar custo por hora de evento e por dossiê, incluindo repetições, falhas e novas tentativas.
 - [ ] **04.05** Verificar limites dos serviços e condições de uso, retenção e tratamento do material enviado.
-- [ ] **04.06** Escolher as tecnologias do painel, serviço de coordenação, fila, banco de registros e armazenamento.
-- [ ] **04.07** Registrar as escolhas, alternativas e motivos, mantendo os conectores de transcrição, busca e modelos substituíveis.
+- [x] **04.06** Escolher as tecnologias do painel, serviço de coordenação, fila, banco de registros e armazenamento. — Entrega técnica conferida na 0.25: Escolhas locais consolidadas na entrega: Tkinter, controladores por eventos, filas, SQLite e arquivos por sessão; serviço compartilhado fica fora do escopo.
+- [x] **04.07** Registrar as escolhas, alternativas e motivos, mantendo os conectores de transcrição, busca e modelos substituíveis. — Entrega técnica conferida na 0.25: Escolhas, alternativas, motivos e limites dos adaptadores registrados na entrega; dependências e versões fixadas. Substituições precisam de testes do contrato.
 
 **Fase concluída quando:** Tecnologias selecionadas com evidências dos experimentos, limites conhecidos e estimativa inicial de custo.
 
@@ -231,12 +249,12 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 - [x] **05.01** Criar a estrutura do código e o controle de versão, preservando a documentação existente.
 - [x] **05.02** Configurar ambiente local, ambiente de testes e instruções reproduzíveis para iniciar o projeto.
-- [ ] **05.03** Configurar credenciais por ambiente e impedir que segredos apareçam no código, nos dossiês ou nos registros exportados.
+- [x] **05.03** Configurar credenciais por ambiente e impedir que segredos apareçam no código, nos dossiês ou nos registros exportados. — Entrega técnica conferida na 0.25: No escopo local, chaves Gemini/Tavily individuais ficam em memória; testes de transporte e exportação verificam ausência nos registros. Não há credencial de serviço compartilhado.
 - [x] **05.04** Criar os registros e as migrações do banco conforme os contratos de dados. — Entrega técnica conferida na 0.23: Criação e evolução dos bancos locais, abertura de sessões anteriores e recuperação transacional exercitadas em testes.
 - [ ] **05.05** Preparar o armazenamento de mídia e documentos, com identificação de versões e regras de retenção.
 - [ ] **05.06** Implementar autenticação e autorização no serviço para operador, revisor, editor e processos automatizados.
 - [x] **05.07** Configurar verificação automática do código e testes dos controles centrais em cada alteração. — Workflow Windows em alterações de código e PRs, sem chaves ou modelos; primeira execução aprovada com 510 testes, documentação, SVGs e pacote na 0.23.
-- [ ] **05.08** Adicionar identificadores de rastreamento, registros de execução e contabilização básica de uso desde o início.
+- [x] **05.08** Adicionar identificadores de rastreamento, registros de execução e contabilização básica de uso desde o início. — Entrega técnica conferida na 0.25: Identidades e histórico existentes agora incluem reservas de API e agregados de uso por sessão. O início da instrumentação fica explícito; consumo antigo não é inventado.
 
 **Fase concluída quando:** Projeto inicializável e componentes básicos disponíveis, com persistência, permissões e rastreabilidade funcionando.
 
@@ -246,7 +264,7 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 - [x] **06.01** Implementar o cadastro da sessão do debate e de seus participantes. Entregue na versão 0.5, com persistência por sessão e validação automatizada do cadastro.
 - [x] **06.02** Implementar reprodução de gravação como entrada de ensaio, preservando o ritmo e os horários. — Entregue na 0.23: entrada WAV silenciosa no ritmo original, pela interface e CLI, com cancelamento e preservação do áudio.
-- [ ] **06.03** Conectar a entrada de áudio ao vivo e permitir iniciar, pausar e encerrar a captura.
+- [x] **06.03** Conectar a entrada de áudio ao vivo e permitir iniciar, pausar e encerrar a captura. — Entrega técnica conferida na 0.25: Entrada Windows com iniciar, pausar/retomar e encerrar. Pausa ignora áudio e mantém o relógio; lacunas persistidas, conferência obrigatória das falas afetadas e testes PCM/cancelamento.
 - [ ] **06.04** Segmentar o áudio e associar trechos à linha do tempo do evento, medindo atraso de entrada.
 - [x] **06.05** Integrar a transcrição contínua e distinguir resultados provisórios de trechos estabilizados. — Entrega técnica conferida na 0.23: Motor contínuo local, hipóteses substituíveis e persistência somente de segmentos estabilizados. Desempenho atual com atraso registrado na entrega 0.23.
 - [x] **06.06** Associar falas aos participantes, permitir correção manual e manter identificação indefinida quando houver dúvida. — Entrega técnica conferida na 0.23: Atribuição manual e associação humana assistida por vozes na 0.23; seleção indefinida preservada e substituição protegida. A qualidade da diarização segue para avaliação humana.
@@ -260,13 +278,13 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 **Responsável sugerido:** Equipe técnica e revisores. **Dependências:** 02, 05.
 
-- [ ] **07.01** Detectar afirmações factuais e distinguir opiniões, promessas e enunciados sem definição suficiente.
-- [ ] **07.02** Separar frases com várias afirmações, mantendo a ligação com a fala literal.
+- [x] **07.01** Detectar afirmações factuais e distinguir opiniões, promessas e enunciados sem definição suficiente. — Entrega técnica conferida na 0.25: Triagem local ou Gemini opcional produz fato/opinião/promessa/indefinido com validação de formato e citação. Precisão e cobertura reais continuam em 07.08 e 13.
+- [x] **07.02** Separar frases com várias afirmações, mantendo a ligação com a fala literal. — Entrega técnica conferida na 0.25: Extrações múltiplas e divisão manual em duas a doze partes literais, com histórico e invalidação do original; fidelidade da seleção automática permanece sujeita à avaliação humana.
 - [ ] **07.03** Extrair participante, tema, local, período, indicador e comparação sem preencher ambiguidades como fatos. Parcial na versão 0.22: temas e variações configuráveis, normalização textual versionada e revisão humana disponíveis. Identificação automática de falantes e avaliação de precisão/contexto continuam pendentes; um tema correspondente não valida a extração factual.
 - [ ] **07.04** Preservar contexto suficiente para referências como nosso governo, aqui e no ano passado.
 - [ ] **07.05** Priorizar as afirmações segundo os critérios editoriais e permitir intervenção humana. Parcial na versão 0.18: nível manual com justificativa e histórico; formalização e avaliação dos critérios editoriais pendentes.
 - [ ] **07.06** Agrupar repetições equivalentes sem misturar períodos, territórios ou indicadores diferentes.
-- [ ] **07.07** Permitir inclusão manual, edição, divisão e descarte com justificativa e histórico.
+- [x] **07.07** Permitir inclusão manual, edição, divisão e descarte com justificativa e histórico. — Entrega técnica conferida na 0.25: Inclusão, edição, divisão e descarte com motivo, versão e histórico; operações atômicas e rejeição de origens antigas. Partes não herdam decisões ou evidências.
 - [ ] **07.08** Medir precisão e cobertura contra a referência humana e registrar o que foi selecionado e descartado.
 
 **Fase concluída quando:** Fila de afirmações utilizável com fidelidade à fala, prioridade explicável e resultados de avaliação registrados.
@@ -277,14 +295,14 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 - [ ] **08.01** Organizar uma coleção de fontes por tema, com instituição, metodologia, periodicidade e limites de uso. Parcial na versão 0.20: cadastro local, busca, versões e seleção disponíveis; preparação e conferência editorial dos materiais pendentes.
 - [ ] **08.02** Implementar busca na coleção preparada e na web, registrando as consultas realizadas. Parcial na versão 0.20: Tavily sob demanda e busca local nos cadastros; consultas da coleção são registradas na seleção para o caso. Validação real do provedor e avaliação editorial pendentes; filtros locais sem seleção não geram histórico de consulta.
-- [ ] **08.03** Recuperar o conteúdo dos documentos e registrar bloqueio, indisponibilidade ou leitura incompleta.
+- [x] **08.03** Recuperar o conteúdo dos documentos e registrar bloqueio, indisponibilidade ou leitura incompleta. — Entrega técnica conferida na 0.25: Coleta e importação registram falhas, bloqueios, origem e leitura limitada; testes reais de extração e coleta HTTP anterior do MJSP. Disponibilidade de cada domínio segue para o ensaio.
 - [ ] **08.04** Extrair trechos de páginas, PDFs e tabelas, guardando página, seção ou outro localizador verificável.
-- [ ] **08.05** Registrar URL, autoria, data de publicação quando disponível, período dos dados, horário de acesso e versão do material.
+- [x] **08.05** Registrar URL, autoria, data de publicação quando disponível, período dos dados, horário de acesso e versão do material. — Entrega técnica conferida na 0.25: Metadados da cópia e anotações humanas por documento registram URL, autoria/data quando conhecidas, período, disponibilidade temporal e versão; ausência de data permanece explícita.
 - [ ] **08.06** Pesquisar evidências favoráveis, contrárias e contextualizadoras sem assumir uma classificação antecipadamente.
-- [ ] **08.07** Relacionar documentos que reproduzem a mesma origem e explicitar a independência das evidências.
+- [x] **08.07** Relacionar documentos que reproduzem a mesma origem e explicitar a independência das evidências. — Entrega técnica conferida na 0.25: Contexto humano por documento permite registrar origem comum e explicar independência/limites, vinculado à versão da fonte. Não há inferência automática de independência.
 - [ ] **08.08** Localizar checagens anteriores e conferir equivalência da afirmação, validade temporal e diferenças de contexto antes de reutilizar. Parcial na versão 0.21: consulta textual local de decisões humanas e formulário de comparação, com cópia versionada do antecedente no novo caso. Correspondência semântica, acervos externos e avaliação editorial da equivalência e validade continuam pendentes; nenhuma conclusão ou evidência é transferida automaticamente.
 - [ ] **08.09** Conferir se a informação já existia no momento da fala e registrar revisões posteriores separadamente.
-- [ ] **08.10** Restringir a leitura de URLs a destinos permitidos e tratar instruções contidas nas páginas como conteúdo externo.
+- [x] **08.10** Restringir a leitura de URLs a destinos permitidos e tratar instruções contidas nas páginas como conteúdo externo. — Entrega técnica conferida na 0.25: Restrições institucionais HTTPS, DNS, destinos privados, redirecionamentos e limites de conteúdo; documentos são dados nos prompts, sem ferramenta para executar suas instruções.
 
 **Fase concluída quando:** Cada evidência aponta para conteúdo efetivamente recuperado e localizado, com origem, contexto e lacunas registrados.
 
@@ -292,14 +310,14 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 **Responsável sugerido:** Equipe técnica e revisores. **Dependências:** 07, 08.
 
-- [ ] **09.01** Relacionar cada afirmação às evidências recuperadas, distinguindo sustentação, contradição, contexto e insuficiência.
+- [x] **09.01** Relacionar cada afirmação às evidências recuperadas, distinguindo sustentação, contradição, contexto e insuficiência. — Entrega técnica conferida na 0.25: Citações automáticas validadas e anotações do operador distinguem sustentação, contradição e contexto, com documento/bloco e pendências; a relação factual exige revisão humana.
 - [ ] **09.02** Conferir compatibilidade de período, território, população, indicador e metodologia.
-- [ ] **09.03** Registrar cálculos reproduzíveis, unidades, bases de comparação e diferenças entre percentuais e pontos percentuais.
+- [x] **09.03** Registrar cálculos reproduzíveis, unidades, bases de comparação e diferenças entre percentuais e pontos percentuais. — Entrega técnica conferida na 0.25: Fórmulas decimais reproduzíveis, variáveis, unidades, citações de apoio e explicação, sem execução de código; percentuais e pontos percentuais distinguidos no guia.
 - [ ] **09.04** Gerar resumo fiel, síntese das evidências, classificação preliminar e justificativa.
-- [ ] **09.05** Explicitar lacunas, conflitos entre fontes e perguntas que ainda precisam de pesquisa.
+- [x] **09.05** Explicitar lacunas, conflitos entre fontes e perguntas que ainda precisam de pesquisa. — Entrega técnica conferida na 0.25: Dossiê mostra recortes, lacunas, conflitos declarados, fonte importada e anotações desatualizadas, separados do veredito; completude editorial depende da leitura humana.
 - [ ] **09.06** Conferir se as citações existem nos documentos e sustentam as conclusões associadas.
 - [x] **09.07** Gerar o dossiê no formato definido, com versões separadas para a análise automática e a decisão humana. — Entrega técnica conferida na 0.23: Dossiê interno Markdown e JSON distinguem análise automática, decisão humana, versões e pendências.
-- [ ] **09.08** Encaminhar falhas de evidência e de consistência para correção, mantendo a análise pendente ou inconclusiva conforme o caso.
+- [x] **09.08** Encaminhar falhas de evidência e de consistência para correção, mantendo a análise pendente ou inconclusiva conforme o caso. — Entrega técnica conferida na 0.25: Recortes indefinidos, citações inválidas, resultados antigos e anotações desatualizadas impedem conclusão automática sustentada; caso permanece pendente/inconclusivo para correção.
 
 **Fase concluída quando:** Dossiê completo ou lacunas explícitas disponíveis, sem afirmações materiais sustentadas apenas pela resposta do modelo.
 
@@ -307,15 +325,15 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 **Responsável sugerido:** Equipe técnica. **Dependências:** 06, 07, 08, 09.
 
-- [ ] **10.01** Implementar o coordenador que encaminha transcrição, triagem, pesquisa, análise e revisão de consistência.
-- [ ] **10.02** Aplicar contratos de entrada e saída e registrar versões dos modelos, instruções e parâmetros.
-- [ ] **10.03** Implementar fila por prioridade e limites de tarefas simultâneas por evento. A versão 0.18 ordena a visualização por prioridade manual; o escalonamento das tarefas por esse nível continua pendente.
+- [x] **10.01** Implementar o coordenador que encaminha transcrição, triagem, pesquisa, análise e revisão de consistência. — Entrega técnica conferida na 0.25: Controladores locais integram captura, triagem, pesquisa e verificações de consistência com eventos, revisões e tarefas canceláveis. A revisão factual permanece humana.
+- [x] **10.02** Aplicar contratos de entrada e saída e registrar versões dos modelos, instruções e parâmetros. — Entrega técnica conferida na 0.25: Contratos estritos, versões de modelo/prompt, parâmetros, revisões e proveniência preservados; saída inválida rejeitada e segredos excluídos.
+- [x] **10.03** Implementar fila por prioridade e limites de tarefas simultâneas por evento. — Entrega técnica conferida na 0.25: Fila de pesquisa sequencial iniciada pelo operador, prioridade atual entre casos, um filho por vez e limites de casos/tarefas. Nova pesquisa manual é bloqueada enquanto a fila está ativa.
 - [ ] **10.04** Definir limites de duração, custo e tentativas por tarefa e por evento.
-- [ ] **10.05** Permitir cancelar, repetir ou solicitar pesquisa adicional sem criar dossiês duplicados.
+- [x] **10.05** Permitir cancelar, repetir ou solicitar pesquisa adicional sem criar dossiês duplicados. — Entrega técnica conferida na 0.25: Cancelamento confirmado, novas tentativas explícitas e pesquisa adicional mantêm a identidade do caso e o histórico; não há reenvio automático após falha ou restauração.
 - [x] **10.06** Impedir que resultados de uma versão antiga da fala sobrescrevam uma versão mais recente. — Entrega técnica conferida na 0.23: Resultados usam a revisão de origem e são rejeitados após alterações concorrentes; testes cobrem respostas tardias.
 - [x] **10.07** Invalidar análises dependentes quando a fala ou a evidência muda, preservando decisões anteriores no histórico. — Entrega técnica conferida na 0.23: Fala, extração, plano e evidências invalidam dependências; decisões anteriores ficam históricas, sem reaplicação automática.
-- [ ] **10.08** Aplicar permissões que impeçam agentes de aprovar dossiês, alterar decisões humanas ou divulgar conteúdo.
-- [ ] **10.09** Expor progresso, interrupções e atrasos ao painel, registrando os tempos de cada etapa.
+- [x] **10.08** Aplicar permissões que impeçam agentes de aprovar dossiês, alterar decisões humanas ou divulgar conteúdo. — Entrega técnica conferida na 0.25: No escopo local, modelos retornam dados validados e não têm operação para decidir ou publicar; veredito exige ação humana separada. Autenticação por papel do serviço permanece em 05.06, fora do escopo.
+- [x] **10.09** Expor progresso, interrupções e atrasos ao painel, registrando os tempos de cada etapa. — Entrega técnica conferida na 0.25: Painéis e logs mostram progresso, falhas, fila e atraso de pacotes; relatórios preservam tempos registrados e ausência de medição por palavra.
 
 **Fase concluída quando:** Fluxo integrado recuperável após falhas, com controle de versões, limites e decisão editorial restrita a pessoas autorizadas.
 
@@ -327,9 +345,9 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 - [x] **11.02** Exibir fila de afirmações com filtros por tema, participante, prioridade, estado e responsável. Concluída na versão 0.19: filtros combináveis, campos vazios, nomes reservados, seleção preservada e dados locais; validação automatizada e conferência visual em 1120 × 860 e 1000 × 760.
 - [ ] **11.03** Permitir que um revisor assuma um caso e evitar sobrescrita entre revisões simultâneas. Parcial na versão 0.19: atribuição local por nome com revisão, histórico e rejeição de editores antigos. Aceite autenticado, permissões e operação simultânea entre usuários continuam pendentes.
 - [x] **11.04** Apresentar fala literal, contexto, pergunta de checagem e recortes definidos. — Entrega técnica conferida na 0.23: Citação, contexto, pergunta e recortes do plano disponíveis no painel e no dossiê.
-- [ ] **11.05** Exibir documentos, localizadores, evidências favoráveis e contrárias e lacunas de pesquisa.
+- [x] **11.05** Exibir documentos, localizadores, evidências favoráveis e contrárias e lacunas de pesquisa. — Entrega técnica conferida na 0.25: Leitura de documentos/blocos e painel de citações favoráveis, contrárias, contextualizadoras e lacunas; citações/cálculos do operador aparecem separados da IA.
 - [x] **11.06** Identificar a classificação da IA como preliminar e permitir examinar as evidências antes de consultá-la. — Entrega técnica conferida na 0.23: Documentos podem ser lidos sem solicitar IA; análise preliminar e decisão humana têm identificação e ações separadas.
-- [ ] **11.07** Permitir corrigir a afirmação, adicionar evidências, solicitar pesquisa, descartar ou concluir a revisão com justificativa.
+- [x] **11.07** Permitir corrigir a afirmação, adicionar evidências, solicitar pesquisa, descartar ou concluir a revisão com justificativa. — Entrega técnica conferida na 0.25: Correção, inclusão/divisão, evidências manuais, pesquisa em fila, descarte e decisão justificados, com histórico e proteção contra edições antigas.
 - [x] **11.08** Mostrar histórico e exigir nova validação quando o dossiê revisado mudar. — Entrega técnica conferida na 0.23: Histórico consultável e decisões invalidadas após mudanças; retorno à revisão exercitado em testes.
 - [x] **11.09** Implementar exportação interna com versão, responsável, fontes e estado de revisão, preservando a decisão de divulgação com o editor. — Entrega técnica conferida na 0.23: JSON, CSV e dossiê interno com identidades, responsável, fontes, revisões e pendências; exportação atômica e cancelável.
 - [ ] **11.10** Verificar legibilidade, navegação por teclado e identificação de estados sem depender apenas de cores.
@@ -340,13 +358,13 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 **Responsável sugerido:** Equipe técnica e operador. **Dependências:** 05, 10, 11.
 
-- [ ] **12.01** Criar indicadores de latência por etapa, tamanho da fila, falhas, lacunas de áudio e uso dos serviços.
-- [ ] **12.02** Apresentar custo acumulado e estimativa restante em relação ao orçamento do evento.
-- [ ] **12.03** Configurar alertas para perda de áudio, atraso excessivo, falhas repetidas e aproximação dos limites.
-- [ ] **12.04** Implementar os modos de operação previstos para falha de busca, transcrição ou modelo, mantendo pendências visíveis.
+- [x] **12.01** Criar indicadores de latência por etapa, tamanho da fila, falhas, lacunas de áudio e uso dos serviços. — Entrega técnica conferida na 0.25: Indicadores de fila/atraso, falhas, pausas e uso de API no painel e relatório. Métricas não registradas continuam indisponíveis.
+- [x] **12.02** Apresentar custo acumulado e estimativa restante em relação ao orçamento do evento. — Entrega técnica conferida na 0.25: Tentativas, tokens/créditos e estimativa/saldo com preços opcionais do operador; custos desconhecidos não viram zero. É referência financeira, sem promessa de fatura ou bloqueio monetário.
+- [x] **12.03** Configurar alertas para perda de áudio, atraso excessivo, falhas repetidas e aproximação dos limites. — Entrega técnica conferida na 0.25: Avisos de captura/transcrição, atraso de pacote a partir de 10 s, uso a partir de 80% das tentativas e orçamento de referência; falha de API interrompe novos envios da fila.
+- [x] **12.04** Implementar os modos de operação previstos para falha de busca, transcrição ou modelo, mantendo pendências visíveis. — Entrega técnica conferida na 0.25: Falhas preservam arquivos, histórico e pendências; há importação, retomada manual de sessões, cancelamento e nova tentativa explícita. Não há retomada automática da transmissão.
 - [ ] **12.05** Definir acesso, retenção e exclusão de mídia, documentos, registros técnicos e dados dos usuários.
-- [ ] **12.06** Testar cópia de segurança e recuperação dos registros do evento e das revisões.
-- [ ] **12.07** Preparar ambiente de operação e procedimento de atualização e retorno à versão anterior.
+- [x] **12.06** Testar cópia de segurança e recuperação dos registros do evento e das revisões. — Entrega técnica conferida na 0.25: Backup/restauração .fcbak exercitados com áudio, cópia recuperada, revisão, decisão, hashes, cancelamento e arquivos inválidos; restauração cria outra pasta e interrompe tarefas antigas.
+- [x] **12.07** Preparar ambiente de operação e procedimento de atualização e retorno à versão anterior. — Entrega técnica conferida na 0.25: Ambiente Windows e dependências fixadas, procedimento de backup/atualização em cópia e retorno à instalação com dados anteriores documentados no guia operacional.
 - [x] **12.08** Escrever instruções para iniciar, acompanhar, interromper e encerrar uma sessão e registrar incidentes. — Entrega técnica conferida na 0.23: README, guia operacional e entrega local descrevem início, acompanhamento, encerramento, cancelamento, recuperação e registro de incidentes.
 
 **Fase concluída quando:** Operador consegue acompanhar qualidade, atrasos e custos e recuperar a operação conforme procedimentos documentados.
@@ -398,6 +416,15 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 
 **Fase concluída quando:** Relatório de avaliação concluído e próximo ciclo definido com base em evidências do piloto.
 
+## Pendências específicas mantidas abertas
+
+- **03.07, 05.06 e 11.03:** o serviço com contas/permissões e aceite autenticado não faz parte do escopo local. A proteção de revisões concorrentes já existe.
+- **06.07, 07.06, 08.04 e 08.08:** marcação automática de incerteza, equivalência semântica, OCR/tabelas complexas e acervos externos continuam evolução técnica; ouvir, corrigir e comparar manualmente está disponível.
+- **07.08 e 02.06:** as ferramentas de referência/partições e métricas estão prontas; anotação real e separação de repetições equivalentes exigem pessoas.
+- **10.04:** há limites de tentativas, tarefas, casos e tempo; orçamento é estimativa com aviso, sem corte monetário garantido ou preço de serviço presumido.
+- **12.05:** procedimento local de acesso, cópias e exclusão manual documentado; o responsável ainda define os prazos de retenção. Nada foi apagado automaticamente.
+- **13 a 15:** os testes fictícios não equivalem ao ensaio com equipe, avaliação reservada real ou execução de um futuro evento.
+
 ## Marcos de acompanhamento
 
 | Marco | Resultado esperado | Fases |
@@ -409,7 +436,7 @@ A proposta inicial estabelece o escopo; este checklist detalha sua execução. O
 | Piloto executado | Debate ao vivo acompanhado internamente e registros preservados. | 14 |
 | Próximo ciclo definido | Resultado comparado com a referência humana e backlog atualizado. | 15 |
 
-O primeiro bloco de trabalho é **01.01 a 01.04**: escolher o debate, confirmar o acesso à transmissão, designar a equipe e entender seu fluxo atual. Esses dados orientarão as decisões editoriais e técnicas seguintes.
+O próximo bloco é a validação humana do MVP: escolher gravação ou futuro evento, confirmar acesso e participantes, designar revisor e preparar a referência reservada. As tarefas 01, 02 e 13 registram essas dependências; os blocos técnicos entregues não exigem começar novamente a implementação.
 
 ## Documentação relacionada
 

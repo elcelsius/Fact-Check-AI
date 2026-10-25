@@ -1,14 +1,30 @@
 # Entrega do MVP local
 
-**Versão 0.23.0 · 24 de outubro de 2026**
+**Fechamento técnico 0.25.0 · 25 de outubro de 2026**
 
-Este documento registra a primeira entrega. A **0.24.0** acrescenta Whisper NVIDIA e comparação automática; os [ensaios de desempenho](desempenho-transcricao.md) registram os resultados atuais e seus limites, sem substituir as medições históricas abaixo.
+Este documento preserva os ensaios da primeira entrega 0.23 e registra o fechamento 0.25. A **0.24.0** acrescentou Whisper NVIDIA e comparação automática; os [ensaios de desempenho](desempenho-transcricao.md) registram seus resultados e limites. As medições históricas abaixo mantêm a versão de origem.
 
 O escopo escolhido pelo proponente é um **aplicativo local, com revisão humana e exportação**. O material de entrada pode ser um debate político, propaganda política, noticiário, entrevista ou outro conteúdo falado. O evento que motivou o projeto já passou; esta versão prepara o trabalho com gravações e futuras transmissões. Nenhum evento ou revisor foi presumido.
 
 Esta entrega encerra a implementação desse primeiro escopo para ensaios internos. A aprovação editorial e o desempenho em uma transmissão representativa exigem avaliação humana. O [checklist amplo](checklist-desenvolvimento.md) continua registrando o piloto, a avaliação e evoluções além desta entrega; suas 130 tarefas não são requisitos todos atendidos por uma versão local.
 
 ## Recursos e critérios de entrega
+
+A 0.25 completa os controles técnicos locais abaixo. A comprovação automatizada usa dados fictícios e transporte simulado para APIs; ela não substitui um ensaio editorial real.
+
+| Complemento da 0.25 | Critério exercitado |
+| --- | --- |
+| Inclusão e divisão manuais | Citação literal, motivo e versão de origem obrigatórios; divisão atômica preserva o caso anterior e não copia vereditos. |
+| Evidências e cálculos do operador | Citações ligadas a bloco e impressão digital do documento; fórmulas decimais sem execução de código, ligadas a citações atuais; mudanças invalidam conclusões. |
+| Pesquisa em fila | Seleção explícita, plano conferido, prioridade entre casos, limites de casos/tarefas/fontes/tempo, cancelamento e interrupção após falha de API. |
+| Pausa de captura | Áudio ignorado substituído por silêncio, mantendo o relógio; lacunas persistidas e propagadas aos parágrafos e exportações. Falas afetadas exigem conferência antes da triagem. |
+| Uso de API | Reserva transacional de tentativas antes do envio; zero bloqueia novas chamadas de triagem/pesquisa; uso e estimativa financeira distinguem ausência de informação de gratuidade declarada. |
+| Avaliação | Referência humana versionada, partições desenvolvimento/avaliação, WER e correspondência literal no subconjunto anotado; edição concorrente impede publicar métricas atuais. |
+| Backup/restauração | Cópia SQLite consistente e arquivos permitidos com hashes; restauração em nova pasta, validação de caminhos/conteúdo e interrupção de tarefas antigas, sem reenvios. |
+
+Em dados fictícios, o percurso inclusão → fonte → citação → cálculo → decisão humana de teste → exportação → restauração preservou decisão e proveniência. Captura, revisão, fila, dossiê e operação foram conferidos em 1120×860 e 1000×760, além dos novos editores. Os detalhes de uso estão no [guia operacional](operacao-e-recuperacao.md#controles-da-versão-025).
+
+A tabela seguinte descreve a base entregue na 0.23 e mantida na 0.25; os números de testes e links de validação em suas linhas são históricos.
 
 | Etapa | Disponível | Critério técnico exercitado |
 | --- | --- | --- |
@@ -24,6 +40,23 @@ Esta entrega encerra a implementação desse primeiro escopo para ensaios intern
 | Manutenção | Suíte Windows, validação de links/versões/SVGs e construção do pacote | [Workflow](../.github/workflows/tests.yml) aprovado em [execução Windows limpa](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40135380140), com 510 testes, documentos, SVGs e recursos do pacote. |
 
 ## Como experimentar
+
+As escolhas técnicas do escopo local estão consolidadas:
+
+| Componente | Escolha e motivo | Alternativa e limite |
+| --- | --- | --- |
+| Painel | Python/Tkinter, aplicação Windows na conta do operador | Serviço web com contas fica fora do escopo; nomes locais não autenticam pessoas. |
+| Áudio | WASAPI loopback, PCM16 e fila de captura independente | WAV no ritmo real permite ensaiar a mesma mídia; o aplicativo não controla o player. |
+| Reconhecimento | sherpa-onnx contínuo local, CPU por padrão | faster-whisper small em CPU ou NVIDIA é escolha explícita; preparação e atrasos são medidos separadamente. |
+| Triagem | Qwen local por processo, com validação do JSON e da citação | Gemini é opcional; envio exige configuração pelo usuário e passa pelo limite de tentativas. |
+| Pesquisa | Coleta institucional, importação e fila sequencial solicitada pelo operador | Tavily descobre candidatas; Gemini analisa trechos coletados. Não há pesquisa autônoma irrestrita. |
+| Persistência | SQLite por sessão, JSONL/TXT e WAV; biblioteca local separada | Transações e revisões rejeitam edições antigas; não há sincronização entre computadores. |
+| Coordenação | Controladores de captura, triagem e pesquisa com cancelamento e comunicação por eventos | Modelos retornam dados validados, sem ferramenta para aprovar ou publicar. Decisão humana é uma operação separada. |
+| Contratos e medição | Identidades, revisões, hashes, motor/prompt, tempos de etapa e uso de API quando informado | Adaptadores de transcrição, IA e busca ficam em módulos separados; trocas exigem testes do contrato, sem promessa de equivalência de qualidade. |
+
+O diagrama [interno](diagramas/fluxo-interno.svg) mostra os limites dos componentes. Instalação e dependências estão no README; atualização/retorno e retenção estão no guia operacional. A autorização por papel do serviço multiusuário continua fora desta versão.
+
+### Percurso sugerido
 
 1. Abra **iniciar.cmd**. Em **Dados da transmissão**, escolha o tipo e confira a data das declarações. Em notícia reexibida ou propaganda que usa imagens antigas, a data de upload pode não ser a data da fala.
 2. Para vídeo tocando, escolha a saída de áudio e **Iniciar captura**. Para material existente, use **Ensaiar WAV salvo** com WAV PCM16. O ensaio termina automaticamente no fim do arquivo e cria outra sessão; o original permanece intacto.
@@ -42,7 +75,15 @@ O download explícito de aproximadamente 47 MB usa ativos fixados do projeto she
 
 Referências técnicas: [diarização sherpa-onnx](https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/index.html), [modelos de segmentação](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models) e [modelos de voz](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models). O modelo de segmentação inclui licença MIT preservada no diretório local de modelos.
 
-## Validação desta entrega
+## Validação do fechamento 0.25
+
+A suíte final passou localmente com **586 testes em 218.242 s**, incluindo os novos fluxos e falhas de armazenamento, além de sintaxe, links, contagem do checklist e SVGs. Os dois diagramas foram renderizados em navegador com verificação dos limites de todos os textos. A interface foi conferida em quinze vistas/tamanhos, com dados fictícios; o corte dos botões de revisão na janela mínima foi corrigido.
+
+O ensaio de queda de processo foi repetido na 0.25: os 2,5 s de PCM disponíveis, revisão e decisão de teste permaneceram, a transação incompleta foi revertida e nenhuma tarefa foi reenviada. Backup/restauração preservou também uma cópia recuperada do áudio e seus metadados. O wheel foi construído e inspecionado: **59 arquivos públicos**, incluindo os novos módulos e o auxiliar PowerShell. Materiais privados continuam fora do pacote e do Git.
+
+Os testes de APIs usam transporte simulado. As métricas de referência usam textos/anotadores fictícios e não estimam qualidade editorial real. O código mantém os resultados de desempenho da 0.24 como ensaios daquela versão; não foi presumido ganho de latência ou precisão por este fechamento.
+
+## Validação histórica da primeira entrega 0.23
 
 - O ensaio da gravação portuguesa existente, com 20,011 s, gerou três segmentos estáveis e um parágrafo, sem APIs. A cópia WAV resultante foi idêntica ao original, que permaneceu intacto. Foram cerca de 44,2 s incluindo preparação e finalização; a primeira prévia chegou em cerca de 2,88 s após iniciar a entrada. A fila atingiu 50 pacotes, sem transbordar nesse trecho curto.
 - A medição isolada com quatro threads consumiu 33,42 s de processamento para esses 20,011 s, razão 1,67. Portanto, este ensaio **não sustenta promessa de acompanhar uma transmissão longa sem acumular atraso**. Os números mais rápidos da versão 0.3 são históricos de outra execução; a latência precisa ser medida novamente nas condições reais de uso. Diminuir o pacote de 0,2 s não resolve capacidade de processamento insuficiente.

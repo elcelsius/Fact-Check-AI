@@ -30,7 +30,7 @@ def capture_state(folder):
     status = data.get("status")
     if not isinstance(status, str):
         return "unknown", "Os metadados não informam como a captura terminou."
-    if status in {"completed", "cancelled", "capture_error"}:
+    if status in {"completed", "cancelled", "capture_error", "interrupted"}:
         return status, ""
     if status in {"recording", "finalizing"}:
         owner = data.get("owner_pid")

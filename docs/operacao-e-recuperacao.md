@@ -1,6 +1,8 @@
 # Operação e recuperação de uma sessão
 
-Procedimento do MVP local Windows, versão **0.24.0**, de 24/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+Procedimento do MVP local Windows, versão **0.25.0**, de 25/10/2026. A recuperação é local; nenhuma pesquisa ou chamada à IA é retomada automaticamente ao abrir uma sessão. Consulte também o [fluxo interno](diagramas/fluxo-interno.svg) e a [jornada do usuário](diagramas/fluxo-usuario.svg), com as funções planejadas em caixas tracejadas.
+
+Os [controles da 0.25](#controles-da-versão-025) detalham pausa, afirmações manuais, evidências/cálculos, fila, uso de API, avaliação e backup/restauração.
 
 A 0.24 acrescenta a escolha **Whisper · NVIDIA (GPU)**, com aquecimento anterior à captura e comparação em processos separados. Consulte o [guia de desempenho](desempenho-transcricao.md) antes do ensaio: o ganho de capacidade não elimina a preparação, picos de atraso ou a conferência do texto. O relatório da interface identifica o processador e distingue inferência, pipeline e flush; sessões anteriores continuam com medidas ausentes identificadas.
 
@@ -245,3 +247,79 @@ Use esta ficha no próximo teste com vídeo, preenchendo apenas o que foi observ
 | Correções necessárias antes do próximo ensaio | A preencher |
 
 O encerramento do ensaio técnico não libera o piloto ao vivo. A qualidade editorial e as condições operacionais permanecem nos critérios do [checklist](checklist-desenvolvimento.md).
+
+## Controles da versão 0.25
+
+### Pausar sem perder a referência de tempo
+
+Durante a captura, **Pausar · ignorar áudio** deixa de guardar o som recebido e escreve silêncio no mesmo intervalo. O vídeo e o relógio da sessão continuam; esta ação não comanda YouTube, Globoplay ou outro player. **Retomar captura** volta a guardar o som. A mudança é aplicada aos próximos pacotes recebidos. Transcrições anteriores ainda podem terminar durante a pausa. Para interromper também o vídeo, use o próprio player e inicie outra sessão quando a referência temporal mudar.
+
+O início e o fim de cada lacuna ficam nos metadados e no log. Parágrafos que cruzem o intervalo recebem `audio_gaps`, inclusive depois de uma combinação, e exigem conferência humana do texto antes de triagem ou inclusão manual de afirmações. Ouça a fonte original se precisar recuperar o contexto: o WAV da sessão contém silêncio nesse intervalo. Encerrar ou cancelar durante a pausa fecha o intervalo e preserva os arquivos já salvos. A primeira marca é persistida durante a captura para diagnóstico após queda.
+
+### Incluir e dividir afirmações
+
+Em **Revisar falas**, selecione um parágrafo concluído e use **Incluir afirmação**. Preencha citação literal, resumo fiel, categoria, tema opcional e motivo. A origem fica identificada como inclusão do operador, sem tentativa de IA inventada. Esta ação não marca a transcrição como conferida nem decide o fato. A triagem automática desse parágrafo não substitui a inclusão; uma nova triagem pode ser solicitada explicitamente.
+
+Para separar uma declaração composta, selecione-a em **Afirmações para checagem → Dividir afirmação selecionada**. Informe de duas a doze partes e justifique. Cada citação deve pertencer à declaração original. A operação inteira é validada antes de salvar: se uma parte estiver inválida, nenhuma é criada. O caso anterior permanece histórico, ligado às partes; fontes, conclusões, prioridades e responsáveis não são transferidos. Confira e prepare cada novo caso. Edição ou cancelamento de tarefas antigas não reaplica resultados sobre as partes.
+
+### Registrar evidências, cálculos e contexto
+
+No dossiê, use **Registrar evidências e cálculos**:
+
+- **Citação:** escolha documento coletado e bloco/localizador, selecione um trecho literal e explique se sustenta, contradiz ou contextualiza a afirmação. O vínculo guarda a impressão digital do documento; uma nota ou resultado de busca livre não substitui uma cópia coletada.
+- **Cálculo:** informe fórmula, variáveis decimais, unidade, explicação e selecione as citações atuais que fornecem os dados. Aceita `+`, `-`, `*`, `/`, parênteses e nomes de variáveis; não executa código ou funções. Não use separadores de milhar. Vírgula ou ponto podem indicar a parte decimal. A divisão usa precisão decimal de 28 algarismos e o resultado fica salvo para reprodução.
+- **Contexto da fonte:** registre período dos dados, data conhecida de disponibilidade em AAAA-MM-DD e origem comum reproduzida por outros documentos. Deixe a data vazia se desconhecida. A anotação explicita a análise humana; o aplicativo não infere independência ou anterioridade só pela quantidade de URLs.
+
+Exemplo exclusivamente didático: com taxas fictícias `atual=3,5` e `anterior=2,5`, `atual-anterior` resulta em **1 ponto percentual**; `(atual/anterior-1)*100` resulta em **40% de variação relativa**. As duas contas respondem a perguntas diferentes. Dados reais precisam de fontes e bases comparáveis.
+
+Salvar ou retirar uma anotação invalida conclusões anteriores; retirar exige motivo e mantém o histórico. Mudanças da fala, plano, fonte ou citação usada deixam as notas dependentes a conferir. Uma conclusão confirmada/contradita exige resolver essas notas; inconclusiva permanece possível com justificativa. As anotações do operador não são enviadas automaticamente ao Gemini. O dossiê e as exportações distinguem notas humanas, análise preliminar e decisão factual.
+
+### Pesquisar uma fila delimitada
+
+Filtre os casos em **Afirmações para checagem** e abra **Pesquisar fila visível**. Confira a seleção; só entram afirmações factuais atuais, sem decisão humana, com plano pesquisável conferido pelo operador. O rascunho de IA precisa ser revisado e salvo como plano humano. A fila consulta a prioridade antes de cada caso, sem interromper uma coleta já iniciada.
+
+Os valores iniciais são dez casos, duas tentativas de coleta por caso, trinta tarefas e quinze minutos. Os máximos são vinte casos, seis tentativas por caso, cem tarefas e sessenta minutos. Uma tarefa é uma busca, coleta ou análise; falhas de coleta também consomem o limite por caso. Há no máximo um filho da fila em execução. A espera por encerramento de uma tarefa pode ultrapassar o prazo, pois o aplicativo confirma o cancelamento antes de liberar a atividade.
+
+Por padrão, a fila usa as URLs candidatas do plano. Buscar novas URLs na Tavily e pedir análise preliminar ao Gemini são escolhas separadas e explícitas; exigem suas chaves. Falha de busca/análise interrompe os próximos envios. Não há repetição automática após erro ou reinício. Alteração de origem/plano ou decisão humana retira o caso da fila. **Cancelar fila**, fechar sua janela ou fechar o aplicativo durante a execução exige confirmação e preserva resultados já salvos. O histórico inclui limites, tarefas, casos percorridos e interrupções. Nada é aprovado ou divulgado pela fila.
+
+### Acompanhar uso e limites
+
+Em **Operação e avaliação**, acompanhe a maior fila observada, atraso do último trecho e indicadores da sessão. Atraso de pelo menos dez segundos recebe aviso; é atraso do pacote, não latência medida por palavra. Falhas de captura e transcrição continuam visíveis na aba de captura e no relatório.
+
+**Limites e uso** configura o máximo de tentativas de API por sessão, de zero a dez mil; o padrão é cem. A reserva ocorre antes de iniciar o envio e é transacional, inclusive entre triagem e pesquisa. Zero bloqueia novas chamadas de triagem Gemini, descoberta Tavily e análise Gemini. Chamadas já iniciadas podem terminar; cancelamentos e respostas sem uso informado não devolvem tentativas. Aos 80% do limite há aviso no painel atualizado. O teste de conexão não pertence à sessão e não entra nesse contador. Processamento local e coleta de URL não consomem tentativas de API, mas mantêm seus limites próprios.
+
+Preço médio por milhão de tokens totais Gemini, preço por crédito Tavily, orçamento e moeda são referências opcionais informadas pelo operador. Campos vazios significam indisponível; zero declara explicitamente uma referência gratuita. A média de tokens não reproduz todas as faixas de cobrança do provedor. O saldo só aparece quando o uso e os preços necessários são conhecidos. O orçamento é um aviso estimado, não bloqueio monetário ou fatura. O contador de tentativas é o limite efetivamente aplicado. Confirme valores e cotas no projeto do provedor durante o ensaio real.
+
+O início da instrumentação fica registrado. Sessões anteriores não têm consumo retrospectivo presumido. Chaves permanecem na memória; históricos de fila, uso, dossiês e relatórios não as incluem. O JSON da sessão e o relatório incluem os agregados de uso; o relatório TXT explicita dados ausentes.
+
+### Avaliar usando referência humana
+
+Primeiro ouça e confira a transcrição em **Revisar falas**, marcando a conferência humana. Em **Operação e avaliação → Definir referência humana**, selecione a fala e registre citações factuais esperadas, uma por linha, anotador, condição cega declarada e partição. Uma lista vazia exige confirmar **Conferi esta fala e não há afirmações factuais esperadas**. O cadastro não aprova a veracidade dos fatos.
+
+Prepare **Desenvolvimento** e **Avaliação reservada** separadamente. O aplicativo bloqueia repetições literais normalizadas entre partições; equivalência semântica e repetições de uma mesma afirmação com outra redação exigem separação humana. Para uma anotação cega, desative previamente a triagem e não consulte sugestões da IA. A marca cega é uma declaração do anotador, não uma certificação automática.
+
+Escolha a partição e clique **Calcular avaliação**, após encerrar a captura. O cálculo mede erro de palavras (WER) do reconhecimento original contra o texto conferido e precisão/cobertura de citações por correspondência literal normalizada contra as **extrações originais da IA**. Inclusões manuais não são contadas como acertos automáticos. Sugestões descartadas permanecem no conjunto de previsões, podendo contar como falsos positivos. Falas ainda sem triagem concluída ficam no denominador informado de pendências, sem receber cobertura zero presumida.
+
+Os resultados valem somente para o subconjunto anotado. Não medem veracidade, equivalência semântica, acurácia dos participantes ou desempenho de toda a transmissão. Caixa e pontuação comum são normalizadas; sinais numéricos, percentuais, acentos e negações são preservados. WER pode exceder 100% quando há muitas inserções. Cada fala é limitada a quatro mil tokens de avaliação.
+
+Mudanças de texto, referência ou previsões deixam a avaliação histórica/desatualizada; uma edição durante o cálculo impede registrá-lo como atual. O relatório comum leva somente o resumo. **Exportar avaliação** inclui explicitamente referências e transcrições detalhadas; guarde esse arquivo como material privado. Não foram produzidas referências humanas fictícias para estimar a qualidade de casos políticos reais.
+
+### Cópia de segurança e restauração
+
+Encerre captura e tarefas. Em **Operação e avaliação → Criar cópia de segurança**, escolha um `.fcbak` fora da pasta da sessão. A cópia inclui áudio disponível, texto, log, banco SQLite e cópias recuperadas reconhecidas, com manifesto, tamanhos e SHA-256. Há limites de 24 arquivos e 12 GiB. A escrita é atômica; cancelamento ou falha preserva um arquivo anterior no destino.
+
+**Restaurar cópia** verifica manifesto, caminhos, tamanho, hashes e integridade do banco, criando outra pasta em `recordings/restored-...`. Não substitui uma sessão existente. Tarefas em andamento na cópia tornam-se interrompidas; nenhuma API ou captura é retomada. Confira áudio, uma revisão, uma fonte e a decisão após restaurar. Uma sessão duplicada conserva sua identidade histórica; o nome da pasta restaurada distingue a cópia de trabalho.
+
+O `.fcbak` é uma cópia da **sessão**: a coleção e os temas em `library`, modelos em `models`, exportações e a instalação não entram. Para um backup completo, feche o aplicativo e copie também `library`, os arquivos de exportação necessários e a versão do programa. Chaves digitadas não fazem parte dessas cópias. O arquivo não é criptografado pelo aplicativo; mantenha-o no local protegido escolhido pelo responsável.
+
+### Atualizar, voltar de versão e conservar material
+
+Antes de atualizar, encerre o programa, faça uma cópia da sessão, copie `library` e anote versão e identificação do código. Prepare a nova versão em pasta própria e instale as dependências fixadas; abra uma **cópia** de uma sessão, confira os itens acima e execute um ensaio curto. Só então use a nova pasta para o próximo evento. Preserve a instalação anterior até concluir essa conferência.
+
+Se precisar voltar, encerre a nova versão e use a instalação anterior com o backup anterior à atualização. Não abra o único banco já modificado por uma versão nova em código antigo: não há migração reversa automática. As tags do GitHub identificam as versões do programa; gravações, banco e modelos privados não estão no GitHub.
+
+O acesso local segue a conta e as permissões de arquivos do Windows. Nomes de responsável e revisor não autenticam pessoas. Não há exclusão automática: o responsável deve definir prazo de retenção por evento, manter a cópia necessária e só depois excluir manualmente as pastas escolhidas com o aplicativo fechado. Isso inclui `recordings`, `library`, exportações e backups externos. Este desenvolvimento não apaga gravações, conversas privadas, modelos ou cache existentes, nem define um prazo editorial/legal em nome do usuário.
+
+### O que depende do próximo ensaio humano
+
+Escolher vídeo e data, designar quem revisa, anotar material reservado, comparar esforço manual/assistido, testar as chaves reais e fixar limites de qualidade e atraso continuam pendentes. Os testes técnicos usam dados fictícios e chamadas simuladas. Separação de vozes durante a transmissão, correspondência semântica de repetições, OCR, outras fontes/provedores e serviço multiusuário pertencem à evolução; não são executados silenciosamente pela versão local.

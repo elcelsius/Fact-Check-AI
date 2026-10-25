@@ -1,6 +1,6 @@
 # Metodologia editorial proposta
 
-**Rascunho 0.1 · 24/10/2026 · aplicável ao MVP local 0.23.0**
+**Rascunho 0.2 · 25/10/2026 · aplicável ao MVP local 0.25.0**
 
 Este documento propõe um procedimento para ensaios com debates, propaganda política e noticiários. Sua adequação deve ser avaliada pelo responsável humano antes de uso editorial. Não registra aprovação editorial, referência anotada ou precisão medida. As instruções dos modelos continuam versionadas no código; este rascunho não acrescenta um campo automático de versão editorial às análises existentes.
 
@@ -29,5 +29,9 @@ Abra os documentos, confira autoria, data, escopo, localizador e trecho citado. 
 Uma alteração da fala, extração, plano ou evidência pode invalidar a decisão anterior. Confira as pendências e conclua outra revisão; o histórico não autoriza reaproveitar o veredito automaticamente. Ao exportar, mantenha os estados e as lacunas. Qualquer divulgação exige decisão humana fora do fluxo automático do aplicativo.
 
 ## Como avaliar o método
+
+A aba **Operação e avaliação** permite cadastrar texto conferido e citações esperadas, com anotador, condição cega declarada e partição de desenvolvimento ou avaliação. O cálculo de WER e precisão/cobertura por correspondência literal usa somente o subconjunto anotado; não avalia a verdade dos fatos nem supõe equivalência semântica. A referência, as previsões originais e os denominadores ficam preservados. Alterações tornam os resultados históricos; veja o [procedimento](operacao-e-recuperacao.md#avaliar-usando-referência-humana).
+
+Registre citações e cálculos no dossiê com suas fontes e unidades. Diferencie variação percentual de pontos percentuais e descreva a base de comparação. Registre origem comum e disponibilidade temporal dos documentos sem inferir independência pelo número de links. Uma inclusão ou divisão manual corrige a seleção de trabalho, sem transformar a correção em acerto da IA na avaliação.
 
 Use gravações variadas e referência anotada por pessoas. Registre erros de transcrição e atribuição, afirmações perdidas ou indevidamente selecionadas, evidências inadequadas e decisões que exigiram correção. Meça cobertura e precisão com denominadores explícitos e compare o tempo até um dossiê revisado com o procedimento manual. Inclua casos sem evidência suficiente e falas de diferentes participantes. Revisar este rascunho à luz desses resultados é uma tarefa editorial pendente.

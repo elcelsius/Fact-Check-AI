@@ -28,7 +28,8 @@ SUFFIXES = {"json": ".json", "paragraphs": ".csv", "claims": ".csv", "sources": 
 ENGINE_KEYS = ("name", "provider", "model", "revision", "quantization", "compute", "prompt_version", "seconds")
 CLAIM_KEYS = ("analysis_id", "paragraph_id", "revision", "speaker", "start", "end", "quote", "summary", "reason",
               "category", "topic", "location", "period", "indicator", "comparison", "context", "status",
-              "review_status", "created_at", "discard_reason", "validation_notes", "context_notes", "topic_annotation")
+              "review_status", "created_at", "discard_reason", "validation_notes", "context_notes", "topic_annotation",
+              "creation", "replaced_by", "split_reason")
 SOURCE_KEYS = ("url", "requested_url", "title", "institution", "author", "published_at", "accessed_at", "acquisition",
                "imported_at", "sha256", "text_sha256", "content_type", "extractor", "extractor_version", "truncated", "warnings")
 
@@ -76,6 +77,11 @@ def read_session(review, cancelled=None):
             "cases": "SELECT claim_id,revision,payload FROM cases ORDER BY claim_id",
             "evidence": "SELECT id,claim_id,payload FROM evidence ORDER BY id",
             "research_jobs": "SELECT status,payload FROM research_jobs ORDER BY rowid",
+            "research_batches": "SELECT id,status,payload FROM research_batches ORDER BY rowid",
+            "evaluation_references": "SELECT paragraph_id,revision,payload FROM evaluation_references ORDER BY paragraph_id",
+            "evaluation_runs": "SELECT id,payload FROM evaluation_runs ORDER BY rowid",
+            "operation_settings": "SELECT revision,payload FROM operation_settings WHERE id=1",
+            "api_requests": "SELECT id,provider,status,payload FROM api_requests ORDER BY rowid",
             "discoveries": "SELECT id,claim_id,payload FROM discoveries ORDER BY rowid",
             "claim_priorities": "SELECT claim_id,payload FROM claim_priorities ORDER BY claim_id",
             "claim_assignments": "SELECT claim_id,payload FROM claim_assignments ORDER BY claim_id",
@@ -152,13 +158,15 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
             selection["current"] = bool(valid and selection["basis"] == search_basis(claim, case.get("plan")))
         for batch in discoveries:
             batch["current"] = bool(valid and batch["basis"] == search_basis(claim, case.get("plan")))
+        from .evidence_notes import project_notes
+        work_notes = project_notes(claim, case.get("plan"), [json.loads(payload) for _, owner, payload in raw["evidence"] if owner == cid], case.get("work_notes", []))
         dossiers.append(_record(session_id, "dossier", cid,
             {"claim_id": cid, "revision": revision, "source_current": valid, "state": state,
              "preliminary_current": bool(valid and preliminary), "decision_current": bool(valid and decision),
              "preliminary": preliminary, "decision": decision, "discoveries": discoveries, "priority": priority, "assignment": assignment,
              "assignment_history": assignment_history.get(cid, []),
              "library_references": library_references,
-             "previous_checks": previous_checks,
+             "previous_checks": previous_checks, "work_notes": work_notes,
              "plan": _pick(case["plan"], (*PLAN_FIELDS, "origin", "updated_at", "claim_revision", "needs_review")) if case.get("plan") else None}))
         claims.append(_record(session_id, "claim", cid,
             {"claim_id": cid, **_pick(claim, CLAIM_KEYS), **times(claim), "source_current": valid,
@@ -190,6 +198,7 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
             "paragraph_id": pid, **_pick(source, ("revision", "text", "speaker", "start", "end", "closed",
             "human_reviewed", "needs_rebase", "source_version", "hidden_by", "retired", "recovery_closure")), **times(source),
             "active": active(source), "recognition_text": source["original"]["source_text"],
+            "audio_gaps": source["original"].get("audio_gaps", []),
             "source_paragraph_ids": source["original"].get("source_paragraph_ids", [pid]),
             "merged_from": source.get("merged_from", []),
             "triage": analyses.get((pid, source["revision"]), {"id": None, "status": "not_analyzed", "engine": {}}),
@@ -208,12 +217,16 @@ def build_snapshot(records, include_inactive=False, cancelled=None):
              "acquisition": document.get("acquisition", "unknown"),
              "url_access_confirmed": document.get("acquisition") == "remote_fetch" and bool(document.get("accessed_at")),
              "blocks": [_pick(block, ("id", "locator", "text")) for block in document.get("blocks", [])]}))
-    result = {"format": "factcheck-session", "schema_version": SCHEMA_VERSION, "app_version": __version__,
+    from .evaluation import quality_from_records
+    from .usage import usage_from_records
+    result = {"format": "factcheck-session", "schema_version": SCHEMA_VERSION, "app_version": __version__, "evaluation_summary": quality_from_records(records),
+              "usage_summary": usage_from_records(records),
               "intended_use": "internal_review",
               "scope": "including_inactive" if include_inactive else "current",
               "event": {"event_kind": "nao_informado", **_pick(json.loads(event_raw), ("event_id", "title", "event_date", "source_url", "participants", "event_kind"))},
               "session_id": session_id, "video_reference": {"revision": reference_revision, "offset_seconds": offset},
-              "paragraphs": main, "origin_paragraphs": origins, "claims": claims, "dossiers": dossiers, "sources": sources}
+              "paragraphs": main, "origin_paragraphs": origins, "claims": claims, "dossiers": dossiers, "sources": sources,
+              "research_batches": [{"id": bid, "status": state, **json.loads(payload)} for bid, state, payload in raw.get("research_batches", [])]}
     return {**result, "content_sha256": _digest(result), "exported_at": captured_at}
 
 
@@ -221,7 +234,7 @@ COMMON = ("formato_versao", "evento_id", "sessao_id", "exportado_em", "snapshot_
 COLUMNS = {
     "paragraphs": (*COMMON, "paragrafo_id", "revisao", "ativo", "concluido", "encerramento_recuperado_em", "motivo_encerramento_recuperado", "transcricao_conferida", "precisa_reconciliar",
                    "participante", "inicio_captura_s", "fim_captura_s", "inicio_video_s", "fim_video_s", "inicio_video", "fim_video",
-                   "referencia_revisao", "origens_ids", "componentes_ids", "substituido_por", "desfeito", "estado_triagem", "analise_id", "texto", "texto_reconhecido",
+                   "referencia_revisao", "origens_ids", "componentes_ids", "substituido_por", "desfeito", "estado_triagem", "analise_id", "texto", "texto_reconhecido", "lacunas_audio",
                    "falante_analise_id", "falante_voz_id", "falante_atribuido_em", "falante_motivo", "falante_atribuicao_atual"),
     "claims": (*COMMON, "afirmacao_id", "afirmacao_revisao", "extracao_revisada", "categoria_automatica", "citacao_automatica",
                "motivo_revisao_extracao", "revisao_extracao_em", "paragrafo_id", "revisao_fala", "origens_ids", "origem_atual", "estado_triagem", "categoria",
@@ -234,7 +247,8 @@ COLUMNS = {
                "prioridade", "prioridade_revisao", "prioridade_atual", "prioridade_precisa_conferencia", "prioridade_justificativa", "prioridade_em",
                "responsavel_caso", "atribuicao_revisao", "atribuicao_atual", "atribuicao_precisa_conferencia", "atribuicao_justificativa", "atribuicao_em",
                "tema_estado", "tema_termo_original", "tema_origem", "tema_id", "tema_revisao", "vocabulario_id", "vocabulario_revisao",
-               "falante_analise_id", "falante_voz_id", "falante_atribuido_em", "falante_motivo", "falante_atribuicao_atual"),
+               "falante_analise_id", "falante_voz_id", "falante_atribuido_em", "falante_motivo", "falante_atribuicao_atual",
+               "origem_extracao", "afirmacao_pai_id", "substituida_por", "anotacoes_operador"),
     "sources": (*COMMON, "fonte_id", "afirmacao_id", "origem_afirmacao_atual", "titulo", "instituicao", "autoria", "url", "publicado_em",
                 "acessado_em", "origem", "acesso_url_confirmado", "importado_em", "sha256", "texto_sha256", "leitura_limitada", "avisos", "localizadores"),
 }
@@ -277,7 +291,7 @@ def csv_rows(data, kind):
                           encerramento_recuperado_em=closure.get("at"), motivo_encerramento_recuperado=closure.get("reason"),
                           precisa_reconciliar=row["needs_rebase"], inicio_video_s=row["video_start"], fim_video_s=row["video_end"],
                           componentes_ids=row["merged_from"], substituido_por=row.get("hidden_by"), desfeito=row.get("retired", False),
-                          estado_triagem=row["triage"]["status"], analise_id=row["triage"]["id"], texto=row["text"], texto_reconhecido=row["recognition_text"])
+                          estado_triagem=row["triage"]["status"], analise_id=row["triage"]["id"], texto=row["text"], texto_reconhecido=row["recognition_text"], lacunas_audio=row.get("audio_gaps", []))
         elif kind == "claims":
             dossier = dossiers[row["claim_id"]]
             preliminary, decision = dossier["preliminary"] or {}, dossier["decision"] or {}
@@ -292,7 +306,8 @@ def csv_rows(data, kind):
                           prioridade_precisa_conferencia=priority["needs_review"], prioridade_justificativa=priority["reason"], prioridade_em=priority["updated_at"])
             record.update(afirmacao_id=row["claim_id"], revisao_fala=row["revision"], origem_atual=row["source_current"], estado_triagem=row["status"],
                           afirmacao_revisao=row.get("claim_revision", 1), extracao_revisada=bool(edited),
-                          categoria_automatica=extracted.get("category", row["category"]), citacao_automatica=extracted.get("quote", row["quote"]),
+                          categoria_automatica=extracted.get("category", row["category"]) if not row.get("creation") else None,
+                          citacao_automatica=extracted.get("quote", row["quote"]) if not row.get("creation") else None,
                           motivo_revisao_extracao=edited.get("reason"), revisao_extracao_em=edited.get("at"),
                           categoria=row["category"], citacao=row["quote"], resumo=row["summary"], motivo=row["reason"], tema=row.get("topic"),
                           local=row.get("location"), periodo=row.get("period"), indicador=row.get("indicator"), comparacao=row.get("comparison"),
@@ -303,6 +318,9 @@ def csv_rows(data, kind):
                           decisao_humana_classificacao=decision.get("verdict"), decisao_humana_responsavel=decision.get("reviewer"),
                           decisao_humana_justificativa=decision.get("reason"), decisao_humana_em=decision.get("at"), decisao_atual=dossier["decision_current"],
                           motivo_descarte=row.get("discard_reason"), fontes_urls=[doc["url"] for doc in documents], fonte_ids=[doc["document_id"] for doc in documents])
+            record.update(origem_extracao=(row.get("creation") or {}).get("origin", "ai"),
+                          afirmacao_pai_id=(row.get("creation") or {}).get("parent_claim_id"), substituida_por=row.get("replaced_by"),
+                          anotacoes_operador=dossier.get("work_notes", []))
             record.update(plano_pergunta=plan.get("question"), plano_situacao=plan.get("scope"), plano_periodo=plan.get("period"),
                           plano_territorio=plan.get("territory"), plano_indicador=plan.get("indicator"), plano_comparacao=plan.get("comparison"),
                           plano_observacoes=plan.get("notes"), plano_urls_candidatas=plan.get("candidate_urls", []), plano_origem=plan.get("origin"),

@@ -48,6 +48,7 @@ class CaptureSession:
         self.result_lock = threading.RLock()
         self.stop_event = threading.Event()
         self.cancel_event = threading.Event()
+        self.pause_event = threading.Event()
         self.stop_requested_at: float | None = None
         self.folder: Path | None = None
         self.metadata: dict = {}
@@ -62,6 +63,11 @@ class CaptureSession:
         with self.result_lock:
             self.cancel_event.set()
         self.stop()
+
+    def set_paused(self, paused):
+        if type(paused) is not bool or self.folder is None or self.stop_event.is_set() or self.metadata.get("status") != "recording":
+            raise ValueError("A pausa exige uma captura em andamento.")
+        self.pause_event.set() if paused else self.pause_event.clear()
 
     def run(self, seconds: float | None = None) -> bool:
         if seconds is not None and seconds <= 0:
@@ -124,7 +130,7 @@ class CaptureSession:
             "transcription_review_status": "automatico_nao_revisado",
             "paragraphing": {"algorithm": "regras_pt_v1", **asdict(self.paragraph_config)},
             "frames": 0, "transcript_lines": 0, "paragraph_count": 0,
-            "cancelled_chunks": 0, "issues": [],
+            "cancelled_chunks": 0, "issues": [], "pause_intervals": [],
         }
         metadata_path = self.folder / "session.json"
         atomic_json(metadata_path, self.metadata)
@@ -169,6 +175,10 @@ class CaptureSession:
             def save_paragraphs(updates: list[dict]) -> None:
                 nonlocal paragraph_tail, last_paragraph_id
                 for data in updates:
+                    gaps = [{"start": max(gap["start"], data["start"]), "end": min(gap["end"] if gap["end"] is not None else frames/self.device.sample_rate, data["end"]), "reason": "operator_pause"}
+                            for gap in self.metadata["pause_intervals"] if gap["start"] < data["end"] and (gap["end"] is None or gap["end"] > data["start"])]
+                    gaps = [gap for gap in gaps if gap["end"] > gap["start"]]
+                    if gaps: data = {**data, "audio_gaps": gaps}
                     paragraph_log.write(json.dumps(data, ensure_ascii=False) + "\n")
                     paragraph_log.flush()
                     if data["paragraph_id"] != last_paragraph_id:
@@ -284,7 +294,7 @@ class CaptureSession:
             def callback(data, frame_count, timing, flags):
                 try:
                     packets.put_nowait((data, timing.get("input_buffer_adc_time", 0),
-                                        flags, time.perf_counter()))
+                                        flags, time.perf_counter(), self.pause_event.is_set()))
                 except queue.Full:
                     overflow.set()
                     return None, pa.paAbort
@@ -298,8 +308,27 @@ class CaptureSession:
 
                     last_flush = time.perf_counter()
 
-                    def write_pcm(data: bytes) -> None:
+                    def write_pcm(data: bytes, paused=False) -> None:
                         nonlocal frames, last_meter, last_flush
+                        if not data: return
+                        pauses = self.metadata["pause_intervals"]
+                        edge = False
+                        if paused:
+                            data = bytes(len(data))
+                            if not pauses or pauses[-1]["end"] is not None:
+                                pauses.append({"start": frames/self.device.sample_rate, "end": None, "reason": "operator_pause"})
+                                edge = True
+                                issue("operator_pause", "Pausa solicitada: áudio ignorado e intervalo marcado. O vídeo continua no player.")
+                                event("capture_paused", {"start": pauses[-1]["start"]})
+                        elif pauses and pauses[-1]["end"] is None:
+                            pauses[-1]["end"] = frames/self.device.sample_rate
+                            edge = True
+                            event("capture_resumed", {"end": pauses[-1]["end"]})
+                        if edge:
+                            # Guardar a omissão antes do PCM: uma queda não deve
+                            # transformar a pausa em silêncio sem explicação.
+                            self.metadata.update(frames=frames, audio_omitted_by_operator=True)
+                            atomic_json(metadata_path, self.metadata)
                         # Atualizar o cabeçalho a cada pacote; disponibilizar os
                         # buffers ao sistema ao menos a cada segundo com amostras.
                         wav.writeframes(data)
@@ -317,15 +346,15 @@ class CaptureSession:
                                                "queued_chunks": jobs.qsize()})
                             last_meter = now
 
-                    def silence(frame_count: int) -> None:
+                    def silence(frame_count: int, paused=False) -> None:
                         while frame_count > 0:
                             count = min(frame_count, self.device.sample_rate)
-                            write_pcm(bytes(count * frame_bytes))
+                            write_pcm(bytes(count * frame_bytes), paused)
                             frame_count -= count
 
                     def consume(packet) -> None:
                         nonlocal adc_origin
-                        data, adc_time, flags, received = packet
+                        data, adc_time, flags, received, paused = packet
                         if flags & pa.paInputOverflow:
                             raise RuntimeError("O dispositivo perdeu amostras de áudio. A gravação foi interrompida.")
                         if flags:
@@ -341,10 +370,10 @@ class CaptureSession:
                                 event("audio_padding", {"start": frames / self.device.sample_rate,
                                                         "duration": gap / self.device.sample_rate,
                                                         "reason": "Intervalo sem amostras do dispositivo; preenchido com silêncio."})
-                                silence(gap)
+                                silence(gap, paused)
                             elif gap < -self.device.sample_rate * 0.25:
                                 raise RuntimeError("O relógio do dispositivo de áudio mudou. Inicie uma nova sessão.")
-                        write_pcm(data)
+                        write_pcm(data, paused)
 
                     with pa.PyAudio() as audio:
                         info = audio.get_device_info_by_index(self.device.index)
@@ -381,13 +410,16 @@ class CaptureSession:
                     elapsed = (self.stop_requested_at or time.perf_counter()) - capture_started
                     remaining = round(elapsed * self.device.sample_rate) - frames
                     if not self.replay_path and remaining > self.device.sample_rate * 0.10:
-                        silence(remaining)
+                        silence(remaining, self.pause_event.is_set())
             except KeyboardInterrupt:
                 self.stop()
             except Exception as exc:
                 capture_error = str(exc)
                 issue("capture_error", capture_error)
             finally:
+                if self.metadata["pause_intervals"] and self.metadata["pause_intervals"][-1]["end"] is None:
+                    self.metadata["pause_intervals"][-1]["end"] = frames/self.device.sample_rate
+                self.metadata["audio_omitted_by_operator"] = bool(self.metadata["pause_intervals"])
                 if capture_started is not None:
                     event("capture_finished", {"elapsed_seconds": round(time.perf_counter() - capture_started, 6),
                           "audio_seconds": frames / self.device.sample_rate, "capture_failed": capture_error is not None})

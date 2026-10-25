@@ -13,7 +13,7 @@ from .exports import _check, build_snapshot, read_session
 from .recovery import STATE_NAMES, capture_state, inspect_audio
 
 
-ISSUES = {"audio_padding", "transcription_error", "transcription_backlog", "capture_error", "metadata_error", "device_status"}
+ISSUES = {"audio_padding", "transcription_error", "transcription_backlog", "capture_error", "metadata_error", "device_status", "operator_pause"}
 STATES = ("running", "completed", "failed", "cancelled", "interrupted", "stale", "other")
 
 
@@ -140,6 +140,12 @@ def session_report(review, cancelled=None):
                        for row in events if row["kind"] == "warning")
     padding = sum(row["kind"] == "audio_padding" for row in events)
     audio = inspect_audio(review.folder)
+    pauses = metadata.get("pause_intervals", [])
+    pauses = pauses if isinstance(pauses, list) else []
+    pause_seconds = sum(max(0, (gap.get("end") if type(gap.get("end")) in (int, float) else audio.get("duration") or 0)-gap["start"])
+                        for gap in pauses if isinstance(gap, dict) and type(gap.get("start")) in (int, float))
+    if pauses:
+        notices.append("Há pausas solicitadas pelo operador: nesses intervalos o áudio foi ignorado e substituído por silêncio; o vídeo continuou.")
     if audio["state"] != "ok":
         notices.append(audio["message"])
     if first_partial["minimum"] is None:
@@ -154,6 +160,8 @@ def session_report(review, cancelled=None):
                           "input_kind": metadata.get("input_kind") if metadata.get("input_kind") in ("wav_replay","system_loopback") else "not_recorded",
                           "transcription_compute": metadata.get("compute") if metadata.get("compute") in ("cpu/int8","cuda/int8_float16") else "not_recorded",
                           "available_audio_seconds": audio.get("duration"),
+                          "operator_pause_count": len(pauses), "operator_pause_seconds": round(pause_seconds, 3),
+                          "audio_omitted_by_operator": bool(pauses),
                           "transcription_complete": metadata.get("transcription_complete") if type(metadata.get("transcription_complete")) is bool else None,
                           "time_anchor": {"at": start if isinstance(start, str) else None, "source": anchor}},
               "paragraphs": {"active": len(paragraphs), "closed": closed, "unclosed": len(paragraphs) - closed,
@@ -184,8 +192,7 @@ def session_report(review, cancelled=None):
                                  "first_current_human_decision_since_capture": since_capture["minimum"]},
               "history": {"attempts": attempts, "capture_warning_codes": dict(warnings), "silence_padding_events": padding,
                           "maximum_logged_asr_queue": statistics([row.get("queued_chunks") for row in chunks])["maximum"]},
-              "log": log, "quality": {"human_reference": "not_provided", "precision": None, "recall": None,
-                                        "transcript_word_error_rate": None},
+              "log": log, "quality": data["evaluation_summary"], "usage": data["usage_summary"],
               "limitations": ["Contagens e decisões descrevem registros salvos; não medem precisão ou cobertura das falas reais.",
                               "A proporção de decisões usa as extrações atuais classificadas como factuais, incluindo revisões do operador.",
                               "P95 é calculado por interpolação linear a partir de 20 observações válidas; valores ausentes ou negativos são excluídos.",
@@ -219,7 +226,8 @@ def render_report(report):
              f"Entrada: {dict(wav_replay='ensaio WAV silencioso',system_loopback='saída de áudio do sistema').get(report['capture'].get('input_kind'),'Não registrada')}",
              f"Processador da transcrição: {report['capture'].get('transcription_compute', 'Não registrado')}",
              f"Dados de áudio presentes: {number(report['capture']['available_audio_seconds'], ' s')}",
-             "Transcrição integralmente finalizada, conforme metadados: " +
+             f"Pausas de captura: {report['capture'].get('operator_pause_count', 0)} · áudio ignorado: {number(report['capture'].get('operator_pause_seconds'), ' s')}",
+             "Processamento do áudio salvo finalizado, conforme metadados: " +
              {True: "Sim", False: "Não", None: "Não registrado"}[report['capture']['transcription_complete']], "",
              f"Falas ativas: {paragraphs['active']} · conferidas por pessoa: {paragraphs['human_reviewed']}",
              f"Parágrafos sem encerramento: {paragraphs['unclosed']} · origem a reconciliar: {paragraphs['needs_reconciliation']}",
@@ -260,7 +268,16 @@ def render_report(report):
              f"Intervalos preenchidos com silêncio: {report['history']['silence_padding_events']}",
              "Maior fila de ASR registrada: " + (str(report['history']['maximum_logged_asr_queue']) if
                                                  report['history']['maximum_logged_asr_queue'] is not None else "Não registrado"), "",
-             "Precisão, cobertura das falas reais e erro de transcrição: NÃO AVALIADOS; referência humana pendente.", "",
+             (f"Tentativas de API registradas: {report['usage']['attempts']}/{report['usage']['max_api_calls']} · restantes: {report['usage']['remaining_calls']}"
+              if report.get("usage", {}).get("attempts") is not None else "Uso de APIs: não registrado nesta sessão antiga."),
+             (f"Custo estimado: {report['usage']['estimated_cost']} {report['usage']['currency']} · saldo estimado: {report['usage']['estimated_remaining_budget']}"
+              if report.get("usage", {}).get("estimated_cost") is not None else "Custo estimado: indisponível; não presumido como zero."),
+             report.get("usage", {}).get("limitations", ""), "",
+             ("Precisão literal, cobertura literal e erro de transcrição somente no subconjunto anotado: "
+              f"{report['quality']['precision']} / {report['quality']['recall']} / {report['quality']['transcript_word_error_rate']}. "
+              f"Partição: {report['quality'].get('reference_partition')}. Não mede veracidade dos fatos."
+              if report["quality"].get("human_reference") == "provided" else
+              "Precisão, cobertura das falas reais e erro de transcrição: NÃO AVALIADOS; referência humana pendente ou desatualizada."), "",
              *report["notices"], "", *report["limitations"], "", f"SHA256 do relatório: {report['content_sha256']}",
              f"SHA256 dos registros da sessão: {report['session_snapshot_sha256']}"]
     return "\n".join(lines) + "\n"

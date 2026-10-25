@@ -283,11 +283,17 @@ class TriageRunner:
                 return
             job_id, source, vocabulary = job
             began = time.perf_counter()
+            usage_store = None
+            engine = {}
             try:
                 if self.cancelled.is_set():
                     raise InterruptedError("Triagem cancelada.")
                 if self.blocked_reason:
                     raise ValueError(self.blocked_reason)
+                if self.config.provider == "gemini":
+                    from .usage import UsageStore
+                    usage_store = UsageStore(self.store)
+                    usage_store.reserve(job_id, "gemini", "triage")
                 if self.process is None:
                     self.process = self.context.Process(target=_model_worker,
                         args=(str(self.root), self.inputs, self.outputs, self.worker_cancelled, self.config), daemon=True)
@@ -320,8 +326,12 @@ class TriageRunner:
                                                               topic_vocabulary=vocabulary)
                     if not accepted:
                         self.emit("triage_notice", {"message": "A fala mudou durante a análise. Confira a revisão atual e analise novamente.", "token": self.token})
+                    if usage_store:
+                        usage_store.complete(job_id, "completed" if accepted else "stale", engine)
                     break
             except Exception as exc:
+                if usage_store:
+                    usage_store.complete(job_id, "cancelled" if self.cancelled.is_set() else "failed", engine)
                 self.store.fail_analysis(job_id, str(exc), self.cancelled.is_set())
                 self.emit("triage_notice", {"message": str(exc), "token": self.token})
                 if isinstance(exc, TimeoutError) and self.process:

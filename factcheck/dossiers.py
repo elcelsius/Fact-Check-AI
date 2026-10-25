@@ -57,9 +57,9 @@ class DossierStore:
         return 0, {"preliminary": None, "decision": None}
 
     def _save(self, db, cid, revision, case, kind):
-        if "plan" not in case:
-            _, previous = self._case(db, cid)
-            case = {**case, "plan": previous.get("plan")}
+        _, previous = self._case(db, cid)
+        case = {**previous, **case}
+        case.setdefault("plan", previous.get("plan"))
         db.execute("INSERT OR REPLACE INTO cases VALUES (?,?,?)", (cid, revision, json.dumps(case, ensure_ascii=False)))
         self.review._audit(db, kind, {"claim_id": cid, "case_revision": revision, **case})
 
@@ -88,11 +88,21 @@ class DossierStore:
                                db.execute("SELECT id,payload FROM previous_checks WHERE claim_id=? ORDER BY rowid", (cid,))]
             for selection in previous_checks:
                 selection["current"] = bool(valid and selection["basis"] == search_basis(claim, case.get("plan")))
+            from .evidence_notes import project_notes
+            case["work_notes"] = project_notes(claim, case.get("plan"), documents, case.get("work_notes", []))
             return {"claim": claim, "valid": valid, "revision": revision, "documents": documents,
                     "debate": debate, "video_reference": {"revision": ref_revision, "offset_seconds": offset},
                     "jobs": jobs, "queries": queries, "discoveries": discoveries, "plan": case.get("plan"), **case,
                     "priority": priority, "assignment": assignment, "assignment_history": read_assignment_history(db, cid),
                     "library_references": library_references, "previous_checks": previous_checks}
+
+    def save_note(self, cid, expected_revision, kind, fields):
+        from .evidence_notes import save_note
+        return save_note(self, cid, expected_revision, kind, fields)
+
+    def retire_note(self, cid, expected_revision, nid, reason):
+        from .evidence_notes import retire_note
+        return retire_note(self, cid, expected_revision, nid, reason)
 
     def record_previous_check(self, cid, expected_basis, origin, comparison, query=""):
         origin = previous_snapshot(origin)
@@ -161,7 +171,7 @@ class DossierStore:
             self._save(db, cid, revision + 1, case, "check_plan_changed")
             return True
 
-    def begin(self, cid, kind, query=None):
+    def begin(self, cid, kind, query=None, expected_revision=None):
         if kind not in {"collect", "import", "analyze", "discover"}:
             raise ValueError("Tarefa de pesquisa inválida.")
         if kind == "discover":
@@ -169,6 +179,8 @@ class DossierStore:
         with self.review.connection() as db:
             claim, _ = self._claim(db, cid, active=True)
             revision, case = self._case(db, cid)
+            if expected_revision is not None and revision != expected_revision:
+                raise ValueError("O dossiê mudou antes de iniciar a tarefa. Confira a versão atual.")
             if db.execute("SELECT 1 FROM research_jobs WHERE claim_id=? AND status='running'", (cid,)).fetchone():
                 raise ValueError("Já existe pesquisa em andamento para esta afirmação.")
             if kind == "analyze" and not db.execute("SELECT 1 FROM evidence WHERE claim_id=?", (cid,)).fetchone():
@@ -311,6 +323,11 @@ class DossierStore:
                 raise ValueError("Uma conclusão confirmada ou contradita precisa de fonte coletada.")
             if verdict != "inconclusiva" and claim["category"] != "fato":
                 raise ValueError("Conclusões factuais exigem uma declaração classificada como fato.")
+            if verdict != "inconclusiva":
+                from .evidence_notes import project_notes
+                docs = [json.loads(row[0]) for row in db.execute("SELECT payload FROM evidence WHERE claim_id=?", (cid,))]
+                if any(not note["current"] and not note.get("retired_at") for note in project_notes(claim, case.get("plan"), docs, case.get("work_notes", []))):
+                    raise ValueError("Há anotações desatualizadas. Confira e substitua ou retire essas anotações antes de concluir.")
             case["decision"] = {"verdict": verdict, "reviewer": reviewer.strip(), "reason": reason.strip(), "at": now()}
             self._save(db, cid, revision + 1, case, "human_decision")
 
@@ -332,6 +349,11 @@ def render(snapshot):
                if len(claim.get("source_paragraph_ids", [])) > 1 else []),
              "## Fala literal", "", claim["quote"], "", "## Contexto", "", claim["context"], ""]
     plan = snapshot.get("plan")
+    if claim.get("creation"):
+        creation = claim["creation"]
+        lines += ["Origem: inclusão manual." if creation["origin"] == "operator_input" else "Origem: divisão manual de uma afirmação.",
+                  f"Motivo: {creation['reason']} · {creation['at']}",
+                  f"Afirmação de origem: {creation.get('parent_claim_id') or 'Não se aplica'}", ""]
     if claim.get("extraction_review"):
         lines += ["Extração revisada pelo operador; isso não corresponde a decisão factual.",
                   f"Justificativa da revisão: {claim['extraction_review']['reason']}",
@@ -407,6 +429,18 @@ def render(snapshot):
             lines.extend(["Origem: conteúdo recuperado da URL.", ""])
         for block in doc["blocks"]:
             lines.extend([f"[{block['id']}] {block['locator']}", block["text"], ""])
+    lines.extend(["## Evidências e cálculos registrados pelo operador", "", "Anotações não equivalem à decisão factual.", ""])
+    for note in snapshot.get("work_notes", []):
+        lines += [f"{note['id']} · {note['kind']} · {'Atual' if note['current'] else 'Histórica / a conferir'} · {note['created_at']}"]
+        if note["kind"] == "citation":
+            lines += [f"{note['relation']} · fonte {note['document_id']} · {note['block_id']} · {note['locator']}", note["quote"]]
+        elif note["kind"] == "calculation":
+            lines += [note["formula"], json.dumps(note["variables"], ensure_ascii=False), f"Resultado aritmético: {note['result']} {note['unit']}",
+                      "Citações de apoio: " + ", ".join(note["note_ids"])]
+        else:
+            lines += [f"Fonte: {note['document_id']} · período: {note['period'] or 'A definir'}",
+                      f"Disponibilidade informada: {note['available_on'] or 'A definir'} · origem comum: {note['common_origin'] or 'Não conferida'}"]
+        lines += [note["explanation"], *(["Retirada: " + note["retire_reason"]] if note.get("retired_at") else []), ""]
     lines.extend(["## Análise preliminar da IA · não aprovada", ""])
     if preliminary:
         lines.extend([VERDICTS[preliminary["verdict"]], preliminary["summary"], preliminary["reason"], "",

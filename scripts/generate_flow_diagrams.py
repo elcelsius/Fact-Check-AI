@@ -77,7 +77,7 @@ class Diagram:
 
 
 def internal(path):
-    svg = Diagram(1600, 1550, "Fact-Check AI — funcionamento interno",
+    svg = Diagram(1600, 1840, "Fact-Check AI — funcionamento interno",
                   "Fluxo atual do áudio aos dossiês: captura, transcrição local, triagem, validação, fila, planejamento, fontes, análise opcional e decisão humana. Funções futuras aparecem em caixas tracejadas.")
     svg.header(f"FACT-CHECK AI / ARQUITETURA / REFERÊNCIA {__version__}", "Como o sistema processa uma fala",
                "Filas independentes, registros versionados e decisão factual sob responsabilidade humana.")
@@ -85,7 +85,7 @@ def internal(path):
     xs, width = [60, 450, 840, 1230], 310
     row1 = [
         ("Vídeo ou WAV salvo", ["Debate, propaganda, notícia", "Saída de áudio do Windows", "ou ensaio silencioso de WAV."], "gray", "ENTRADA"),
-        ("Entrada de áudio", ["WASAPI ou WAV · PCM16", "Fila de captura separada", "Áudio salvo em nova sessão."], "blue", "CAPTURA / ENSAIO"),
+        ("Entrada de áudio", ["WASAPI ou WAV · PCM16", "Pausa ignora áudio e marca lacuna", "Relógio da sessão é preservado."], "blue", "CAPTURA / ENSAIO"),
         ("Transcrição local", ["Contínuo: CPU e prévia", "Whisper: CPU ou NVIDIA", "Só trechos estáveis persistem."], "blue", "PROCESSO LOCAL"),
         ("Parágrafos", ["Pausas e continuidade", "Ligação aos trechos originais", "Tempos relativos à captura."], "teal", "ORGANIZAÇÃO")]
     for x, (title, lines, color, tag) in zip(xs, row1):
@@ -95,7 +95,7 @@ def internal(path):
     svg.text(60, 435, "Pacotes curtos alimentam o reconhecimento; tamanho do pacote não equivale à latência de uma palavra.", "small")
     svg.text(60, 492, "02 / EXTRAÇÃO, VALIDAÇÃO E REVISÃO", "section")
     row2 = [
-        ("Revisão do operador", ["Vozes locais após gravar", "Ouvir e atribuir participante", "Revisar texto e extração."], "amber", "AÇÃO HUMANA"),
+        ("Revisão do operador", ["Ouvir e conferir participantes", "Incluir ou dividir afirmações", "Corrigir fala e extração."], "amber", "AÇÃO HUMANA"),
         ("Fila de afirmações", ["Fatos, opiniões e promessas", "Prioridade, responsável e filtros", "Estados atuais e históricos."], "teal", "INTERFACE"),
         ("Validar extrações", ["Citação, números e negações", "Tema: correspondência textual", "Resposta inválida é rejeitada."], "teal", "CONTROLES"),
         ("Triagem de afirmações", ["Qwen local OU Gemini opcional", "Tarefa em processo separado", "Não decide a veracidade."], "purple", "IA / FILA DE TAREFAS")]
@@ -109,7 +109,7 @@ def internal(path):
     svg.text(450, 800, "03 / PESQUISA ASSISTIDA E DECISÃO", "section")
     row3 = [
         ("Planejar checagem", ["Pergunta, recortes e lacunas", "Rascunho de IA identificado", "URLs candidatas ≠ evidências."], "amber", "PERGUNTA E CONTEXTO"),
-        ("Descobrir e coletar", ["Coleção local ou Tavily opcional", "Coleta por URL ou PDF/HTML", "Candidatas ≠ evidências coletadas."], "teal", "BUSCA / COLETA / IMPORTAÇÃO"),
+        ("Descobrir e coletar", ["Coleção, Tavily ou URLs do plano", "Fila por prioridade e limites", "Candidatas ≠ evidências."], "teal", "BUSCA / COLETA / IMPORTAÇÃO"),
         ("Análise preliminar", ["Gemini opcional e explícito", "Somente evidências fornecidas", "Lacunas → resultado inconclusivo."], "purple", "IA / NÃO APROVADA"),
         ("Decisão humana", ["Conferir fontes e recortes", "Confirmada / contradita /", "inconclusiva + justificativa."], "amber", "REVISOR RESPONSÁVEL")]
     for x, (title, lines, color, tag) in zip(xs, row3):
@@ -124,18 +124,25 @@ def internal(path):
     svg.path("M 1385 1010 V 1112")
     svg.path("M 605 397 V 411 H 32 V 1199 H 60")
     svg.text(42, 1090, "WAV", "small")
-    svg.text(60, 1336, "REFERÊNCIAS ENTRE SESSÕES", "section")
-    svg.text(545, 1336, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS", "section")
-    svg.card(60, 1360, 450, 118, "Temas e referências locais", ["Vocabulário + fontes + checagens antigas.", "Versões preservadas nos casos e tarefas."], "teal")
-    svg.path("M 510 1419 H 525 V 1307 H 750 V 1080 H 605 V 1010")
-    svg.card(545, 1360, 450, 118, "Pesquisa e áudio ao vivo", ["Busca contínua e outros provedores.", "Separação de vozes durante a captura."], "gray", planned=True)
-    svg.card(1030, 1360, 510, 118, "Operação em equipe", ["Contas, permissões e sincronização.", "Distribuição entre operadores."], "gray", planned=True)
-    svg.text(60, 1520, "Setas: percurso principal possível. A coleta e a exportação não exigem aprovação factual; a divulgação depende da equipe editorial.", "small")
+    svg.text(60, 1336, "04 / CONTROLES DISPONÍVEIS NA OPERAÇÃO LOCAL", "section")
+    controls = [
+        ("Evidências do operador", ["Citações com localizador", "Cálculos ligados às fontes", "Contexto e origem comum."], "teal", "AUDITORIA DO DOSSIÊ"),
+        ("Limites e indicadores", ["Fila, atrasos e erros visíveis", "Uso e estimativas por sessão", "Limite antes de chamar APIs."], "blue", "OPERAÇÃO"),
+        ("Referência humana", ["Anotação por partição", "WER e correspondência literal", "Só o subconjunto anotado."], "amber", "AVALIAÇÃO / SEM VEREDITOS"),
+        ("Backup e restauração", [".fcbak com áudio e revisão", "Restaura em outra pasta", "Não retoma tarefas ou APIs."], "gray", "CONTINUIDADE")]
+    for x, (title, lines, color, tag) in zip(xs, controls):
+        svg.card(x, 1360, width, 187, title, lines, color, tag)
+    svg.text(60, 1594, "REFERÊNCIAS ENTRE SESSÕES", "section")
+    svg.text(545, 1594, "EVOLUÇÃO PLANEJADA / CAIXAS TRACEJADAS", "section")
+    svg.card(60, 1618, 450, 118, "Temas e referências locais", ["Vocabulário + fontes + checagens antigas.", "Versões preservadas nos casos e tarefas."], "teal")
+    svg.card(545, 1618, 450, 118, "Pesquisa e áudio ao vivo", ["Busca autônoma contínua e outros provedores.", "Separação de vozes durante a captura."], "gray", planned=True)
+    svg.card(1030, 1618, 510, 118, "Operação em equipe", ["Contas, permissões e sincronização.", "Distribuição entre operadores."], "gray", planned=True)
+    svg.text(60, 1799, "Setas: percurso principal possível. Coleta e exportação podem conter pendências; qualquer divulgação depende da equipe editorial.", "small")
     svg.save(path)
 
 
 def user(path):
-    svg = Diagram(1440, 1570, "Fact-Check AI — jornada do usuário",
+    svg = Diagram(1440, 1800, "Fact-Check AI — jornada do usuário",
                   "Jornada em quatro etapas: preparar e capturar, conferir e organizar, pesquisar evidências, decidir e exportar. Correções e encerramento têm proteção; funcionalidades futuras aparecem tracejadas.")
     svg.header(f"FACT-CHECK AI / JORNADA DO USUÁRIO / REFERÊNCIA {__version__}", "Da transmissão ao dossiê revisado",
                "Você acompanha e decide. A IA ajuda a localizar afirmações e organizar a pesquisa.")
@@ -154,12 +161,12 @@ def user(path):
         svg.lines(x+35, y+273, outcome, spacing=25)
         svg.parts.append('</g>')
 
-    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre tipo, data, participantes e temas.", "• Escolha saída de áudio ou ensaio com WAV.", "• Use IA local ou configure sua chave Gemini.", "• Inicie a entrada e informe a minutagem do vídeo."],
+    stage(60, 260, 1, "Preparar e capturar", ["• Cadastre transmissão e minutagem do vídeo.", "• Escolha saída ou WAV; configure IA opcional.", "• Inicie; acompanhe sinal, prévia e atraso.", "• Pausar ignora áudio; o vídeo continua."],
           ["O aplicativo grava áudio e mostra texto provisório.", "Parágrafos concluídos podem alimentar a triagem."], "blue")
-    stage(760, 260, 2, "Conferir e organizar", ["• Encerre e salve para ouvir os trechos gravados.", "• Analise vozes locais e confirme participantes.", "• Corrija fala, citação, resumo, categoria e tema.", "• Defina prioridade e responsável; use os filtros."],
+    stage(760, 260, 2, "Conferir e organizar", ["• Ouça e corrija falas; confira vozes e participantes.", "• Inclua afirmações não selecionadas pela IA.", "• Divida declarações compostas com justificativa.", "• Defina prioridade e responsável; use os filtros."],
           ["Fatos, opiniões e promessas têm estados próprios.", "A revisão da extração não aprova a afirmação."], "amber")
-    stage(760, 740, 3, "Pesquisar evidências", ["• Defina pergunta, recortes e lacunas no dossiê.", "• Consulte a coleção e checagens anteriores.", "• Use Tavily, colete URL ou importe PDF/HTML.", "• Opcional: peça análise preliminar ao Gemini."],
-          ["Compare recortes antes de usar antecedentes.", "URLs candidatas ficam separadas das evidências."], "purple")
+    stage(760, 740, 3, "Pesquisar evidências", ["• Confira plano, fontes e checagens anteriores.", "• Pesquise em fila com prioridade e limites.", "• Registre citações, cálculos e origem das fontes.", "• Opcional: Tavily e análise preliminar Gemini."],
+          ["Limites de API podem bloquear novos envios.", "Fontes coletadas ainda precisam de avaliação."], "purple")
     stage(60, 740, 4, "Decidir e exportar", ["• Leia as fontes e confronte dados e contexto.", "• Registre a decisão humana com justificativa:", "  confirmada, contradita ou inconclusiva.", "• Exporte o dossiê, os dados e o relatório do ensaio."],
           ["Arquivos podem conter pendências identificadas.", "A publicação permanece com a equipe editorial."], "teal")
     svg.path("M 680 430 H 760")
@@ -170,11 +177,13 @@ def user(path):
     svg.text(60, 1140, "AÇÕES DE APOIO DURANTE O TRABALHO", "section")
     svg.card(60, 1166, 410, 210, "Se houver uma correção", ["O histórico permanece disponível.", "Resultados anteriores são invalidados.", "O plano pode pedir nova conferência.", "Uma tarefa antiga não substitui a edição."], "amber", "REVISÕES PROTEGIDAS")
     svg.card(515, 1166, 410, 210, "Ao cancelar ou fechar", ["Uma atividade em andamento pede", "confirmação de cancelamento.", "Dados já salvos são preservados.", "Texto provisório pode ser perdido."], "blue", "ENCERRAMENTO E RECUPERAÇÃO")
-    svg.card(970, 1166, 410, 210, "Além do escopo local", ["Pesquisa contínua e outros provedores", "Separação de vozes durante a captura", "Contas e operação em equipe"], "gray", "EVOLUÇÃO PLANEJADA", planned=True)
-    svg.rect(60, 1420, 1320, 80, "#EAF1FF", "#CEDCF5", 12)
-    svg.lines(83, 1452, ["Para começar: faça um ensaio curto e confira um caso completo antes de acompanhar um evento ao vivo.",
+    svg.card(970, 1166, 410, 210, "Conservar a sessão", ["Crie uma cópia .fcbak após encerrar.", "Restaure em outra pasta e confira.", "Áudio, revisão e histórico são mantidos.", "Temas e coleção pedem cópia à parte."], "teal", "BACKUP / RESTAURAÇÃO")
+    svg.card(60, 1410, 620, 185, "Avaliar com referência humana", ["Anote texto e afirmações em uma partição reservada.", "Calcule WER e correspondência literal no subconjunto.", "As métricas não decidem veracidade ou liberam o piloto."], "amber", "OPERAÇÃO E AVALIAÇÃO")
+    svg.card(760, 1410, 620, 185, "Além do escopo local", ["Busca autônoma contínua e outros provedores.", "Vozes durante a captura, OCR e equivalência semântica.", "Contas e sincronização para operação em equipe."], "gray", "EVOLUÇÃO PLANEJADA", planned=True)
+    svg.rect(60, 1640, 1320, 80, "#EAF1FF", "#CEDCF5", 12)
+    svg.lines(83, 1672, ["Para começar: faça um ensaio curto e confira um caso completo antes de acompanhar um evento ao vivo.",
                        "A análise da IA é preliminar. A validação e qualquer divulgação continuam sob responsabilidade humana."], spacing=25)
-    svg.text(60, 1540, "Fluxo recomendado para revisão. Captura, triagem e pesquisa podem ocorrer em paralelo, respeitando os estados e as tarefas ativas.", "small")
+    svg.text(60, 1760, "Fluxo recomendado para revisão. Captura, triagem e pesquisa podem ocorrer em paralelo, respeitando os estados e as tarefas ativas.", "small")
     svg.save(path)
 
 

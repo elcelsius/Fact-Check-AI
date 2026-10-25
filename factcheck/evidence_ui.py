@@ -56,6 +56,9 @@ class EvidencePane:
             ttk.Button(row, text=label, command=command).pack(side="left", padx=(0, 6))
         self.progress = ttk.Label(self.tab, text="Nenhuma pesquisa em andamento.", wraplength=950)
         self.progress.pack(anchor="w", pady=4)
+        row = ttk.Frame(self.tab)
+        row.pack(fill="x", pady=4)
+        ttk.Button(row, text="Registrar evidências e cálculos", command=self.notes).pack(side="left")
         self.preview = ScrolledText(self.tab, wrap="word", height=13, font=("Segoe UI", 10))
         self.preview.pack(fill="both", expand=True, pady=6)
         self.preview.configure(state="disabled")
@@ -67,7 +70,11 @@ class EvidencePane:
         ttk.Label(row, text="Sem divulgação automática.").pack(side="right")
 
     def busy(self):
-        return bool(self.task and self.task.pending)
+        return bool(self.task and self.task.pending) or bool(self.work.batch and self.work.batch.pending)
+
+    def notes(self):
+        from .evidence_notes_ui import open_notes
+        open_notes(self)
 
     def load(self, review):
         self.store = DossierStore(review)
@@ -273,6 +280,10 @@ class EvidencePane:
             self.progress.configure(text=str(exc))
 
     def cancel(self):
+        if self.work.batch and self.work.batch.pending:
+            if messagebox.askyesno("Cancelar fila de pesquisa", "Cancelar a fila e preservar os resultados já salvos?", default=messagebox.NO, parent=self.root):
+                self.work.batch.cancel()
+            return
         if self.busy() and messagebox.askyesno("Cancelar pesquisa", "Cancelar a busca, coleta ou análise em andamento? Fontes e resultados já salvos serão preservados.", default=messagebox.NO, parent=self.root):
             self.task.cancel()
 

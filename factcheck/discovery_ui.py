@@ -85,7 +85,7 @@ class DiscoveryDialog:
             for key, (batch, item) in self.rows.items()})
         self.count.set(f"{len(self.rows)} candidatas exibidas · {len(batches)} buscas registradas. Nenhum resultado é coletado automaticamente.")
         self.status.set(str(self.pane.progress.cget("text")))
-        self.cancel_button.configure(state="normal" if self.pane.busy() and self.pane.task.kind == "discover" else "disabled")
+        self.cancel_button.configure(state="normal" if self.pane.task and self.pane.task.pending and self.pane.task.kind == "discover" else "disabled")
         self.show_selected()
 
     def selected(self, require_current=False):
@@ -140,7 +140,7 @@ class DiscoveryDialog:
 
     def close(self):
         task = self.pane.task
-        if self.pane.busy() and task.kind == "discover" and task.cid == self.cid:
+        if task and task.pending and task.kind == "discover" and task.cid == self.cid:
             if not messagebox.askyesno("Cancelar busca e fechar?", "A busca ainda está em andamento. Deseja cancelá-la e fechar? Resultados já salvos serão preservados.",
                                        default=messagebox.NO, parent=self.window):
                 return

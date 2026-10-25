@@ -129,7 +129,10 @@ def analyze(snapshot, config, cancelled):
             result["verdict"] = "inconclusiva"
             result["gaps"].append("Classificação rebaixada porque depende de uma cópia cuja origem online ainda não foi conferida.")
     result["selected_blocks"] = [{"document_id": b["document_id"], "block_id": b["id"]} for b in blocks]
-    return result, {**model.engine, "task": "evidence-analysis", "prompt_version": 3}
+    if any(not note["current"] and not note.get("retired_at") for note in snapshot.get("work_notes", [])):
+        result["verdict"] = "inconclusiva"
+        result["gaps"].append("Há anotações do operador desatualizadas; conferir antes de concluir.")
+    return result, {**model.engine, "task": "evidence-analysis", "prompt_version": 4}
 
 
 def _network_worker(kind, argument, snapshot, config, cancelled, outputs):
@@ -173,7 +176,7 @@ def _worker(argument, cancelled, outputs):
 
 
 class ResearchTask:
-    def __init__(self, store, cid, kind, argument, config, emit):
+    def __init__(self, store, cid, kind, argument, config, emit, expected_revision=None):
         if kind == "analyze" and config.provider != "gemini":
             raise ValueError("Selecione Gemini explicitamente em Configurar IA para enviar o material à análise automática.")
         if kind == "discover":
@@ -181,7 +184,7 @@ class ResearchTask:
             argument = validate_query(argument)
         self.store, self.cid, self.kind = store, cid, kind
         self.argument, self.config, self.emit = argument, config, emit
-        self.job_id = store.begin(cid, kind, query=argument) if kind == "discover" else store.begin(cid, kind)
+        self.job_id = store.begin(cid, kind, query=argument, expected_revision=expected_revision) if kind == "discover" else store.begin(cid, kind, expected_revision=expected_revision)
         self.snapshot = store.snapshot(cid)
         self.token = "research-" + self.job_id
         self.cancelled = threading.Event()
@@ -200,9 +203,15 @@ class ResearchTask:
         message = "Cópia importada. Confira a origem e a correspondência com a URL informada." if self.kind == "import" else "Pesquisa concluída. Confira o dossiê."
         if self.kind == "discover":
             message = "Busca concluída. As URLs candidatas precisam de coleta e conferência."
+        usage_store = None
+        engine = {}
         try:
             if self.cancelled.is_set():
                 raise InterruptedError("Pesquisa cancelada.")
+            if self.kind in {"discover", "analyze"}:
+                from .usage import UsageStore
+                usage_store = UsageStore(self.store.review)
+                usage_store.reserve(self.job_id, "tavily" if self.kind == "discover" else "gemini", self.kind)
             # I/O permanece no processo da aplicação; apenas a extração não confiável
             # de HTML/PDF usa processo auxiliar. O I/O nunca escreve no banco.
             outputs = queue.Queue()
@@ -238,12 +247,17 @@ class ResearchTask:
                 with self.lock:
                     if self.cancelled.is_set():
                         raise InterruptedError("Pesquisa cancelada.")
-                    if not self.store.finish(self.job_id, result, engine):
+                    accepted = self.store.finish(self.job_id, result, engine)
+                    if not accepted:
                         message = "A fala ou o dossiê mudou. O resultado antigo não foi aplicado."
+                    if usage_store:
+                        usage_store.complete(self.job_id, "completed" if accepted else "stale", engine)
                 break
         except Exception as exc:
             message = str(exc)
             requested_cancel = self.cancelled.is_set()
+            if usage_store:
+                usage_store.complete(self.job_id, "cancelled" if requested_cancel else "failed", engine)
             self.cancelled.set()
             self.store.fail(self.job_id, message, requested_cancel)
         finally:
