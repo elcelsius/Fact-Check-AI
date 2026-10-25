@@ -83,6 +83,8 @@ O ensaio de queda de processo foi repetido na 0.25: os 2,5 s de PCM disponíveis
 
 Os testes de APIs usam transporte simulado. As métricas de referência usam textos/anotadores fictícios e não estimam qualidade editorial real. O código mantém os resultados de desempenho da 0.24 como ensaios daquela versão; não foi presumido ganho de latência ou precisão por este fechamento.
 
+A [execução Windows da 0.25 no GitHub](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40156884167), em Windows 2022/Python 3.12 sobre o código `1efbdd3`, aprovou **587 testes em 624,023 s**, sintaxe, documentação, SVGs reproduzíveis e pacote. A última proteção do botão de pausa também passou em 32 testes locais de interface/captura. Os dados são fictícios e as APIs têm transporte simulado; nenhum veredito político real foi produzido.
+
 ## Validação histórica da primeira entrega 0.23
 
 - O ensaio da gravação portuguesa existente, com 20,011 s, gerou três segmentos estáveis e um parágrafo, sem APIs. A cópia WAV resultante foi idêntica ao original, que permaneceu intacto. Foram cerca de 44,2 s incluindo preparação e finalização; a primeira prévia chegou em cerca de 2,88 s após iniciar a entrada. A fila atingiu 50 pacotes, sem transbordar nesse trecho curto.

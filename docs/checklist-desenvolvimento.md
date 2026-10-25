@@ -84,6 +84,8 @@ O pedido de concluir o desenvolvimento foi aplicado ao escopo escolhido: aplicat
 
 As caixas numeradas abaixo pertencem ao plano amplo original. Uma caixa técnica marcada confirma a funcionalidade no escopo descrito, sem concluir uma fase editorial. Permanecem abertas as validações com pessoas, as chamadas reais com chaves, o evento futuro, metas de desempenho e decisões de orçamento/retenção. Há também evolução técnica além deste MVP: correspondência semântica/repetições, OCR e tabelas complexas, vozes ao vivo, outros provedores e serviço multiusuário. Nada disso foi declarado pronto por atualização de checklist.
 
+Validação final: [Windows do GitHub](https://github.com/elcelsius/Fact-Check-AI/actions/runs/40156884167), código `1efbdd3`, **587 testes aprovados**, além de sintaxe, documentos, SVGs e pacote. A execução local completa teve 586 testes; a última proteção de pausa foi verificada em 32 testes direcionados e está incluída na suíte remota. O ensaio de queda preservou 2,5 s de PCM e as revisões, sem reenvios automáticos.
+
 Prioridade após este fechamento: selecionar material representativo, anotar a partição reservada e usar **Operação e avaliação**, conferindo chaves e condições reais antes de liberar um piloto. Não é necessário implementar contas para testar o aplicativo local.
 
 ## Prioridades para a operação ao vivo
